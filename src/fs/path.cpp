@@ -183,6 +183,36 @@ void fs::concat_path(const fs::path *pth, const wchar_t *seg, fs::path *out)
     out->ptr->data.concat(seg);
 }
 
+void fs::canonical_path(const fs::path *pth, fs::path *out)
+{
+    out->ptr->data = std::filesystem::canonical(pth->ptr->data);
+}
+
+void fs::weakly_canonical_path(const fs::path *pth, fs::path *out)
+{
+    out->ptr->data = std::filesystem::weakly_canonical(pth->ptr->data);
+}
+
+void fs::absolute_path(const fs::path *pth, fs::path *out)
+{
+    out->ptr->data = std::filesystem::absolute(pth->ptr->data);
+}
+
+void fs::absolute_canonical_path(const fs::path *pth, fs::path *out)
+{
+    out->ptr->data = std::filesystem::absolute(std::filesystem::canonical(pth->ptr->data));
+}
+
+void fs::relative_path(const fs::path *from, const fs::path *to, fs::path *out)
+{
+    out->ptr->data = std::filesystem::relative(to->ptr->data, from->ptr->data);
+}
+
+void fs::proximate_path(const fs::path *from, const fs::path *to, fs::path *out)
+{
+    out->ptr->data = std::filesystem::proximate(to->ptr->data, from->ptr->data);
+}
+
 void fs::get_current_path(fs::path *out)
 {
     out->ptr->data = std::filesystem::current_path();
@@ -380,4 +410,9 @@ void fs::get_preference_path(fs::path *out, const char *app, const char *org)
         throw_error("could not get preference path");
 
     fs::set_path(out, retval);
+}
+
+void fs::get_temporary_path(fs::path *out)
+{
+    out->ptr->data = std::filesystem::temp_directory_path();
 }

@@ -213,6 +213,84 @@ define_test(concat_concats_to_path2)
 #endif
 }
 
+define_test(canonical_path_gets_the_canonical_path)
+{
+#if Linux
+    fs::path p("/etc/././passwd");
+    fs::path p2;
+
+    fs::canonical_path(&p, &p2);
+
+    assert_equal_str(p.c_str(), "/etc/././passwd");
+    assert_equal_str(p2.c_str(), "/etc/passwd");
+#else
+#error "add test"
+#endif
+}
+
+define_test(weakly_canonical_path_gets_the_weakly_canonical_path)
+{
+#if Linux
+    fs::path p("/etc/././passwd123");
+    fs::path p2;
+
+    fs::weakly_canonical_path(&p, &p2);
+
+    assert_equal_str(p.c_str(), "/etc/././passwd123");
+    assert_equal_str(p2.c_str(), "/etc/passwd123");
+#else
+#error "add test"
+#endif
+}
+
+define_test(absolute_path_gets_the_absolute_path)
+{
+#if Linux
+    fs::path p("abc.txt");
+    fs::path p2;
+
+    fs::absolute_path(&p, &p2);
+
+    fs::path cur;
+    fs::get_current_path(&cur);
+    fs::append_path(&cur, "abc.txt");
+
+    assert_equal(p2, cur);
+#else
+#error "add test"
+#endif
+}
+
+define_test(relative_gets_the_relative_path)
+{
+#if Linux
+    fs::path from("/etc/");
+    fs::path to("/etc/passwd");
+    fs::path rel;
+
+    fs::relative_path(&from, &to, &rel);
+
+    assert_equal_str(rel.c_str(), "passwd");
+#else
+#error "add test"
+#endif
+}
+
+define_test(relative_gets_the_relative_path2)
+{
+#if Linux
+    fs::path from("/a/b/c/");
+    fs::path to("/");
+    fs::path rel;
+
+    fs::relative_path(&from, &to, &rel);
+
+    assert_equal_str(rel.c_str(), "../../..");
+#else
+#error "add test"
+#endif
+}
+
 define_test(get_executable_path_gets_executable_path)
 {
     fs::path actual("/home/user/dev/git/fs/bin/tests/path_tests");

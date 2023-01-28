@@ -51,6 +51,13 @@ void concat_path(fs::path *out, const wchar_t *seg);
 void concat_path(const fs::path *pth, const char *seg, fs::path *out);
 void concat_path(const fs::path *pth, const wchar_t *seg, fs::path *out);
 
+void canonical_path(const fs::path *pth, fs::path *out);
+void weakly_canonical_path(const fs::path *pth, fs::path *out);
+void absolute_path(const fs::path *pth, fs::path *out);
+void absolute_canonical_path(const fs::path *pth, fs::path *out); // often used convenience
+void relative_path(const fs::path *from, const fs::path *to, fs::path *out);
+void proximate_path(const fs::path *from, const fs::path *to, fs::path *out);
+
 ////////////////////////
 // getting special paths
 ////////////////////////
@@ -64,4 +71,7 @@ void get_executable_path(fs::path *out);
 
 // AppData, .local/share, etc
 void get_preference_path(fs::path *out, const char *app = nullptr, const char *org = nullptr);
+
+// /tmp
+void get_temporary_path(fs::path *out);
 }
