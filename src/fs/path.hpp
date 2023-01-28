@@ -1,6 +1,8 @@
 
 #pragma once
 
+#include "shl/hash.hpp"
+
 namespace fs
 {
 struct path
@@ -24,6 +26,8 @@ struct path
 };
 
 bool operator==(const fs::path &lhs, const fs::path &rhs);
+
+hash_t hash(const fs::path *pth);
 
 void set_path(fs::path *pth, const char *new_path);
 void set_path(fs::path *pth, const wchar_t *new_path);

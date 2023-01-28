@@ -4,6 +4,8 @@
 #include "shl/number_types.hpp"
 #include "shl/enum_flag.hpp"
 
+namespace fs
+{
 enum class watcher_event_type : u8
 {
     None     = 0,
@@ -21,19 +23,19 @@ enum class watcher_event_type : u8
 
 ENUM_CLASS_FLAG_OPS(watcher_event_type);
 
-typedef void (*watcher_callback_f)(const char *path, watcher_event_type event);
+typedef void (*watcher_callback_f)(const char *path, fs::watcher_event_type event);
 
 struct filesystem_watcher;
 
-void create_filesystem_watcher(filesystem_watcher **out, watcher_callback_f callback);
+void create_filesystem_watcher(fs::filesystem_watcher **out, fs::watcher_callback_f callback);
 
-void watch_file(filesystem_watcher *watcher, const char *path);
-void unwatch_file(filesystem_watcher *watcher, const char *path);
+void watch_file(fs::filesystem_watcher *watcher, const char *path);
+void unwatch_file(fs::filesystem_watcher *watcher, const char *path);
 
 // TODO: watch directory
 
-void start_filesystem_watcher(filesystem_watcher *watcher);
-void stop_filesystem_watcher(filesystem_watcher *watcher);
+void start_filesystem_watcher(fs::filesystem_watcher *watcher);
+void stop_filesystem_watcher(fs::filesystem_watcher *watcher);
 
-void destroy_filesystem_watcher(filesystem_watcher *watcher);
-
+void destroy_filesystem_watcher(fs::filesystem_watcher *watcher);
+}

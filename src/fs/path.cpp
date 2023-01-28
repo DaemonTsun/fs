@@ -82,6 +82,12 @@ bool fs::operator==(const fs::path &lhs, const fs::path &rhs)
     return lhs.ptr->data == rhs.ptr->data;
 }
 
+hash_t fs::hash(const fs::path *pth)
+{
+    const char *cstr = pth->c_str();
+    return hash_data(cstr, strlen(cstr));
+}
+
 void fs::set_path(fs::path *pth, const char *new_path)
 {
     pth->ptr->data.assign(new_path);

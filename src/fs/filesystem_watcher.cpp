@@ -8,7 +8,6 @@
 #include <pthread.h>
 #include <assert.h>
 
-#include <filesystem>
 #include <unordered_map>
 
 #if Windows
@@ -18,12 +17,8 @@
 #include "shl/hash.hpp"
 #include "shl/error.hpp"
 
+#include "fs/path.hpp"
 #include "fs/filesystem_watcher.hpp"
-
-namespace fs = std::filesystem;
-
-#define absolute_canonical(X)\
-    fs::absolute(fs::canonical(X))
 
 namespace std
 {
@@ -32,8 +27,7 @@ namespace std
     {
         std::size_t operator()(const fs::path &k) const
         {
-            const char *cstr = k.c_str();
-            return hash_data(cstr, strlen(cstr));
+            return fs::hash(&k);
         }
     };
 }
@@ -57,7 +51,7 @@ struct watched_directory
     bool only_watch_files;
 };
 
-struct filesystem_watcher
+struct fs::filesystem_watcher
 {
     pthread_t thread;
     int       thread_id;
@@ -87,25 +81,25 @@ struct filesystem_watcher
 
 #define BUF_LEN (10 * (sizeof(inotify_event) + NAME_MAX + 1))
 
-watcher_event_type mask_to_event(u32 mask)
+fs::watcher_event_type mask_to_event(u32 mask)
 {
-    watcher_event_type ret = watcher_event_type::None;
+    fs::watcher_event_type ret = fs::watcher_event_type::None;
 
-    if (mask & IN_CREATE) set(ret, watcher_event_type::Created);
-    if (mask & IN_MODIFY) set(ret, watcher_event_type::Modified);
-    if (mask & (IN_DELETE | IN_DELETE_SELF)) set(ret, watcher_event_type::Removed);
+    if (mask & IN_CREATE) set(ret, fs::watcher_event_type::Created);
+    if (mask & IN_MODIFY) set(ret, fs::watcher_event_type::Modified);
+    if (mask & (IN_DELETE | IN_DELETE_SELF)) set(ret, fs::watcher_event_type::Removed);
     
     // not accurate, but as long as we're not emitting move events, this works
-    if (mask & IN_MOVED_TO) set(ret, watcher_event_type::Created);
-    if (mask & IN_MOVED_FROM) set(ret, watcher_event_type::Removed);
+    if (mask & IN_MOVED_TO) set(ret, fs::watcher_event_type::Created);
+    if (mask & IN_MOVED_FROM) set(ret, fs::watcher_event_type::Removed);
     
     return ret;
 }
 
 // _process_event and _watcher_process run in another thread
-void _process_event(filesystem_watcher *watcher, inotify_event *event)
+void _process_event(fs::filesystem_watcher *watcher, inotify_event *event)
 {
-    watcher_event_type type = watcher_event_type::None;
+    fs::watcher_event_type type = fs::watcher_event_type::None;
     const char *path = nullptr;
 
     // TODO: remove
@@ -144,7 +138,8 @@ void _process_event(filesystem_watcher *watcher, inotify_event *event)
                     // we only care for modified files
                     continue;
 
-                fs::path fpath = dir->path / event->name;
+                fs::path fpath;
+                fs::append_path(&dir->path, event->name, &fpath);
 
                 auto it2 = dir->watched_files.find(fpath);
                 
@@ -173,14 +168,14 @@ void _process_event(filesystem_watcher *watcher, inotify_event *event)
             if (file == nullptr)
                 continue;
 
-            watcher_event_type type = mask_to_event(event->mask);
+            fs::watcher_event_type type = mask_to_event(event->mask);
             path = file->path.c_str();
             break;
         }
     }
 
 
-    if (type == watcher_event_type::None || path == nullptr)
+    if (type == fs::watcher_event_type::None || path == nullptr)
         return;
 
     watcher->callback(path, type);
@@ -188,7 +183,7 @@ void _process_event(filesystem_watcher *watcher, inotify_event *event)
 
 void *_watcher_process(void *threadarg)
 {
-    filesystem_watcher *watcher = reinterpret_cast<filesystem_watcher*>(threadarg);
+    fs::filesystem_watcher *watcher = reinterpret_cast<fs::filesystem_watcher*>(threadarg);
     u8 buffer[BUF_LEN];
     s64 length;
 
@@ -241,12 +236,12 @@ void *_watcher_process(void *threadarg)
     #error "Unsupported"
 #endif
 
-void create_filesystem_watcher(filesystem_watcher **out, watcher_callback_f callback)
+void fs::create_filesystem_watcher(fs::filesystem_watcher **out, fs::watcher_callback_f callback)
 {
     assert(out != nullptr);
     assert(callback != nullptr);
 
-    filesystem_watcher *watcher = new filesystem_watcher;
+    fs::filesystem_watcher *watcher = new fs::filesystem_watcher;
 
     watcher->thread_id = -1;
     watcher->running = false;
@@ -265,20 +260,23 @@ void create_filesystem_watcher(filesystem_watcher **out, watcher_callback_f call
     *out = watcher;
 }
 
-void watch_file(filesystem_watcher *watcher, const char *path)
+void fs::watch_file(fs::filesystem_watcher *watcher, const char *path)
 {
     // TODO: event filter
     assert(watcher != nullptr);
     assert(path != nullptr);
 
 #if Linux
-    fs::path fpath = path;
+    fs::path fpath(path);
 
-    if (!fs::is_regular_file(fpath))
+    if (!fs::is_file(&fpath))
         throw_error("could not watch file because path is not a file: '%s'", path);
 
-    fpath = absolute_canonical(fpath);
-    fs::path parent_path = absolute_canonical(fpath.parent_path());
+    fs::absolute_canonical_path(&fpath, &fpath);
+
+    fs::path parent_path;
+    fs::parent_path(&fpath, &parent_path);
+    fs::absolute_canonical_path(&parent_path, &parent_path);
     
     auto it = watcher->watched_directories.find(parent_path);
     watched_directory *watched_parent = nullptr;
@@ -314,14 +312,18 @@ void watch_file(filesystem_watcher *watcher, const char *path)
 #endif
 }
 
-void unwatch_file(filesystem_watcher *watcher, const char *path)
+void fs::unwatch_file(fs::filesystem_watcher *watcher, const char *path)
 {
     assert(watcher != nullptr);
     assert(path != nullptr);
 
 #if Linux
-    fs::path fpath = absolute_canonical(path);
-    fs::path parent_path = absolute_canonical(fpath.parent_path());
+    fs::path fpath(path);
+    fs::absolute_canonical_path(&fpath, &fpath);
+
+    fs::path parent_path;
+    fs::parent_path(&fpath, &parent_path);
+    fs::absolute_canonical_path(&parent_path, &parent_path);
 
     auto it = watcher->watched_directories.find(parent_path);
 
@@ -351,7 +353,7 @@ void unwatch_file(filesystem_watcher *watcher, const char *path)
 #endif
 }
 
-void start_filesystem_watcher(filesystem_watcher *watcher)
+void fs::start_filesystem_watcher(fs::filesystem_watcher *watcher)
 {
     assert(watcher != nullptr);
 
@@ -370,7 +372,7 @@ void start_filesystem_watcher(filesystem_watcher *watcher)
     watcher->running = true;
 }
 
-void stop_filesystem_watcher(filesystem_watcher *watcher)
+void fs::stop_filesystem_watcher(fs::filesystem_watcher *watcher)
 {
     assert(watcher != nullptr);
 
@@ -382,7 +384,7 @@ void stop_filesystem_watcher(filesystem_watcher *watcher)
     pthread_join(watcher->thread, &ret);
 }
 
-void destroy_filesystem_watcher(filesystem_watcher *watcher)
+void fs::destroy_filesystem_watcher(fs::filesystem_watcher *watcher)
 {
     assert(watcher != nullptr);
 
