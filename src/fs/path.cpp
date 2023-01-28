@@ -92,15 +92,40 @@ void fs::set_path(fs::path *pth, const wchar_t *new_path)
     pth->ptr->data.assign(new_path);
 }
 
-const char *fs::filename(fs::path *pth)
+bool fs::exists(const fs::path *pth)
+{
+    return std::filesystem::exists(pth->ptr->data);
+}
+
+bool fs::is_file(const fs::path *pth)
+{
+    return std::filesystem::is_regular_file(pth->ptr->data);
+}
+
+bool fs::is_directory(const fs::path *pth)
+{
+    return std::filesystem::is_directory(pth->ptr->data);
+}
+
+bool fs::is_absolute(const fs::path *pth)
+{
+    return pth->ptr->data.is_absolute();
+}
+
+bool fs::is_relative(const fs::path *pth)
+{
+    return pth->ptr->data.is_relative();
+}
+
+const char *fs::filename(const fs::path *pth)
 {
     const char *cstr = pth->c_str();
     const char *ret;
 
 #if Windows
-    ret = strrchr(ret, '\\');
+    ret = strrchr(cstr, '\\');
 #else
-    ret = strrchr(ret, '/');
+    ret = strrchr(cstr, '/');
 #endif
 
     if (ret == nullptr)
@@ -109,6 +134,63 @@ const char *fs::filename(fs::path *pth)
         ret++;
 
     return ret;
+}
+
+void fs::parent_path(const fs::path *pth, fs::path *out)
+{
+    out->ptr->data = pth->ptr->data.parent_path();
+}
+
+void fs::append_path(fs::path *out, const char *seg)
+{
+    out->ptr->data.append(seg);
+}
+
+void fs::append_path(fs::path *out, const wchar_t *seg)
+{
+    out->ptr->data.append(seg);
+}
+
+void fs::append_path(const fs::path *pth, const char *seg, fs::path *out)
+{
+    out->ptr->data = pth->ptr->data / seg;
+}
+
+void fs::append_path(const fs::path *pth, const wchar_t *seg, fs::path *out)
+{
+    out->ptr->data = pth->ptr->data / seg;
+}
+
+void fs::concat_path(fs::path *out, const char *seg)
+{
+    out->ptr->data.concat(seg);
+}
+
+void fs::concat_path(fs::path *out, const wchar_t *seg)
+{
+    out->ptr->data.concat(seg);
+}
+
+void fs::concat_path(const fs::path *pth, const char *seg, fs::path *out)
+{
+    out->ptr->data = pth->ptr->data;
+    out->ptr->data.concat(seg);
+}
+
+void fs::concat_path(const fs::path *pth, const wchar_t *seg, fs::path *out)
+{
+    out->ptr->data = pth->ptr->data;
+    out->ptr->data.concat(seg);
+}
+
+void fs::get_current_path(fs::path *out)
+{
+    out->ptr->data = std::filesystem::current_path();
+}
+
+void fs::set_current_path(const fs::path *pth)
+{
+    std::filesystem::current_path(pth->ptr->data);
 }
 
 void fs::get_executable_path(fs::path *out)
