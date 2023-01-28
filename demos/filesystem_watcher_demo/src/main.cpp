@@ -1,9 +1,9 @@
 
 #include <stdio.h>
 #include "shl/error.hpp"
-#include "shl/filesystem_watcher.hpp"
+#include "fs/filesystem_watcher.hpp"
 
-void callback(const char *path, watcher_event_type event)
+void callback(const char *path, fs::watcher_event_type event)
 {
     printf("%d %s\n", value(event), path);
 }
@@ -11,13 +11,13 @@ void callback(const char *path, watcher_event_type event)
 int main(int argc, char **argv)
 try
 {
-    filesystem_watcher *watcher;
-    create_filesystem_watcher(&watcher, callback);
+    fs::filesystem_watcher *watcher;
+    fs::create_filesystem_watcher(&watcher, callback);
 
     for (int i = 1; i < argc; ++i)
-        watch_file(watcher, argv[i]);
+        fs::watch_file(watcher, argv[i]);
 
-    start_filesystem_watcher(watcher);
+    fs::start_filesystem_watcher(watcher);
 
     char c = '\0';
 
@@ -31,14 +31,14 @@ try
         // (un)watching the same file(s) multiple times does nothing
         if (c == 'w')
             for (int i = 1; i < argc; ++i)
-                watch_file(watcher, argv[i]);
+                fs::watch_file(watcher, argv[i]);
 
         if (c == 'u')
             for (int i = 1; i < argc; ++i)
-                unwatch_file(watcher, argv[i]);
+                fs::unwatch_file(watcher, argv[i]);
     }
 
-    destroy_filesystem_watcher(watcher);
+    fs::destroy_filesystem_watcher(watcher);
 
     return 0;
 }
