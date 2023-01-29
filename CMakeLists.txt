@@ -1,4 +1,8 @@
 cmake_minimum_required(VERSION 3.10)
+if(TARGET fs)
+    return()
+endif()
+
 add_compile_options (-fdiagnostics-color=always)
 
 #settings
