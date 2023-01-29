@@ -251,9 +251,9 @@ bool fs::create_directories(const fs::path *pth)
     return std::filesystem::create_directories(pth->ptr->data);
 }
 
-void fs::create_hard_symlink(const fs::path *target, const fs::path *link)
+void fs::create_hard_link(const fs::path *target, const fs::path *link)
 {
-    std::filesystem::create_hard_symlink(target->ptr->data, link->ptr->data);
+    std::filesystem::create_hard_link(target->ptr->data, link->ptr->data);
 }
 
 void fs::create_file_symlink(const fs::path *target, const fs::path *link)
@@ -271,14 +271,14 @@ void fs::move(const fs::path *from, const fs::path *to)
     std::filesystem::rename(from->ptr->data, to->ptr->data);
 }
 
-void fs::remove(const fs::path *pth)
+bool fs::remove(const fs::path *pth)
 {
-    std::filesystem::remove(pth->ptr->data);
+    return std::filesystem::remove(pth->ptr->data);
 }
 
-void fs::remove_all(const fs::path *pth)
+bool fs::remove_all(const fs::path *pth)
 {
-    std::filesystem::remove_all(pth->ptr->data);
+    return std::filesystem::remove_all(pth->ptr->data);
 }
 
 void fs::get_current_path(fs::path *out)

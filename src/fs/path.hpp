@@ -67,7 +67,7 @@ void proximate_path(const fs::path *from, const fs::path *to, fs::path *out);
 void copy(const fs::path *from, const fs::path *to);
 bool create_directory(const fs::path *pth);
 bool create_directories(const fs::path *pth);
-void create_hard_symlink(const fs::path *target, const fs::path *link);
+void create_hard_link(const fs::path *target, const fs::path *link);
 void create_file_symlink(const fs::path *target, const fs::path *link);
 void create_directory_symlink(const fs::path *target, const fs::path *link);
 void move(const fs::path *from, const fs::path *to);
