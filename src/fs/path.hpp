@@ -37,8 +37,10 @@ bool is_file(const fs::path *pth);
 bool is_directory(const fs::path *pth);
 bool is_absolute(const fs::path *pth);
 bool is_relative(const fs::path *pth);
+bool are_equivalent(const fs::path *pth1, const fs::path *pth2);
 
 const char *filename(const fs::path *pth);
+const char *extension(const fs::path *pth);
 void parent_path(const fs::path *pth, fs::path *out);
 
 // out = pth / seg
@@ -61,6 +63,16 @@ void absolute_path(const fs::path *pth, fs::path *out);
 void absolute_canonical_path(const fs::path *pth, fs::path *out); // often used convenience
 void relative_path(const fs::path *from, const fs::path *to, fs::path *out);
 void proximate_path(const fs::path *from, const fs::path *to, fs::path *out);
+
+void copy(const fs::path *from, const fs::path *to);
+bool create_directory(const fs::path *pth);
+bool create_directories(const fs::path *pth);
+void create_hard_symlink(const fs::path *target, const fs::path *link);
+void create_file_symlink(const fs::path *target, const fs::path *link);
+void create_directory_symlink(const fs::path *target, const fs::path *link);
+void move(const fs::path *from, const fs::path *to);
+bool remove(const fs::path *pth);
+bool remove_all(const fs::path *pth);
 
 ////////////////////////
 // getting special paths

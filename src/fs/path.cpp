@@ -123,6 +123,11 @@ bool fs::is_relative(const fs::path *pth)
     return pth->ptr->data.is_relative();
 }
 
+bool fs::are_equivalent(const fs::path *pth1, const fs::path *pth2)
+{
+    return std::filesystem::equivalent(pth1->ptr->data, pth2->ptr->data);
+}
+
 const char *fs::filename(const fs::path *pth)
 {
     const char *cstr = pth->c_str();
@@ -138,6 +143,18 @@ const char *fs::filename(const fs::path *pth)
         ret = cstr;
     else
         ret++;
+
+    return ret;
+}
+
+const char *fs::extension(const fs::path *pth)
+{
+    const char *ret = pth->c_str();
+
+    ret = strrchr(ret, '.');
+
+    if (ret == nullptr)
+        ret = "";
 
     return ret;
 }
@@ -217,6 +234,51 @@ void fs::relative_path(const fs::path *from, const fs::path *to, fs::path *out)
 void fs::proximate_path(const fs::path *from, const fs::path *to, fs::path *out)
 {
     out->ptr->data = std::filesystem::proximate(to->ptr->data, from->ptr->data);
+}
+
+void fs::copy(const fs::path *from, const fs::path *to)
+{
+    std::filesystem::copy(from->ptr->data, to->ptr->data);
+}
+
+bool fs::create_directory(const fs::path *pth)
+{
+    return std::filesystem::create_directory(pth->ptr->data);
+}
+
+bool fs::create_directories(const fs::path *pth)
+{
+    return std::filesystem::create_directories(pth->ptr->data);
+}
+
+void fs::create_hard_symlink(const fs::path *target, const fs::path *link)
+{
+    std::filesystem::create_hard_symlink(target->ptr->data, link->ptr->data);
+}
+
+void fs::create_file_symlink(const fs::path *target, const fs::path *link)
+{
+    std::filesystem::create_symlink(target->ptr->data, link->ptr->data);
+}
+
+void fs::create_directory_symlink(const fs::path *target, const fs::path *link)
+{
+    std::filesystem::create_directory_symlink(target->ptr->data, link->ptr->data);
+}
+
+void fs::move(const fs::path *from, const fs::path *to)
+{
+    std::filesystem::rename(from->ptr->data, to->ptr->data);
+}
+
+void fs::remove(const fs::path *pth)
+{
+    std::filesystem::remove(pth->ptr->data);
+}
+
+void fs::remove_all(const fs::path *pth)
+{
+    std::filesystem::remove_all(pth->ptr->data);
 }
 
 void fs::get_current_path(fs::path *out)
