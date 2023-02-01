@@ -1,5 +1,4 @@
 cmake_minimum_required(VERSION 3.10)
-find_package(better REQUIRED)
 
 set(DEMO_DIR "${CMAKE_CURRENT_SOURCE_DIR}")
 set(DEMO_BIN "${CMAKE_CURRENT_BINARY_DIR}")

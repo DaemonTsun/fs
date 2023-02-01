@@ -1,6 +1,5 @@
 
 // v1.0
-#include <filesystem>
 
 #if Windows
 #include <windows.h>
@@ -15,12 +14,7 @@
 #include "shl/platform.hpp"
 #include "shl/error.hpp"
 
-#include "fs/path.hpp"
-
-struct fs::path::_path
-{
-    std::filesystem::path data;
-};
+#include "fs/impl/path.hpp"
 
 fs::path::path()
 {
@@ -52,6 +46,8 @@ fs::path::~path()
 {
     if (this->ptr != nullptr)
         delete this->ptr;
+
+    this->ptr = nullptr;
 }
 
 fs::path &fs::path::operator=(const fs::path &other)

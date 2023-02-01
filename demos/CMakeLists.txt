@@ -1,2 +1,3 @@
 
 add_subdirectory(filesystem_watcher_demo)
+add_subdirectory(iterator_demo)
