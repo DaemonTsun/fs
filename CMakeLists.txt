@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.10)
 find_package(better REQUIRED NO_DEFAULT_PATH PATHS ext/better-cmake/cmake)
 
-project(fs VERSION 0.5)
+project(fs VERSION 0.5.1)
 get_version_target(fs_TARGET ${PROJECT_NAME})
 
 if(TARGET ${fs_TARGET})

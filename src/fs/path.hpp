@@ -41,6 +41,7 @@ bool are_equivalent(const fs::path *pth1, const fs::path *pth2);
 
 const char *filename(const fs::path *pth);
 const char *extension(const fs::path *pth);
+void parent_path(fs::path *out);
 void parent_path(const fs::path *pth, fs::path *out);
 
 // out = pth / seg
@@ -57,15 +58,23 @@ void concat_path(fs::path *out, const wchar_t *seg);
 void concat_path(const fs::path *pth, const char *seg, fs::path *out);
 void concat_path(const fs::path *pth, const wchar_t *seg, fs::path *out);
 
+void canonical_path(fs::path *out);
 void canonical_path(const fs::path *pth, fs::path *out);
+void weakly_canonical_path(fs::path *out);
 void weakly_canonical_path(const fs::path *pth, fs::path *out);
+void absolute_path(fs::path *out);
 void absolute_path(const fs::path *pth, fs::path *out);
-void absolute_canonical_path(const fs::path *pth, fs::path *out); // often used convenience
+// often used convenience
+void absolute_canonical_path(fs::path *out);
+void absolute_canonical_path(const fs::path *pth, fs::path *out);
 void relative_path(const fs::path *from, const fs::path *to, fs::path *out);
 void proximate_path(const fs::path *from, const fs::path *to, fs::path *out);
 
+// copies what the first path is pointing to to the location of the second path
 void copy(const fs::path *from, const fs::path *to);
+// does not create parents
 bool create_directory(const fs::path *pth);
+// creates parents as well
 bool create_directories(const fs::path *pth);
 void create_hard_link(const fs::path *target, const fs::path *link);
 void create_file_symlink(const fs::path *target, const fs::path *link);
@@ -84,6 +93,8 @@ void set_current_path(const fs::path *pth);
 
 // location of the executable
 void get_executable_path(fs::path *out);
+// convenience, basically parent_path of get_executable_path
+void get_executable_directory_path(fs::path *out); 
 
 // AppData, .local/share, etc
 void get_preference_path(fs::path *out, const char *app = nullptr, const char *org = nullptr);

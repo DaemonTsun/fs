@@ -159,6 +159,11 @@ const char *fs::extension(const fs::path *pth)
     return ret;
 }
 
+void fs::parent_path(fs::path *out)
+{
+    fs::parent_path(out, out);
+}
+
 void fs::parent_path(const fs::path *pth, fs::path *out)
 {
     out->ptr->data = pth->ptr->data.parent_path();
@@ -206,9 +211,19 @@ void fs::concat_path(const fs::path *pth, const wchar_t *seg, fs::path *out)
     out->ptr->data.concat(seg);
 }
 
+void fs::canonical_path(fs::path *out)
+{
+    fs::canonical_path(out, out);
+}
+
 void fs::canonical_path(const fs::path *pth, fs::path *out)
 {
     out->ptr->data = std::filesystem::canonical(pth->ptr->data);
+}
+
+void fs::weakly_canonical_path(fs::path *out)
+{
+    fs::weakly_canonical_path(out, out);
 }
 
 void fs::weakly_canonical_path(const fs::path *pth, fs::path *out)
@@ -216,9 +231,19 @@ void fs::weakly_canonical_path(const fs::path *pth, fs::path *out)
     out->ptr->data = std::filesystem::weakly_canonical(pth->ptr->data);
 }
 
+void fs::absolute_path(fs::path *out)
+{
+    fs::absolute_path(out, out);
+}
+
 void fs::absolute_path(const fs::path *pth, fs::path *out)
 {
     out->ptr->data = std::filesystem::absolute(pth->ptr->data);
+}
+
+void fs::absolute_canonical_path(fs::path *out)
+{
+    fs::absolute_canonical_path(out, out);
 }
 
 void fs::absolute_canonical_path(const fs::path *pth, fs::path *out)
@@ -307,6 +332,12 @@ void fs::get_executable_path(fs::path *out)
 #endif
 
     fs::set_path(out, pth);
+}
+
+void fs::get_executable_directory_path(fs::path *out)
+{
+    fs::get_executable_path(out);
+    fs::parent_path(out);
 }
 
 /* SDL zlib license
