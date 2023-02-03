@@ -1,6 +1,18 @@
 
 #pragma once
 
+/* iterator.hpp
+ *
+ * use fs::iterate(path, recursive = false) in a for range loop, for example:
+ *
+ * fs::path p("/home");
+ *
+ * for (fs::path *i : fs::iterate(&p))
+ *     printf("%s\n", i->c_str());
+ *
+ * to iterate recursively, set the recursive parameter to true.
+ */
+
 #include "fs/path.hpp"
 
 namespace fs
