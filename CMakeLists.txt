@@ -19,7 +19,6 @@ add_subdirectory(ext/shl)
 
 add_library(${fs_TARGET} SHARED)
 target_sources(${fs_TARGET} PUBLIC ${fs_HEADERS} ${fs_SOURCES})
-message("${shl_SOURCES_DIR}")
 target_include_directories(${fs_TARGET} PRIVATE "${fs_SOURCES_DIR}" "${shl_SOURCES_DIR}")
 set_property(TARGET ${fs_TARGET} PROPERTY POSITION_INDEPENDENT_CODE ON)
 target_link_libraries(${fs_TARGET} PRIVATE ${shl_TARGET} pthread)
