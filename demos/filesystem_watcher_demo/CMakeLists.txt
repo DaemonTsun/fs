@@ -8,10 +8,11 @@ find_headers(DEMO_HEADERS "${DEMO_SRC}")
 
 
 add_executable(filesystem_watcher_demo)
+set_property(TARGET filesystem_watcher_demo PROPERTY CXX_STANDARD 20)
 target_sources(filesystem_watcher_demo PUBLIC ${DEMO_SOURCES})
-target_include_directories(filesystem_watcher_demo PRIVATE "${fs_SOURCES_DIR}" "${shl_SOURCES_DIR}")
+target_include_directories(filesystem_watcher_demo PRIVATE "${fs_SOURCES_DIR}" ${fs_INCLUDE_DIRECTORIES})
 
-target_link_libraries(filesystem_watcher_demo ${fs_TARGET} ${shl_TARGET} pthread)
+target_link_libraries(filesystem_watcher_demo ${fs_TARGET})
 
 # run
 add_custom_target("run_filesystem_watcher_demo" COMMAND "${DEMO_BIN}/filesystem_watcher_demo")

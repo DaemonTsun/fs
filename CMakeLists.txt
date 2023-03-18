@@ -1,44 +1,26 @@
 cmake_minimum_required(VERSION 3.10)
-find_package(better REQUIRED NO_DEFAULT_PATH PATHS ext/better-cmake/cmake)
+find_package(better REQUIRED PATHS ext/better-cmake/cmake)
 
-project(fs VERSION 0.5.2)
-get_version_target(fs_TARGET ${PROJECT_NAME})
+project(fs)
+project_author(fs "DaemonTsun")
 
-if(TARGET ${fs_TARGET})
-    return()
-endif()
+set(TEST_SOURCE_DIR ${ROOT}/tests)
 
-#settings
-set(CMAKE_CXX_STANDARD 20)
+# library
+add_lib(fs STATIC
+    VERSION 0.6
+    SOURCES_DIR "${ROOT}/src/"
+    GENERATE_TARGET_HEADER "${ROOT}/src/fs/fs_info.hpp"
+    CPP_VERSION 20
+    CPP_WARNINGS NONE
+    LIBRARIES pthread
 
-set(fs_SOURCES_DIR "${CMAKE_CURRENT_SOURCE_DIR}/src")
-find_sources(fs_SOURCES "${fs_SOURCES_DIR}")
-find_headers(fs_HEADERS "${fs_SOURCES_DIR}")
+    EXT
+        LIB shl 0.6 "${ROOT}/ext/shl" INCLUDE LINK
 
-add_subdirectory(ext/shl)
+    TESTS "${TEST_SOURCE_DIR}"
+    )
 
-add_library(${fs_TARGET} SHARED)
-target_sources(${fs_TARGET} PUBLIC ${fs_HEADERS} ${fs_SOURCES})
-target_include_directories(${fs_TARGET} PRIVATE "${fs_SOURCES_DIR}" "${shl_SOURCES_DIR}")
-set_property(TARGET ${fs_TARGET} PROPERTY POSITION_INDEPENDENT_CODE ON)
-target_link_libraries(${fs_TARGET} PRIVATE ${shl_TARGET} pthread)
-
-if (NOT CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
-    export_library_variables(fs)
-    return()
-endif()
-
-# install
-install_library(TARGET ${fs_TARGET} HEADERS ${fs_HEADERS})
-
-# tests
-set(TEST_SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/tests)
-
-find_package(t1 QUIET)
-if(NOT DEFINED t1_DIR OR t1_DIR)
-    add_test_directory("${TEST_SOURCE_DIR}" INCLUDE_DIRS "${fs_SOURCES_DIR}" "${shl_SOURCES_DIR}"
-                                            LIBRARIES ${fs_TARGET} pthread)
-    register_tests()
-endif()
+exit_if_included()
 
 add_subdirectory("${CMAKE_SOURCE_DIR}/demos")
