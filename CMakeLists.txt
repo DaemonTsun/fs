@@ -12,7 +12,7 @@ add_lib(fs STATIC
     SOURCES_DIR "${ROOT}/src/"
     GENERATE_TARGET_HEADER "${ROOT}/src/fs/fs_info.hpp"
     CPP_VERSION 20
-    CPP_WARNINGS NONE
+    CPP_WARNINGS ALL SANE
     LIBRARIES pthread
 
     EXT

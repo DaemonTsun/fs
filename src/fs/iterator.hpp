@@ -30,18 +30,18 @@ struct iterator
 
     fs::iterator &operator=(const fs::iterator &other);
     fs::iterator &operator=(fs::iterator &&other);
-
-    const fs::path *operator*() const;
-    fs::iterator &operator++();
 };
-
-bool operator==(const fs::iterator &lhs, const fs::iterator &rhs);
-bool operator/=(const fs::iterator &lhs, const fs::iterator &rhs);
 
 fs::iterator iterate(const char *path, bool recursive = false);
 fs::iterator iterate(const wchar_t *path, bool recursive = false);
 fs::iterator iterate(const fs::path *path, bool recursive = false);
 
-fs::iterator begin(const fs::iterator &it);
-fs::iterator end(const fs::iterator &it);
+void advance(fs::iterator *it);
+bool is_at_end(const fs::iterator *it);
+const fs::path *current(const fs::iterator *it);
+
+#define iterate_path(Var, Path, ...)\
+    fs::iterator Var##_it = fs::iterate(Path __VA_OPT__(,) __VA_ARGS__);\
+    for (const fs::path *Var = fs::current(&Var##_it); !fs::is_at_end(&Var##_it); fs::advance(&Var##_it), Var = fs::current(&Var##_it))
+
 }

@@ -20,10 +20,17 @@ int main(int argc, char **argv)
         return 1;
     }
 
-    printf("contents of directory %s:\n", pth.c_str());
+    printf("contents of directory %s:\n", argv[1]);
 
-    for (const fs::path *p : fs::iterate(&pth))
+    iterate_path(p, &pth, true)
         printf("[%s]\n", p->c_str());
+
+    /*
+    stdfs::recursive_directory_iterator it(argv[1]);
+
+    for (auto &p : it)
+        printf("[%s]\n", p.path().c_str());
+    */
 
     return 0;
 }
