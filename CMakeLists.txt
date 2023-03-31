@@ -16,7 +16,7 @@ add_lib(fs STATIC
     LIBRARIES pthread
 
     EXT
-        LIB shl 0.6 "${ROOT}/ext/shl" INCLUDE LINK
+        LIB shl 0.6.1 "${ROOT}/ext/shl" INCLUDE LINK
 
     TESTS "${TEST_SOURCE_DIR}"
     )
