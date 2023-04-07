@@ -96,6 +96,7 @@
 #pragma once
 
 #include "shl/hash.hpp"
+#include "shl/string.hpp"
 
 namespace fs
 {
@@ -107,6 +108,10 @@ struct path
     path();
     path(const char *pth);
     path(const wchar_t *pth);
+    path(const_string  pth);
+    path(const_wstring pth);
+    path(const string  *pth);
+    path(const wstring *pth);
     path(const fs::path &other);
     path(fs::path &&other);
 
@@ -125,6 +130,10 @@ hash_t hash(const fs::path *pth);
 
 void set_path(fs::path *pth, const char *new_path);
 void set_path(fs::path *pth, const wchar_t *new_path);
+void set_path(fs::path *pth, const_string  new_path);
+void set_path(fs::path *pth, const_wstring new_path);
+void set_path(fs::path *pth, const string  *new_path);
+void set_path(fs::path *pth, const wstring *new_path);
 
 bool exists(const fs::path *pth);
 bool is_file(const fs::path *pth);

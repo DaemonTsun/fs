@@ -8,7 +8,7 @@ set(TEST_SOURCE_DIR ${ROOT}/tests)
 
 # library
 add_lib(fs STATIC
-    VERSION 0.6
+    VERSION 0.6.1
     SOURCES_DIR "${ROOT}/src/"
     GENERATE_TARGET_HEADER "${ROOT}/src/fs/fs_info.hpp"
     CPP_VERSION 20

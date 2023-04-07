@@ -34,6 +34,10 @@ struct iterator
 
 fs::iterator iterate(const char *path, bool recursive = false);
 fs::iterator iterate(const wchar_t *path, bool recursive = false);
+fs::iterator iterate(const_string  path, bool recursive = false);
+fs::iterator iterate(const_wstring path, bool recursive = false);
+fs::iterator iterate(const string  *path, bool recursive = false);
+fs::iterator iterate(const wstring *path, bool recursive = false);
 fs::iterator iterate(const fs::path *path, bool recursive = false);
 
 void advance(fs::iterator *it);

@@ -31,6 +31,26 @@ fs::path::path(const wchar_t *pth)
     this->ptr = new fs::path::_path{{pth}};
 }
 
+fs::path::path(const_string pth)
+{
+    this->ptr = new fs::path::_path{{pth.c_str}};
+}
+
+fs::path::path(const_wstring pth)
+{
+    this->ptr = new fs::path::_path{{pth.c_str}};
+}
+
+fs::path::path(const string *pth)
+{
+    this->ptr = new fs::path::_path{{pth->data.data}};
+}
+
+fs::path::path(const wstring *pth)
+{
+    this->ptr = new fs::path::_path{{pth->data.data}};
+}
+
 fs::path::path(const fs::path &other)
 {
     this->ptr = new fs::path::_path{other.ptr->data};
@@ -92,6 +112,26 @@ void fs::set_path(fs::path *pth, const char *new_path)
 void fs::set_path(fs::path *pth, const wchar_t *new_path)
 {
     pth->ptr->data.assign(new_path);
+}
+
+void fs::set_path(fs::path *pth, const_string new_path)
+{
+    pth->ptr->data.assign(new_path.c_str);
+}
+
+void fs::set_path(fs::path *pth, const_wstring new_path)
+{
+    pth->ptr->data.assign(new_path.c_str);
+}
+
+void fs::set_path(fs::path *pth, const string *new_path)
+{
+    pth->ptr->data.assign(new_path->data.data);
+}
+
+void fs::set_path(fs::path *pth, const wstring *new_path)
+{
+    pth->ptr->data.assign(new_path->data.data);
 }
 
 bool fs::exists(const fs::path *pth)

@@ -168,7 +168,8 @@ void _process_event(fs::filesystem_watcher *watcher, inotify_event *event)
             if (file == nullptr)
                 continue;
 
-            fs::watcher_event_type type = mask_to_event(event->mask);
+            // TODO: filter
+            // fs::watcher_event_type type = mask_to_event(event->mask);
             path = file->path.c_str();
             break;
         }

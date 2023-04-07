@@ -77,6 +77,30 @@ fs::iterator fs::iterate(const wchar_t *path, bool recursive)
     return fs::iterate(&pth, recursive);
 }
 
+fs::iterator iterate(const_string  path, bool recursive)
+{
+    fs::path pth(path);
+    return fs::iterate(&pth, recursive);
+}
+
+fs::iterator iterate(const_wstring path, bool recursive)
+{
+    fs::path pth(path);
+    return fs::iterate(&pth, recursive);
+}
+
+fs::iterator iterate(const string  *path, bool recursive)
+{
+    fs::path pth(path);
+    return fs::iterate(&pth, recursive);
+}
+
+fs::iterator iterate(const wstring *path, bool recursive)
+{
+    fs::path pth(path);
+    return fs::iterate(&pth, recursive);
+}
+
 fs::iterator fs::iterate(const fs::path *path, bool recursive)
 {
     fs::iterator ret;
