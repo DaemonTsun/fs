@@ -11,15 +11,15 @@ set(TEST_SOURCE_DIR ${ROOT}/tests)
 
 # library
 add_lib(fs STATIC
-    VERSION 0.6.2
+    VERSION 0.6.3
     SOURCES_DIR "${ROOT}/src/"
     GENERATE_TARGET_HEADER "${ROOT}/src/fs/fs_info.hpp"
     CPP_VERSION 17
-    CPP_WARNINGS ALL SANE
+    CPP_WARNINGS ALL SANE FATAL
     LIBRARIES pthread
 
     EXT
-    LIB shl 0.6.8 "${ROOT}/ext/shl" INCLUDE LINK GIT_SUBMODULE
+    LIB shl 0.7.0 "${ROOT}/ext/shl" INCLUDE LINK GIT_SUBMODULE
 
     TESTS "${TEST_SOURCE_DIR}"
     )
