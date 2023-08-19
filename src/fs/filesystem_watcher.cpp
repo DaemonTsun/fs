@@ -85,13 +85,13 @@ fs::watcher_event_type mask_to_event(u32 mask)
 {
     fs::watcher_event_type ret = fs::watcher_event_type::None;
 
-    if (mask & IN_CREATE) set(ret, fs::watcher_event_type::Created);
-    if (mask & IN_MODIFY) set(ret, fs::watcher_event_type::Modified);
-    if (mask & (IN_DELETE | IN_DELETE_SELF)) set(ret, fs::watcher_event_type::Removed);
+    if (mask & IN_CREATE) set_flag(ret, fs::watcher_event_type::Created);
+    if (mask & IN_MODIFY) set_flag(ret, fs::watcher_event_type::Modified);
+    if (mask & (IN_DELETE | IN_DELETE_SELF)) set_flag(ret, fs::watcher_event_type::Removed);
     
     // not accurate, but as long as we're not emitting move events, this works
-    if (mask & IN_MOVED_TO) set(ret, fs::watcher_event_type::Created);
-    if (mask & IN_MOVED_FROM) set(ret, fs::watcher_event_type::Removed);
+    if (mask & IN_MOVED_TO) set_flag(ret, fs::watcher_event_type::Created);
+    if (mask & IN_MOVED_FROM) set_flag(ret, fs::watcher_event_type::Removed);
     
     return ret;
 }
