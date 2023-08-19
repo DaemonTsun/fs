@@ -9,3 +9,7 @@ bin/
 *.kate-swp
 **.kate-swp
 *.directory
+
+# Windows / Visual Studio
+CMakeSettings.json
+.vs/
