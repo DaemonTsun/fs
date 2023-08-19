@@ -1,5 +1,6 @@
 
 // v1.0
+#include "shl/platform.hpp"
 
 #if Windows
 #include <windows.h>
@@ -11,10 +12,26 @@
 #endif
 
 #include "shl/string.hpp"
-#include "shl/platform.hpp"
 #include "shl/error.hpp"
 
 #include "fs/impl/path.hpp"
+
+#if Windows
+char *convert_wide_string(const wchar_t *input)
+{
+    static char *_buf = nullptr;
+    constexpr size_t _buf_size = sizeof(wchar_t) * MAX_PATH;
+
+    if (_buf == nullptr)
+        _buf = (char*)malloc(_buf_size);
+
+    memset(_buf, 0, _buf_size);
+
+    wcstombs(_buf, input, _buf_size);
+
+    return _buf;
+}
+#endif
 
 fs::path::path()
 {
@@ -85,12 +102,20 @@ fs::path &fs::path::operator=(fs::path &&other)
 
 fs::path::operator const char*() const
 {
+#if Windows
+    return convert_wide_string(this->ptr->data.c_str());
+#else
     return this->ptr->data.c_str();
+#endif
 }
 
 const char *fs::path::c_str() const
 {
+#if Windows
+    return convert_wide_string(this->ptr->data.c_str());
+#else
     return this->ptr->data.c_str();
+#endif
 }
 
 bool fs::operator==(const fs::path &lhs, const fs::path &rhs)
@@ -458,6 +483,7 @@ void fs::get_preference_path(fs::path *out, const char *app, const char *org)
 
 #elif Windows
 
+#if 0
     WCHAR path[MAX_PATH];
     WCHAR *worg = NULL;
     WCHAR *wapp = NULL;
@@ -536,6 +562,7 @@ void fs::get_preference_path(fs::path *out, const char *app, const char *org)
     wcslcat(path, L"\\", arraysize(path));
 
     retval = WIN_StringToUTF8W(path);
+#endif
 
 #else
 #error "unsupported platform"

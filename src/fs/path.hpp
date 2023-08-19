@@ -87,8 +87,8 @@
  *
  * get_preference_path(out, app = nullptr, org = nullptr)
  *     gets the local preference path.
- *     on windows, this is likely AppData\Local\[Org\]App\.
- *     on linux, this is .local/share/[org/]app/.
+ *     on Windows, this is likely AppData\Local\[Org\]App\.
+ *     on Linux, this is .local/share/[org/]app/.
  *              
  * get_temporary_path(out) gets a temporary directory path.
  */
@@ -119,6 +119,13 @@ struct path
 
     path &operator=(const fs::path &other);
     path &operator=(fs::path &&other);
+
+    // FIXME
+    // Warning for Windows:
+    // operator char* and c_str currently convert the garbage wchar_t data that
+    // Windows throws at you into a static buffer which is overwritten with
+    // each call, meaning if you need the data later or need multiple paths,
+    // store them directly after calling.
     operator const char*() const;
 
     const char *c_str() const;

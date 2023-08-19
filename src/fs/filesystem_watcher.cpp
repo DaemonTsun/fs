@@ -10,6 +10,7 @@
 
 #if Windows
 #include <windows.h>
+#warning "filesystem watcher currently unsupported on windows"
 #else
 #include <pthread.h>
 #endif
@@ -372,7 +373,6 @@ void fs::watch_file(fs::filesystem_watcher *watcher, const char *path)
     if (watched->fd < 0)
         throw_error("could not watch file '%s': %s", path, strerror(errno));
 #elif Windows
-#warning "Unsupported"
 #else
     #error "Unsupported"
 #endif
@@ -415,7 +415,6 @@ void fs::unwatch_file(fs::filesystem_watcher *watcher, const char *path)
         watcher->watched_directories.erase(it);
     }
 #elif Windows
-#warning "Unsupported"
 #else
     #error "Unsupported"
 #endif
