@@ -1,17 +1,17 @@
 
-// TODO: windows version
 #include "shl/platform.hpp"
 
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <pthread.h>
 #include <assert.h>
 
 #include <unordered_map>
 
 #if Windows
-    #include <windows.h>
+#include <windows.h>
+#else
+#include <pthread.h>
 #endif
 
 #include "shl/hash.hpp"
@@ -19,6 +19,61 @@
 
 #include "fs/path.hpp"
 #include "fs/filesystem_watcher.hpp"
+
+// TODO: move this to some own lib or something
+// threads
+
+#if Windows
+typedef HANDLE thread_t;
+typedef void *(*thread_worker_t)(void*);
+
+struct _windows_thread_args
+{
+    thread_worker_t worker;
+    void *args;
+};
+
+unsigned long _windows_thread_wrapper(void *arg)
+{
+    auto *args = reinterpret_cast<_windows_thread_args*>(arg);
+    
+    args->worker(args->args);
+
+    return 0;
+}
+
+void create_thread(thread_t *thread, int *thread_id, thread_worker_t worker, void *arg)
+{
+    _windows_thread_args wrapper_args{worker, arg};
+    unsigned long _id = 0;
+    *thread = CreateThread(nullptr, 0, _windows_thread_wrapper, &wrapper_args, 0, &_id);
+
+    *thread_id = _id;
+}
+
+void *join_thread(thread_t thread)
+{
+    WaitForSingleObject(thread, INFINITE);
+    return nullptr;
+}
+
+#else
+typedef pthread_t thread_t;
+typedef void *(*thread_worker_t)(void*);
+
+void create_thread(thread_t *thread, int *thread_id, thread_worker_t worker, void *arg)
+{
+    *thread_id = pthread_create(thread, nullptr, worker, arg);
+}
+
+void *join_thread(thread_t thread)
+{
+    void *ret;
+    pthread_join(watcher->thread, &ret);
+    return ret;
+}
+
+#endif
 
 namespace std
 {
@@ -53,7 +108,7 @@ struct watched_directory
 
 struct fs::filesystem_watcher
 {
-    pthread_t thread;
+    thread_t  thread;
     int       thread_id;
     bool      running;
     watcher_callback_f callback;
@@ -230,11 +285,19 @@ void *_watcher_process(void *threadarg)
 
     return nullptr;
 }
-/*
+
 #elif Windows
-*/
+void *_watcher_process(void *threadarg)
+{
+    // fs::filesystem_watcher *watcher = reinterpret_cast<fs::filesystem_watcher*>(threadarg);
+    // TODO: implement
+
+    return nullptr;
+}
+
 #else
-    #error "Unsupported"
+// watcher process
+#error "Unsupported"
 #endif
 
 void fs::create_filesystem_watcher(fs::filesystem_watcher **out, fs::watcher_callback_f callback)
@@ -308,6 +371,8 @@ void fs::watch_file(fs::filesystem_watcher *watcher, const char *path)
 
     if (watched->fd < 0)
         throw_error("could not watch file '%s': %s", path, strerror(errno));
+#elif Windows
+#warning "Unsupported"
 #else
     #error "Unsupported"
 #endif
@@ -349,6 +414,8 @@ void fs::unwatch_file(fs::filesystem_watcher *watcher, const char *path)
         inotify_rm_watch(watcher->inotify_fd, watched_parent->fd);
         watcher->watched_directories.erase(it);
     }
+#elif Windows
+#warning "Unsupported"
 #else
     #error "Unsupported"
 #endif
@@ -361,11 +428,7 @@ void fs::start_filesystem_watcher(fs::filesystem_watcher *watcher)
     if (watcher->running)
         return;
 
-    watcher->thread_id = pthread_create(
-        &watcher->thread,
-        NULL,
-        _watcher_process,
-        watcher);
+    create_thread(&watcher->thread, &watcher->thread_id, _watcher_process, watcher);
 
     if(watcher->thread_id != 0)
         throw_error("could not start watcher thread: %s", strerror(watcher->thread_id));
@@ -381,8 +444,7 @@ void fs::stop_filesystem_watcher(fs::filesystem_watcher *watcher)
         return;
 
     watcher->running = false;
-    void *ret;
-    pthread_join(watcher->thread, &ret);
+    join_thread(watcher->thread);
 }
 
 void fs::destroy_filesystem_watcher(fs::filesystem_watcher *watcher)
