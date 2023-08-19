@@ -16,16 +16,14 @@ add_lib(fs STATIC
     GENERATE_TARGET_HEADER "${ROOT}/src/fs/fs_info.hpp"
     CPP_VERSION 17
     CPP_WARNINGS ALL SANE FATAL
+    LIBRARIES
+        @Linux pthread
 
     EXT
-    LIB shl 0.8.0 "${ROOT}/ext/shl" INCLUDE LINK GIT_SUBMODULE
+        LIB shl 0.8.0 "${ROOT}/ext/shl" INCLUDE LINK GIT_SUBMODULE
 
     TESTS "${TEST_SOURCE_DIR}"
     )
-
-if (NOT WIN32)
-    target_link_libraries(fs-0.7 PRIVATE pthread})
-endif()
 
 exit_if_included()
 
