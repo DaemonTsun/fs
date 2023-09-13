@@ -70,7 +70,7 @@ void create_thread(thread_t *thread, int *thread_id, thread_worker_t worker, voi
 void *join_thread(thread_t thread)
 {
     void *ret;
-    pthread_join(watcher->thread, &ret);
+    pthread_join(thread, &ret);
     return ret;
 }
 

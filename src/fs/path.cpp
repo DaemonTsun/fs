@@ -123,6 +123,70 @@ bool fs::operator==(const fs::path &lhs, const fs::path &rhs)
     return lhs.ptr->data == rhs.ptr->data;
 }
 
+// append operators
+#define _APPEND_OPERATOR_BODY(...)\
+    {\
+        fs::path ret = lhs;\
+        fs::append_path(&ret, __VA_ARGS__ seg);\
+        return ret;\
+    }
+
+fs::path  fs::operator/ (const fs::path &lhs, const char    *seg) _APPEND_OPERATOR_BODY()
+fs::path  fs::operator/ (const fs::path &lhs, const wchar_t *seg) _APPEND_OPERATOR_BODY()
+fs::path  fs::operator/ (const fs::path &lhs, const_string   seg) _APPEND_OPERATOR_BODY()
+fs::path  fs::operator/ (const fs::path &lhs, const_wstring  seg) _APPEND_OPERATOR_BODY()
+fs::path  fs::operator/ (const fs::path &lhs, const string  &seg) _APPEND_OPERATOR_BODY(&)
+fs::path  fs::operator/ (const fs::path &lhs, const wstring &seg) _APPEND_OPERATOR_BODY(&)
+fs::path  fs::operator/ (const fs::path &lhs, const string  *seg) _APPEND_OPERATOR_BODY()
+fs::path  fs::operator/ (const fs::path &lhs, const wstring *seg) _APPEND_OPERATOR_BODY()
+
+#define _APPEND_ASSIGNMENT_OPERATOR_BODY(...)\
+    {\
+        fs::append_path(&lhs, __VA_ARGS__ seg);\
+        return lhs;\
+    }
+
+fs::path &fs::operator/=(fs::path &lhs, const char    *seg) _APPEND_ASSIGNMENT_OPERATOR_BODY()
+fs::path &fs::operator/=(fs::path &lhs, const wchar_t *seg) _APPEND_ASSIGNMENT_OPERATOR_BODY()
+fs::path &fs::operator/=(fs::path &lhs, const_string   seg) _APPEND_ASSIGNMENT_OPERATOR_BODY()
+fs::path &fs::operator/=(fs::path &lhs, const_wstring  seg) _APPEND_ASSIGNMENT_OPERATOR_BODY()
+fs::path &fs::operator/=(fs::path &lhs, const string  &seg) _APPEND_ASSIGNMENT_OPERATOR_BODY(&)
+fs::path &fs::operator/=(fs::path &lhs, const wstring &seg) _APPEND_ASSIGNMENT_OPERATOR_BODY(&)
+fs::path &fs::operator/=(fs::path &lhs, const string  *seg) _APPEND_ASSIGNMENT_OPERATOR_BODY()
+fs::path &fs::operator/=(fs::path &lhs, const wstring *seg) _APPEND_ASSIGNMENT_OPERATOR_BODY()
+
+// concat operators
+#define _CONCAT_OPERATOR_BODY(...)\
+    {\
+        fs::path ret = lhs;\
+        fs::concat_path(&ret, __VA_ARGS__ seg);\
+        return ret;\
+    }
+
+fs::path  fs::operator+ (const fs::path &lhs, const char    *seg) _CONCAT_OPERATOR_BODY()
+fs::path  fs::operator+ (const fs::path &lhs, const wchar_t *seg) _CONCAT_OPERATOR_BODY()
+fs::path  fs::operator+ (const fs::path &lhs, const_string   seg) _CONCAT_OPERATOR_BODY()
+fs::path  fs::operator+ (const fs::path &lhs, const_wstring  seg) _CONCAT_OPERATOR_BODY()
+fs::path  fs::operator+ (const fs::path &lhs, const string  &seg) _CONCAT_OPERATOR_BODY(&)
+fs::path  fs::operator+ (const fs::path &lhs, const wstring &seg) _CONCAT_OPERATOR_BODY(&)
+fs::path  fs::operator+ (const fs::path &lhs, const string  *seg) _CONCAT_OPERATOR_BODY()
+fs::path  fs::operator+ (const fs::path &lhs, const wstring *seg) _CONCAT_OPERATOR_BODY()
+
+#define _CONCAT_ASSIGNMENT_OPERATOR_BODY(...)\
+    {\
+        fs::concat_path(&lhs, __VA_ARGS__ seg);\
+        return lhs;\
+    }
+
+fs::path &fs::operator+=(fs::path &lhs, const char    *seg) _CONCAT_ASSIGNMENT_OPERATOR_BODY()
+fs::path &fs::operator+=(fs::path &lhs, const wchar_t *seg) _CONCAT_ASSIGNMENT_OPERATOR_BODY()
+fs::path &fs::operator+=(fs::path &lhs, const_string   seg) _CONCAT_ASSIGNMENT_OPERATOR_BODY()
+fs::path &fs::operator+=(fs::path &lhs, const_wstring  seg) _CONCAT_ASSIGNMENT_OPERATOR_BODY()
+fs::path &fs::operator+=(fs::path &lhs, const string  &seg) _CONCAT_ASSIGNMENT_OPERATOR_BODY(&)
+fs::path &fs::operator+=(fs::path &lhs, const wstring &seg) _CONCAT_ASSIGNMENT_OPERATOR_BODY(&)
+fs::path &fs::operator+=(fs::path &lhs, const string  *seg) _CONCAT_ASSIGNMENT_OPERATOR_BODY()
+fs::path &fs::operator+=(fs::path &lhs, const wstring *seg) _CONCAT_ASSIGNMENT_OPERATOR_BODY()
+
 hash_t fs::hash(const fs::path *pth)
 {
     const char *cstr = pth->c_str();
@@ -230,7 +294,7 @@ void fs::parent_path(const fs::path *pth, fs::path *out)
     out->ptr->data = pth->ptr->data.parent_path();
 }
 
-void fs::append_path(fs::path *out, const char *seg)
+void fs::append_path(fs::path *out, const char    *seg)
 {
     out->ptr->data.append(seg);
 }
@@ -240,7 +304,27 @@ void fs::append_path(fs::path *out, const wchar_t *seg)
     out->ptr->data.append(seg);
 }
 
-void fs::append_path(const fs::path *pth, const char *seg, fs::path *out)
+void fs::append_path(fs::path *out, const_string   seg)
+{
+    fs::append_path(out, seg.c_str);
+}
+
+void fs::append_path(fs::path *out, const_wstring  seg)
+{
+    fs::append_path(out, seg.c_str);
+}
+
+void fs::append_path(fs::path *out, const string  *seg)
+{
+    fs::append_path(out, to_const_string(seg));
+}
+
+void fs::append_path(fs::path *out, const wstring *seg)
+{
+    fs::append_path(out, to_const_string(seg));
+}
+
+void fs::append_path(const fs::path *pth, const char    *seg, fs::path *out)
 {
     out->ptr->data = pth->ptr->data / seg;
 }
@@ -250,7 +334,27 @@ void fs::append_path(const fs::path *pth, const wchar_t *seg, fs::path *out)
     out->ptr->data = pth->ptr->data / seg;
 }
 
-void fs::concat_path(fs::path *out, const char *seg)
+void fs::append_path(const fs::path *pth, const_string   seg, fs::path *out)
+{
+    fs::append_path(pth, seg.c_str, out);
+}
+
+void fs::append_path(const fs::path *pth, const_wstring  seg, fs::path *out)
+{
+    fs::append_path(pth, seg.c_str, out);
+}
+
+void fs::append_path(const fs::path *pth, const string  *seg, fs::path *out)
+{
+    fs::append_path(pth, to_const_string(seg), out);
+}
+
+void fs::append_path(const fs::path *pth, const wstring *seg, fs::path *out)
+{
+    fs::append_path(pth, to_const_string(seg), out);
+}
+
+void fs::concat_path(fs::path *out, const char    *seg)
 {
     out->ptr->data.concat(seg);
 }
@@ -260,7 +364,27 @@ void fs::concat_path(fs::path *out, const wchar_t *seg)
     out->ptr->data.concat(seg);
 }
 
-void fs::concat_path(const fs::path *pth, const char *seg, fs::path *out)
+void fs::concat_path(fs::path *out, const_string   seg)
+{
+    fs::concat_path(out, seg.c_str);
+}
+
+void fs::concat_path(fs::path *out, const_wstring  seg)
+{
+    fs::concat_path(out, seg.c_str);
+}
+
+void fs::concat_path(fs::path *out, const string  *seg)
+{
+    fs::concat_path(out, to_const_string(seg));
+}
+
+void fs::concat_path(fs::path *out, const wstring *seg)
+{
+    fs::concat_path(out, to_const_string(seg));
+}
+
+void fs::concat_path(const fs::path *pth, const char    *seg, fs::path *out)
 {
     out->ptr->data = pth->ptr->data;
     out->ptr->data.concat(seg);
@@ -270,6 +394,26 @@ void fs::concat_path(const fs::path *pth, const wchar_t *seg, fs::path *out)
 {
     out->ptr->data = pth->ptr->data;
     out->ptr->data.concat(seg);
+}
+
+void fs::concat_path(const fs::path *pth, const_string   seg, fs::path *out)
+{
+    fs::concat_path(pth, seg.c_str, out);
+}
+
+void fs::concat_path(const fs::path *pth, const_wstring  seg, fs::path *out)
+{
+    fs::concat_path(pth, seg.c_str, out);
+}
+
+void fs::concat_path(const fs::path *pth, const string  *seg, fs::path *out)
+{
+    fs::concat_path(pth, to_const_string(seg), out);
+}
+
+void fs::concat_path(const fs::path *pth, const wstring *seg, fs::path *out)
+{
+    fs::concat_path(pth, to_const_string(seg), out);
 }
 
 void fs::canonical_path(fs::path *out)
