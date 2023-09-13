@@ -89,12 +89,18 @@ fs::path::~path()
 
 fs::path &fs::path::operator=(const fs::path &other)
 {
+    if (this->ptr != nullptr)
+        delete this->ptr;
+
     this->ptr = new fs::path::_path{other.ptr->data};
     return *this;
 }
 
 fs::path &fs::path::operator=(fs::path &&other)
 {
+    if (this->ptr != nullptr)
+        delete this->ptr;
+
     this->ptr = other.ptr;
     other.ptr = nullptr;
     return *this;
