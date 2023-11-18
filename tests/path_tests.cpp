@@ -8,6 +8,20 @@
 #define assert_equal_str(STR1, STR2)\
     assert_equal(compare_strings(STR1, STR2), 0)
 
+
+define_test(test1)
+{
+    fs::path pth{};
+    
+    fs::set_path(&pth, "/abc"); assert_equal_str(pth.data, "/abc");
+    fs::set_path(&pth, "/abc/def"); assert_equal_str(pth.data, "/abc/def");
+    fs::set_path(&pth, "/abc///:def"); assert_equal_str(pth.data, "/abc///:def");
+    fs::set_path(&pth, "C:/abc///:def"); assert_equal_str(pth.data, "C:/abc///:def");
+
+    fs::free(&pth);
+}
+
+#if 0
 define_test(filename_returns_the_filename)
 {
 #if Windows
@@ -387,5 +401,6 @@ define_test(get_executable_path_gets_executable_path)
     // obviously this wont work on all systems
     // assert_equal(p, actual);
 }
+#endif
 
 define_default_test_main();

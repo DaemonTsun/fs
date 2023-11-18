@@ -1,6 +1,7 @@
 
-// v1.0
-#include "shl/platform.hpp"
+// v1.1
+
+#include <assert.h>
 
 #if Windows
 #include <windows.h>
@@ -11,119 +12,190 @@
 #include <string.h>
 #endif
 
-#include "shl/string.hpp"
+#include <stdlib.h>
+
+#include "shl/memory.hpp"
 #include "shl/error.hpp"
 
-#include "fs/impl/path.hpp"
+#include "fs/path.hpp"
 
 #if Windows
-char *convert_wide_string(const wchar_t *input)
-{
-    static char *_buf = nullptr;
-    constexpr size_t _buf_size = sizeof(wchar_t) * MAX_PATH;
-
-    if (_buf == nullptr)
-        _buf = (char*)malloc(_buf_size);
-
-    memset(_buf, 0, _buf_size);
-
-    wcstombs(_buf, input, _buf_size);
-
-    return _buf;
-}
-#endif
-
-fs::path::path()
-{
-    this->ptr = new fs::path::_path;
-}
-
-fs::path::path(const char *pth)
-{
-    this->ptr = new fs::path::_path{{pth}};
-}
-
-fs::path::path(const wchar_t *pth)
-{
-    this->ptr = new fs::path::_path{{pth}};
-}
-
-fs::path::path(const_string pth)
-{
-    this->ptr = new fs::path::_path{{pth.c_str}};
-}
-
-fs::path::path(const_wstring pth)
-{
-    this->ptr = new fs::path::_path{{pth.c_str}};
-}
-
-fs::path::path(const string *pth)
-{
-    this->ptr = new fs::path::_path{{pth->data.data}};
-}
-
-fs::path::path(const wstring *pth)
-{
-    this->ptr = new fs::path::_path{{pth->data.data}};
-}
-
-fs::path::path(const fs::path &other)
-{
-    this->ptr = new fs::path::_path{other.ptr->data};
-}
-
-fs::path::path(fs::path &&other)
-{
-    this->ptr = other.ptr;
-    other.ptr = nullptr;
-}
-
-fs::path::~path()
-{
-    if (this->ptr != nullptr)
-        delete this->ptr;
-
-    this->ptr = nullptr;
-}
-
-fs::path &fs::path::operator=(const fs::path &other)
-{
-    if (this->ptr != nullptr)
-        delete this->ptr;
-
-    this->ptr = new fs::path::_path{other.ptr->data};
-    return *this;
-}
-
-fs::path &fs::path::operator=(fs::path &&other)
-{
-    if (this->ptr != nullptr)
-        delete this->ptr;
-
-    this->ptr = other.ptr;
-    other.ptr = nullptr;
-    return *this;
-}
-
-fs::path::operator const char*() const
-{
-#if Windows
-    return convert_wide_string(this->ptr->data.c_str());
+#define PATH_CHAR_LIT(c) L##c
 #else
-    return this->ptr->data.c_str();
+#define PATH_CHAR_LIT(c) c
+#endif
+
+// conversion helpers
+#define as_array_ptr(x)     (::array<fs::path_char_t>*)(x)
+#define as_string_ptr(x)    (::string_base<fs::path_char_t>*)(x)
+
+struct _mbstring
+{
+    char *data;
+    u64 size;
+};
+
+_mbstring wcstring_to_cstring(const wchar_t *wcstring, u64 wchar_count)
+{
+    _mbstring ret;
+    u64 sz = wchar_count * sizeof(char);
+    ret.data = (char*)::allocate_memory(sz);
+
+    ::fill_memory(ret.data, 0, sz);
+
+    ret.size = ::wcstombs(ret.data, wcstring, wchar_count * sizeof(wchar_t));
+
+    return ret;
+}
+
+struct _wstring
+{
+    wchar_t *data;
+    u64 size;
+};
+
+_wstring cstring_to_wcstring(const char *cstring, u64 char_count)
+{
+    _wstring ret;
+    u64 sz = char_count * sizeof(wchar_t);
+    ret.data = (wchar_t*)::allocate_memory(sz);
+
+    ::fill_memory(ret.data, 0, sz);
+
+    ret.size = ::mbstowcs(ret.data, cstring, char_count * sizeof(char));
+
+    return ret;
+}
+
+// path functions
+
+const fs::path_char_t *fs::path::c_str() const
+{
+    return this->data;
+}
+
+void fs::init(fs::path *path)
+{
+    assert(path != nullptr);
+
+    ::init(as_string_ptr(path));
+}
+
+void fs::init(fs::path *path, const char    *str)
+{
+    fs::init(path, ::to_const_string(str));
+}
+
+void fs::init(fs::path *path, const wchar_t *str)
+{
+    fs::init(path, ::to_const_string(str));
+}
+
+void _path_init(fs::path *path, const fs::path_char_t *str, u64 size)
+{
+    ::init(as_string_ptr(path), str, size);
+}
+
+void fs::init(fs::path *path, const_string   str)
+{
+    assert(path != nullptr);
+    assert(str.c_str != nullptr);
+
+#if Windows
+    _wstring converted = ::cstring_to_wcstring(str.c_str, str.size);
+
+    assert(converted.data != nullptr);
+    assert(converted.size != (size_t)-1);
+
+    _path_init(path, converted.data, converted.size);
+
+    ::free_memory(converted.data);
+#else
+    _path_init(path, str.c_str, str.size);
 #endif
 }
 
-const char *fs::path::c_str() const
+void fs::init(fs::path *path, const_wstring  str)
+{
+    assert(path != nullptr);
+    assert(str.c_str != nullptr);
+
+#if Windows
+    _path_init(path, str.c_str, str.size);
+#else
+    _mbstring converted = ::wcstring_to_cstring(str.c_str, str.size);
+
+    assert(converted.data != nullptr);
+    assert(converted.size != (size_t)-1);
+
+    _path_init(path, converted.data, converted.size);
+
+    ::free_memory(converted.data);
+#endif
+}
+
+void fs::init(fs::path *path, const fs::path *other)
+{
+    assert(other != nullptr);
+
+    fs::init(path, ::to_const_string(other));
+}
+
+void fs::free(fs::path *path)
+{
+    assert(path != nullptr);
+
+    ::free(as_string_ptr(path));
+}
+
+void fs::set_path(fs::path *pth, const char    *new_path)
+{
+    fs::set_path(pth, ::to_const_string(new_path));
+}
+
+void fs::set_path(fs::path *pth, const wchar_t *new_path)
+{
+    fs::set_path(pth, ::to_const_string(new_path));
+}
+
+void fs::set_path(fs::path *pth, const_string   new_path)
 {
 #if Windows
-    return convert_wide_string(this->ptr->data.c_str());
+    _wstring converted = ::wcstring_to_cstring(new_path.c_str, new_path.size);
+
+    assert(converted.data != nullptr);
+    assert(converted.size != (size_t)-1);
+
+    ::set_string(as_string_ptr(pth), converted.data, converted.size);
+
+    ::free_memory(converted.data);
 #else
-    return this->ptr->data.c_str();
+    set_string(as_string_ptr(pth), new_path);
 #endif
 }
 
+void fs::set_path(fs::path *pth, const_wstring  new_path)
+{
+#if Windows
+    set_string(as_string_ptr(pth), new_path);
+#else
+    _mbstring converted = ::wcstring_to_cstring(new_path.c_str, new_path.size);
+
+    assert(converted.data != nullptr);
+    assert(converted.size != (size_t)-1);
+
+    ::set_string(as_string_ptr(pth), converted.data, converted.size);
+
+    ::free_memory(converted.data);
+#endif
+}
+
+void fs::set_path(fs::path *pth, const fs::path *new_path)
+{
+    set_string(as_string_ptr(pth), to_const_string(new_path));
+}
+
+#if 0
 bool fs::operator==(const fs::path &lhs, const fs::path &rhs)
 {
     return lhs.ptr->data == rhs.ptr->data;
@@ -727,4 +799,26 @@ void fs::get_preference_path(fs::path *out, const char *app, const char *org)
 void fs::get_temporary_path(fs::path *out)
 {
     out->ptr->data = std::filesystem::temp_directory_path();
+}
+
+#endif
+
+fs::path operator ""_path(const char    *pth, u64 size)
+{
+    fs::path ret;
+    fs::init(&ret, ::to_const_string(pth, size));
+    return ret;
+}
+
+fs::path operator ""_path(const wchar_t *pth, u64 size)
+{
+    fs::path ret;
+    fs::init(&ret, ::to_const_string(pth, size));
+    return ret;
+}
+
+const_string_base<fs::path_char_t> to_const_string(const fs::path *path)
+{
+    assert(path != nullptr);
+    return const_string_base<fs::path_char_t>{path->data, path->size};
 }

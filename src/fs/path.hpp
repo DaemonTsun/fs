@@ -4,8 +4,6 @@
  * alternative to std::filesystem::path (or, right now, a bad wrapper
  * around them) with a better interface.
  *
- * the constructors create a new fs::path.
- *
  * fs::set_path(path) set a new path.
  *
  * exists(path) checks if the given path exists
@@ -97,41 +95,47 @@
 
 #include "shl/hash.hpp"
 #include "shl/string.hpp"
+#include "shl/platform.hpp"
 
 namespace fs
 {
+#if Windows
+typedef wchar_t path_char_t;
+constexpr const path_char_t path_separator = L'\\';
+#else
+typedef char path_char_t;
+constexpr const path_char_t path_separator = '/';
+#endif
+
 struct path
 {
-    struct _path;
-    _path *ptr;
+    typedef fs::path_char_t value_type;
 
-    path();
-    path(const char *pth);
-    path(const wchar_t *pth);
-    path(const_string  pth);
-    path(const_wstring pth);
-    path(const string  *pth);
-    path(const wstring *pth);
-    path(const fs::path &other);
-    path(fs::path &&other);
+    value_type *data;
+    u64 size;
+    u64 reserved_size;
 
-    ~path();
+    operator const value_type*() const;
 
-    path &operator=(const fs::path &other);
-    path &operator=(fs::path &&other);
-
-    // FIXME
-    // Warning for Windows:
-    // operator char* and c_str currently convert the garbage wchar_t data that
-    // Windows throws at you into a static buffer which is overwritten with
-    // each call, meaning if you need the data later or need multiple paths,
-    // store them directly after calling.
-    operator const char*() const;
-
-
-    const char *c_str() const;
+    const value_type *c_str() const;
 };
 
+void init(fs::path *path);
+void init(fs::path *path, const char    *str);
+void init(fs::path *path, const wchar_t *str);
+void init(fs::path *path, const_string   str);
+void init(fs::path *path, const_wstring  str);
+void init(fs::path *path, const fs::path *other);
+
+void free(fs::path *path);
+
+void set_path(fs::path *pth, const char    *new_path);
+void set_path(fs::path *pth, const wchar_t *new_path);
+void set_path(fs::path *pth, const_string   new_path);
+void set_path(fs::path *pth, const_wstring  new_path);
+void set_path(fs::path *pth, const fs::path *new_path);
+
+/*
 bool operator==(const fs::path &lhs, const fs::path &rhs);
 
 // see append_path
@@ -139,47 +143,24 @@ fs::path  operator/ (const fs::path &lhs, const char    *seg);
 fs::path  operator/ (const fs::path &lhs, const wchar_t *seg);
 fs::path  operator/ (const fs::path &lhs, const_string   seg);
 fs::path  operator/ (const fs::path &lhs, const_wstring  seg);
-fs::path  operator/ (const fs::path &lhs, const string  &seg);
-fs::path  operator/ (const fs::path &lhs, const wstring &seg);
-fs::path  operator/ (const fs::path &lhs, const string  *seg);
-fs::path  operator/ (const fs::path &lhs, const wstring *seg);
 
 fs::path &operator/=(fs::path &lhs, const char    *seg);
 fs::path &operator/=(fs::path &lhs, const wchar_t *seg);
 fs::path &operator/=(fs::path &lhs, const_string   seg);
 fs::path &operator/=(fs::path &lhs, const_wstring  seg);
-fs::path &operator/=(fs::path &lhs, const string  &seg);
-fs::path &operator/=(fs::path &lhs, const wstring &seg);
-fs::path &operator/=(fs::path &lhs, const string  *seg);
-fs::path &operator/=(fs::path &lhs, const wstring *seg);
 
 // see concat_path
 fs::path  operator+ (const fs::path &lhs, const char    *seg);
 fs::path  operator+ (const fs::path &lhs, const wchar_t *seg);
 fs::path  operator+ (const fs::path &lhs, const_string   seg);
 fs::path  operator+ (const fs::path &lhs, const_wstring  seg);
-fs::path  operator+ (const fs::path &lhs, const string  &seg);
-fs::path  operator+ (const fs::path &lhs, const wstring &seg);
-fs::path  operator+ (const fs::path &lhs, const string  *seg);
-fs::path  operator+ (const fs::path &lhs, const wstring *seg);
 
 fs::path &operator+=(fs::path &lhs, const char    *seg);
 fs::path &operator+=(fs::path &lhs, const wchar_t *seg);
 fs::path &operator+=(fs::path &lhs, const_string   seg);
 fs::path &operator+=(fs::path &lhs, const_wstring  seg);
-fs::path &operator+=(fs::path &lhs, const string  &seg);
-fs::path &operator+=(fs::path &lhs, const wstring &seg);
-fs::path &operator+=(fs::path &lhs, const string  *seg);
-fs::path &operator+=(fs::path &lhs, const wstring *seg);
 
 hash_t hash(const fs::path *pth);
-
-void set_path(fs::path *pth, const char *new_path);
-void set_path(fs::path *pth, const wchar_t *new_path);
-void set_path(fs::path *pth, const_string  new_path);
-void set_path(fs::path *pth, const_wstring new_path);
-void set_path(fs::path *pth, const string  *new_path);
-void set_path(fs::path *pth, const wstring *new_path);
 
 bool exists(const fs::path *pth);
 bool is_file(const fs::path *pth);
@@ -199,14 +180,10 @@ void append_path(fs::path *out, const char    *seg);
 void append_path(fs::path *out, const wchar_t *seg);
 void append_path(fs::path *out, const_string   seg);
 void append_path(fs::path *out, const_wstring  seg);
-void append_path(fs::path *out, const string  *seg);
-void append_path(fs::path *out, const wstring *seg);
 void append_path(const fs::path *pth, const char    *seg, fs::path *out);
 void append_path(const fs::path *pth, const wchar_t *seg, fs::path *out);
 void append_path(const fs::path *pth, const_string   seg, fs::path *out);
 void append_path(const fs::path *pth, const_wstring  seg, fs::path *out);
-void append_path(const fs::path *pth, const string  *seg, fs::path *out);
-void append_path(const fs::path *pth, const wstring *seg, fs::path *out);
 
 // out = pth + seg
 // does not add a directory separator
@@ -214,14 +191,10 @@ void concat_path(fs::path *out, const char    *seg);
 void concat_path(fs::path *out, const wchar_t *seg);
 void concat_path(fs::path *out, const_string   seg);
 void concat_path(fs::path *out, const_wstring  seg);
-void concat_path(fs::path *out, const string  *seg);
-void concat_path(fs::path *out, const wstring *seg);
 void concat_path(const fs::path *pth, const char    *seg, fs::path *out);
 void concat_path(const fs::path *pth, const wchar_t *seg, fs::path *out);
 void concat_path(const fs::path *pth, const_string   seg, fs::path *out);
 void concat_path(const fs::path *pth, const_wstring  seg, fs::path *out);
-void concat_path(const fs::path *pth, const string  *seg, fs::path *out);
-void concat_path(const fs::path *pth, const wstring *seg, fs::path *out);
 
 void canonical_path(fs::path *out);
 void canonical_path(const fs::path *pth, fs::path *out);
@@ -266,4 +239,11 @@ void get_preference_path(fs::path *out, const char *app = nullptr, const char *o
 
 // /tmp
 void get_temporary_path(fs::path *out);
+*/
 }
+
+// these allocate memory
+fs::path operator ""_path(const char    *, u64);
+fs::path operator ""_path(const wchar_t *, u64);
+
+const_string_base<fs::path_char_t> to_const_string(const fs::path *path);

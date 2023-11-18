@@ -1,4 +1,5 @@
 
+#if 0
 #pragma once
 
 /* filesystem_watcher.hpp
@@ -63,3 +64,4 @@ void stop_filesystem_watcher(fs::filesystem_watcher *watcher);
 
 void destroy_filesystem_watcher(fs::filesystem_watcher *watcher);
 }
+#endif

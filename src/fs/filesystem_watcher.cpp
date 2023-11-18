@@ -1,4 +1,5 @@
 
+#if 0
 #include "shl/platform.hpp"
 
 #include <stdio.h>
@@ -458,3 +459,4 @@ void fs::destroy_filesystem_watcher(fs::filesystem_watcher *watcher)
 
     delete watcher;
 }
+#endif

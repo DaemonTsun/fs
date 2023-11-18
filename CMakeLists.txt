@@ -5,13 +5,13 @@ endif()
 find_package(better REQUIRED PATHS ext/better-cmake/cmake)
 
 project(fs)
-project_author(fs "DaemonTsun")
+project_author("DaemonTsun")
 
 set(TEST_SOURCE_DIR ${ROOT}/tests)
 
 # library
 add_lib(fs STATIC
-    VERSION 0.7
+    VERSION 0.8
     SOURCES_DIR "${ROOT}/src/"
     GENERATE_TARGET_HEADER "${ROOT}/src/fs/fs_info.hpp"
     CPP_VERSION 17
@@ -20,7 +20,7 @@ add_lib(fs STATIC
         @Linux pthread
 
     EXT
-        LIB shl 0.8.0 "${ROOT}/ext/shl" INCLUDE LINK GIT_SUBMODULE
+        LIB shl 0.8.2 "${ROOT}/ext/shl" INCLUDE LINK GIT_SUBMODULE
 
     TESTS "${TEST_SOURCE_DIR}"
     )
