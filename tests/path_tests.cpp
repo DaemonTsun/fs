@@ -8,18 +8,99 @@
 #define assert_equal_str(STR1, STR2)\
     assert_equal(compare_strings(STR1, STR2), 0)
 
+// TODO: windows tests...
 
-define_test(test1)
+#define SANDBOX_DIR             "/tmp/sandbox"
+#define SANDBOX_TEST_DIR        SANDBOX_DIR "/dir"
+#define SANDBOX_TEST_FILE       SANDBOX_DIR "/file"
+#define SANDBOX_TEST_SYMLINK    SANDBOX_DIR "/symlink"
+#define SANDBOX_TEST_PIPE       SANDBOX_DIR "/pipe"
+
+define_test(set_path_sets_path)
 {
     fs::path pth{};
     
     fs::set_path(&pth, "/abc"); assert_equal_str(pth.data, "/abc");
     fs::set_path(&pth, "/abc/def"); assert_equal_str(pth.data, "/abc/def");
-    fs::set_path(&pth, "/abc///:def"); assert_equal_str(pth.data, "/abc///:def");
-    fs::set_path(&pth, "C:/abc///:def"); assert_equal_str(pth.data, "C:/abc///:def");
+    fs::set_path(&pth, L"/abc///:def"); assert_equal_str(pth.data, "/abc///:def");
+    fs::set_path(&pth, L"C:/abc///:def"); assert_equal_str(pth.data, "C:/abc///:def");
 
     fs::free(&pth);
 }
+
+define_test(literal_path_sets_path)
+{
+    fs::path pth = "/abc/def"_path;
+    
+    assert_equal_str(pth.data, "/abc/def");
+
+    fs::free(&pth);
+}
+
+define_test(test2)
+{
+    fs::path p{};
+
+    // directory
+    fs::set_path(&p, SANDBOX_TEST_DIR);
+    assert_equal(fs::is_file(&p),         false);
+    assert_equal(fs::is_block_device(&p), false);
+    assert_equal(fs::is_symlink(&p),      false);
+    assert_equal(fs::is_pipe(&p),         false);
+    assert_equal(fs::is_socket(&p),       false);
+    assert_equal(fs::is_directory(&p),    true);
+
+    // file
+    fs::set_path(&p, SANDBOX_TEST_FILE);
+    assert_equal(fs::is_file(&p),         true);
+    assert_equal(fs::is_block_device(&p), false);
+    assert_equal(fs::is_symlink(&p),      false);
+    assert_equal(fs::is_pipe(&p),         false);
+    assert_equal(fs::is_socket(&p),       false);
+    assert_equal(fs::is_directory(&p),    false);
+
+    // symlink
+    fs::set_path(&p, SANDBOX_TEST_SYMLINK);
+    assert_equal(fs::is_file(&p),         false);
+    assert_equal(fs::is_block_device(&p), false);
+    assert_equal(fs::is_symlink(&p),      true);
+    assert_equal(fs::is_pipe(&p),         false);
+    assert_equal(fs::is_socket(&p),       false);
+    assert_equal(fs::is_directory(&p),    false);
+
+    // pipe
+    fs::set_path(&p, SANDBOX_TEST_PIPE);
+    assert_equal(fs::is_file(&p),         false);
+    assert_equal(fs::is_block_device(&p), false);
+    assert_equal(fs::is_symlink(&p),      false);
+    assert_equal(fs::is_pipe(&p),         true);
+    assert_equal(fs::is_socket(&p),       false);
+    assert_equal(fs::is_directory(&p),    false);
+
+    // block device
+    fs::set_path(&p, "/dev/sda");
+    assert_equal(fs::is_file(&p),         false);
+    assert_equal(fs::is_block_device(&p), true);
+    assert_equal(fs::is_symlink(&p),      false);
+    assert_equal(fs::is_pipe(&p),         false);
+    assert_equal(fs::is_socket(&p),       false);
+    assert_equal(fs::is_directory(&p),    false);
+
+    fs::free(&p);
+}
+
+/*
+define_test(exists_returns_true_if_directory_exists)
+{
+#if Windows
+    fs::path p = LR"=(C:\)=";
+#else
+    fs::path p = "/"_path;
+#endif
+
+    assert_equal(fs::exists(&p), true);
+}
+*/
 
 #if 0
 define_test(filename_returns_the_filename)

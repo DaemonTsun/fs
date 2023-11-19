@@ -1,94 +1,6 @@
 
 /* path.hpp
- *
- * alternative to std::filesystem::path (or, right now, a bad wrapper
- * around them) with a better interface.
- *
- * fs::set_path(path) set a new path.
- *
- * exists(path) checks if the given path exists
- * is_file(path) checks if the given path is a file
- * is_directory(path) checks if the given path is a directory
- * is_absolute(path) checks if the given path is absolute
- * is_relative(path) checks if the given path is relative
- * are_equivalent(path1, path2) checks if path1 and path2 point to the same filesystem entry
- *
- * filename(path) returns a char pointer to the filename of the path.
- *                the pointer is invalidated when the path changes.
- * extension(path) returns a char pointer to the the extension
- *                 of the file of the path.
- *                 the pointer is invalidated when the path changes.
- *                                
- ************************************
- * path modification / related paths:
- *
- * parent_path(path) sets path to its parent path.
- * parent_path(path, out) sets out to the parent path of path.
- *
- * append_path(path, seg) adds the segment seg to path, such that path = path / seg
- * append_path(path, seg, out) out = path / seg
- *
- * concat_path(path, seg) concatenates seg to path, so that path = path seg
- * concat_path(path, seg, out) out = path seg.
- * 
- * canonical_path(path) sets path to its canonical path.
- * canonical_path(path, out) sets out the the canonical path of path.
- *
- * weakly_canonical_path(path) sets path to its weakly canonical path.
- * weakly_canonical_path(path, out) sets out to the weakly canonical path of path.
- *
- * absolute_path(path) makes path absolute
- * absolute_path(path, out) sets out to the absolute path of path.
- *
- * absolute_canonical_path(path) combines canonical_path and absolute_path
- * absolute_canonical_path(path, out) combines canonical_path and absolute_path
- *
- * relative_path(from_path, to_path, out) sets out to the relative path from from_path
- *                                        to to_path, so that adding out to from_path
- *                                        yields to_path.
- *
- * proximate_path(from_path, to_path, out) c++ proximate_path
- *
- *************************
- * filesystem modification
- *
- * copy(from_path, to_path) copies the filesystem entry from from_path to to_path.
- *
- * create_directory(path) creates a directory and returns whether it was successful or not.
- *                        does not create parents.
- *
- * create_directories(path) creates all directories until path and returns whether
- *                          it was successful or not.
- *                          does create parents.
- *
- * create_hard_link(target_path, link_path) creates a hard link at link_path to target_path.
- * create_file_symlink(target_path, link_path) creates a file symlink at link_path
- *                                             to target_path.
- * create_directory_symlink(target_path, link_path) creates a directory symlink at link_path
- *                                             to target_path.
- * move(from_path, to_path) moves the filesystem entry from from_path to to_path.
- *
- * remove(path) removes the filesystem entry at path and returns whether it was
- *              successful or not.
- * remove_all(path) removes the filesystem entry, including children,
- *                  at path and returns whether it was successful or not.
- *
- ***************
- * special paths
- *
- * get_current_path(out) sets out to the current working directory.
- * set_current_path(path) sets the current working directory to path.
- *
- * get_executable_path(out) sets out to the path of the running executable.
- * get_executable_directory_path(out) sets out to the path where the running
- *                                    executable is located at.
- *
- * get_preference_path(out, app = nullptr, org = nullptr)
- *     gets the local preference path.
- *     on Windows, this is likely AppData\Local\[Org\]App\.
- *     on Linux, this is .local/share/[org/]app/.
- *              
- * get_temporary_path(out) gets a temporary directory path.
+ TODO: write new docs
  */
 
 #pragma once
@@ -96,6 +8,8 @@
 #include "shl/hash.hpp"
 #include "shl/string.hpp"
 #include "shl/platform.hpp"
+
+#include "fs/fs_error.hpp"
 
 namespace fs
 {
@@ -135,9 +49,25 @@ void set_path(fs::path *pth, const_string   new_path);
 void set_path(fs::path *pth, const_wstring  new_path);
 void set_path(fs::path *pth, const fs::path *new_path);
 
-/*
 bool operator==(const fs::path &lhs, const fs::path &rhs);
 
+hash_t hash(const fs::path *pth);
+
+bool exists(const fs::path *pth, fs::fs_error *err = nullptr);
+
+bool is_file(const fs::path *pth, fs::fs_error *err = nullptr);
+bool is_pipe(const fs::path *pth, fs::fs_error *err = nullptr);
+bool is_block_device(const fs::path *pth, fs::fs_error *err = nullptr);
+bool is_socket(const fs::path *pth, fs::fs_error *err = nullptr);
+bool is_symlink(const fs::path *pth, fs::fs_error *err = nullptr);
+bool is_directory(const fs::path *pth, fs::fs_error *err = nullptr);
+bool is_other(const fs::path *pth, fs::fs_error *err = nullptr);
+
+bool is_absolute(const fs::path *pth, fs::fs_error *err = nullptr);
+bool is_relative(const fs::path *pth, fs::fs_error *err = nullptr);
+bool are_equivalent(const fs::path *pth1, const fs::path *pth2, fs::fs_error *err = nullptr);
+
+/*
 // see append_path
 fs::path  operator/ (const fs::path &lhs, const char    *seg);
 fs::path  operator/ (const fs::path &lhs, const wchar_t *seg);
@@ -159,15 +89,6 @@ fs::path &operator+=(fs::path &lhs, const char    *seg);
 fs::path &operator+=(fs::path &lhs, const wchar_t *seg);
 fs::path &operator+=(fs::path &lhs, const_string   seg);
 fs::path &operator+=(fs::path &lhs, const_wstring  seg);
-
-hash_t hash(const fs::path *pth);
-
-bool exists(const fs::path *pth);
-bool is_file(const fs::path *pth);
-bool is_directory(const fs::path *pth);
-bool is_absolute(const fs::path *pth);
-bool is_relative(const fs::path *pth);
-bool are_equivalent(const fs::path *pth1, const fs::path *pth2);
 
 const char *filename(const fs::path *pth);
 const char *extension(const fs::path *pth);

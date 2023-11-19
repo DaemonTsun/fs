@@ -25,19 +25,30 @@
 #define PATH_CHAR_LIT(c) c
 #endif
 
-// conversion helpers
 #define as_array_ptr(x)     (::array<fs::path_char_t>*)(x)
 #define as_string_ptr(x)    (::string_base<fs::path_char_t>*)(x)
 
-struct _mbstring
+// filesystem info
+struct _fs_info
 {
-    char *data;
+#if Windows
+
+#else
+    struct stat stat;
+#endif
+};
+
+// conversion helpers
+template<typename T>
+struct _converted_string
+{
+    T *data;
     u64 size;
 };
 
-_mbstring wcstring_to_cstring(const wchar_t *wcstring, u64 wchar_count)
+_converted_string<char> _convert_string(const wchar_t *wcstring, u64 wchar_count)
 {
-    _mbstring ret;
+    _converted_string<char> ret;
     u64 sz = wchar_count * sizeof(char);
     ret.data = (char*)::allocate_memory(sz);
 
@@ -48,15 +59,9 @@ _mbstring wcstring_to_cstring(const wchar_t *wcstring, u64 wchar_count)
     return ret;
 }
 
-struct _wstring
+_converted_string<wchar_t> _convert_string(const char *cstring, u64 char_count)
 {
-    wchar_t *data;
-    u64 size;
-};
-
-_wstring cstring_to_wcstring(const char *cstring, u64 char_count)
-{
-    _wstring ret;
+    _converted_string<wchar_t> ret;
     u64 sz = char_count * sizeof(wchar_t);
     ret.data = (wchar_t*)::allocate_memory(sz);
 
@@ -102,7 +107,7 @@ void fs::init(fs::path *path, const_string   str)
     assert(str.c_str != nullptr);
 
 #if Windows
-    _wstring converted = ::cstring_to_wcstring(str.c_str, str.size);
+    _converted_string<wchar_t> converted = ::_convert_string(str.c_str, str.size);
 
     assert(converted.data != nullptr);
     assert(converted.size != (size_t)-1);
@@ -123,7 +128,7 @@ void fs::init(fs::path *path, const_wstring  str)
 #if Windows
     _path_init(path, str.c_str, str.size);
 #else
-    _mbstring converted = ::wcstring_to_cstring(str.c_str, str.size);
+    _converted_string<char> converted = ::_convert_string(str.c_str, str.size);
 
     assert(converted.data != nullptr);
     assert(converted.size != (size_t)-1);
@@ -161,7 +166,7 @@ void fs::set_path(fs::path *pth, const wchar_t *new_path)
 void fs::set_path(fs::path *pth, const_string   new_path)
 {
 #if Windows
-    _wstring converted = ::wcstring_to_cstring(new_path.c_str, new_path.size);
+    _converted_string converted = ::_convert_string(new_path.c_str, new_path.size);
 
     assert(converted.data != nullptr);
     assert(converted.size != (size_t)-1);
@@ -170,16 +175,16 @@ void fs::set_path(fs::path *pth, const_string   new_path)
 
     ::free_memory(converted.data);
 #else
-    set_string(as_string_ptr(pth), new_path);
+    ::set_string(as_string_ptr(pth), new_path);
 #endif
 }
 
 void fs::set_path(fs::path *pth, const_wstring  new_path)
 {
 #if Windows
-    set_string(as_string_ptr(pth), new_path);
+    ::set_string(as_string_ptr(pth), new_path);
 #else
-    _mbstring converted = ::wcstring_to_cstring(new_path.c_str, new_path.size);
+    _converted_string converted = ::_convert_string(new_path.c_str, new_path.size);
 
     assert(converted.data != nullptr);
     assert(converted.size != (size_t)-1);
@@ -192,15 +197,15 @@ void fs::set_path(fs::path *pth, const_wstring  new_path)
 
 void fs::set_path(fs::path *pth, const fs::path *new_path)
 {
-    set_string(as_string_ptr(pth), to_const_string(new_path));
+    ::set_string(as_string_ptr(pth), to_const_string(new_path));
+}
+
+bool fs::operator==(const fs::path &lhs, const fs::path &rhs)
+{
+    return ::compare_strings(::to_const_string(&lhs), ::to_const_string(&rhs));
 }
 
 #if 0
-bool fs::operator==(const fs::path &lhs, const fs::path &rhs)
-{
-    return lhs.ptr->data == rhs.ptr->data;
-}
-
 // append operators
 #define _APPEND_OPERATOR_BODY(...)\
     {\
@@ -265,71 +270,71 @@ fs::path &fs::operator+=(fs::path &lhs, const wstring &seg) _CONCAT_ASSIGNMENT_O
 fs::path &fs::operator+=(fs::path &lhs, const string  *seg) _CONCAT_ASSIGNMENT_OPERATOR_BODY()
 fs::path &fs::operator+=(fs::path &lhs, const wstring *seg) _CONCAT_ASSIGNMENT_OPERATOR_BODY()
 
+#endif
+
 hash_t fs::hash(const fs::path *pth)
 {
-    const char *cstr = pth->c_str();
-    return hash_data(cstr, strlen(cstr));
+    return hash_data(pth->data, pth->size * sizeof(fs::path_char_t));
 }
 
-void fs::set_path(fs::path *pth, const char *new_path)
+bool fs::exists(const fs::path *pth, fs::fs_error *err)
 {
-    pth->ptr->data.assign(new_path);
+    return false;
 }
 
-void fs::set_path(fs::path *pth, const wchar_t *new_path)
+bool fs::is_file(const fs::path *pth, fs::fs_error *err)
 {
-    pth->ptr->data.assign(new_path);
+    return false;
 }
 
-void fs::set_path(fs::path *pth, const_string new_path)
+bool fs::is_pipe(const fs::path *pth, fs::fs_error *err)
 {
-    pth->ptr->data.assign(new_path.c_str);
+    return false;
 }
 
-void fs::set_path(fs::path *pth, const_wstring new_path)
+bool fs::is_block_device(const fs::path *pth, fs::fs_error *err)
 {
-    pth->ptr->data.assign(new_path.c_str);
+    return false;
 }
 
-void fs::set_path(fs::path *pth, const string *new_path)
+bool fs::is_socket(const fs::path *pth, fs::fs_error *err)
 {
-    pth->ptr->data.assign(new_path->data.data);
+    return false;
 }
 
-void fs::set_path(fs::path *pth, const wstring *new_path)
+bool fs::is_symlink(const fs::path *pth, fs::fs_error *err)
 {
-    pth->ptr->data.assign(new_path->data.data);
+    return false;
 }
 
-bool fs::exists(const fs::path *pth)
+bool fs::is_directory(const fs::path *pth, fs::fs_error *err)
 {
-    return std::filesystem::exists(pth->ptr->data);
+    return false;
 }
 
-bool fs::is_file(const fs::path *pth)
+bool fs::is_other(const fs::path *pth, fs::fs_error *err)
 {
-    return std::filesystem::is_regular_file(pth->ptr->data);
+    return false;
 }
 
-bool fs::is_directory(const fs::path *pth)
+
+bool fs::is_absolute(const fs::path *pth, fs::fs_error *err)
 {
-    return std::filesystem::is_directory(pth->ptr->data);
+    return false;
 }
 
-bool fs::is_absolute(const fs::path *pth)
+bool fs::is_relative(const fs::path *pth, fs::fs_error *err)
 {
-    return pth->ptr->data.is_absolute();
+    return false;
 }
 
-bool fs::is_relative(const fs::path *pth)
+bool fs::are_equivalent(const fs::path *pth1, const fs::path *pth2, fs::fs_error *err)
 {
-    return pth->ptr->data.is_relative();
+    return false;
 }
 
-bool fs::are_equivalent(const fs::path *pth1, const fs::path *pth2)
-{
-    return std::filesystem::equivalent(pth1->ptr->data, pth2->ptr->data);
-}
+
+#if 0
 
 const char *fs::filename(const fs::path *pth)
 {
