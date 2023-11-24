@@ -7,9 +7,9 @@
 #include <windows.h>
 #else
 #include <unistd.h>
-#include <sys/stat.h>
 #include <linux/limits.h>
 #include <string.h>
+#include <errno.h>
 #endif
 
 #include <stdlib.h>
@@ -49,7 +49,7 @@ struct _converted_string
 _converted_string<char> _convert_string(const wchar_t *wcstring, u64 wchar_count)
 {
     _converted_string<char> ret;
-    u64 sz = wchar_count * sizeof(char);
+    u64 sz = (wchar_count + 1) * sizeof(char);
     ret.data = (char*)::allocate_memory(sz);
 
     ::fill_memory(ret.data, 0, sz);
@@ -62,7 +62,7 @@ _converted_string<char> _convert_string(const wchar_t *wcstring, u64 wchar_count
 _converted_string<wchar_t> _convert_string(const char *cstring, u64 char_count)
 {
     _converted_string<wchar_t> ret;
-    u64 sz = char_count * sizeof(wchar_t);
+    u64 sz = (char_count + 1) * sizeof(wchar_t);
     ret.data = (wchar_t*)::allocate_memory(sz);
 
     ::fill_memory(ret.data, 0, sz);
@@ -279,8 +279,19 @@ hash_t fs::hash(const fs::path *pth)
 
 bool fs::exists(const fs::path *pth, fs::fs_error *err)
 {
+#if Windows
     return false;
+#else
+    if (access(pth->data, F_OK) == 0)
+        return true;
+
+    get_fs_errno_error(err);
+
+    return false;
+#endif
 }
+
+
 
 bool fs::is_file(const fs::path *pth, fs::fs_error *err)
 {

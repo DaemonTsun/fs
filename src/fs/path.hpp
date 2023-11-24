@@ -11,14 +11,31 @@
 
 #include "fs/fs_error.hpp"
 
+#if Windows
+
+#else
+// I doubt there's any way around including this, stat is a syscall and
+// the struct can change depending on the system.
+#include <sys/stat.h>
+#endif
+
 namespace fs
 {
 #if Windows
+
 typedef wchar_t path_char_t;
 constexpr const path_char_t path_separator = L'\\';
+
+struct filesystem_info {}; // TODO: define
+
 #else
+// Linux and others
+
 typedef char path_char_t;
 constexpr const path_char_t path_separator = '/';
+
+typedef struct stat filesystem_info; 
+
 #endif
 
 struct path
@@ -58,6 +75,7 @@ bool exists(const fs::path *pth, fs::fs_error *err = nullptr);
 bool is_file(const fs::path *pth, fs::fs_error *err = nullptr);
 bool is_pipe(const fs::path *pth, fs::fs_error *err = nullptr);
 bool is_block_device(const fs::path *pth, fs::fs_error *err = nullptr);
+bool is_special_character_file(const fs::path *pth, fs::fs_error *err = nullptr);
 bool is_socket(const fs::path *pth, fs::fs_error *err = nullptr);
 bool is_symlink(const fs::path *pth, fs::fs_error *err = nullptr);
 bool is_directory(const fs::path *pth, fs::fs_error *err = nullptr);

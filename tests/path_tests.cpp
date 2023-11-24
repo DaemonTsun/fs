@@ -1,6 +1,8 @@
 
 #include <t1/t1.hpp>
 
+#include <unistd.h>
+
 #include "shl/string.hpp"
 #include "shl/platform.hpp"
 #include "fs/path.hpp"
@@ -14,6 +16,7 @@
 #define SANDBOX_TEST_DIR        SANDBOX_DIR "/dir"
 #define SANDBOX_TEST_FILE       SANDBOX_DIR "/file"
 #define SANDBOX_TEST_SYMLINK    SANDBOX_DIR "/symlink"
+#define SANDBOX_TEST_SYMLINK_NO_TARGET   SANDBOX_DIR "/symlink2"
 #define SANDBOX_TEST_PIPE       SANDBOX_DIR "/pipe"
 
 define_test(set_path_sets_path)
@@ -37,6 +40,7 @@ define_test(literal_path_sets_path)
     fs::free(&pth);
 }
 
+/*
 define_test(test2)
 {
     fs::path p{};
@@ -88,19 +92,25 @@ define_test(test2)
 
     fs::free(&p);
 }
+*/
 
-/*
 define_test(exists_returns_true_if_directory_exists)
 {
-#if Windows
-    fs::path p = LR"=(C:\)=";
-#else
-    fs::path p = "/"_path;
-#endif
+    fs::path p{};
+    fs::set_path(&p, SANDBOX_TEST_FILE);
 
     assert_equal(fs::exists(&p), true);
+
+    fs::fs_error err;
+    fs::set_path(&p, SANDBOX_TEST_DIR "abc");
+    assert_equal(fs::exists(&p, &err), false);
+
+#if Linux
+    assert_equal(err.error_code, ENOENT);
+#endif
+
+    fs::free(&p);
 }
-*/
 
 #if 0
 define_test(filename_returns_the_filename)
@@ -484,4 +494,25 @@ define_test(get_executable_path_gets_executable_path)
 }
 #endif
 
-define_default_test_main();
+void _setup()
+{
+    mkdir(SANDBOX_DIR, 0777);
+    mkdir(SANDBOX_TEST_DIR, 0777);
+    FILE *f = fopen(SANDBOX_TEST_FILE, "w");
+    assert(f != nullptr);
+    fclose(f);
+    symlink(SANDBOX_TEST_FILE, SANDBOX_TEST_SYMLINK);
+    symlink(SANDBOX_DIR "/symlink_dest", SANDBOX_TEST_SYMLINK_NO_TARGET);
+ 
+    mkfifo(SANDBOX_TEST_PIPE, 0644);
+
+}
+
+#include <filesystem> // lol
+
+void _cleanup()
+{
+    std::filesystem::remove_all(SANDBOX_DIR);
+}
+
+define_test_main(_setup(), _cleanup());
