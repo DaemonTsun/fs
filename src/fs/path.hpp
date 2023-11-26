@@ -70,20 +70,32 @@ bool operator==(const fs::path &lhs, const fs::path &rhs);
 
 hash_t hash(const fs::path *pth);
 
-bool exists(const fs::path *pth, fs::fs_error *err = nullptr);
+bool get_filesystem_info(const fs::path *pth, fs::filesystem_info *out, bool follow_symlinks = true, fs::fs_error *err = nullptr);
 
-bool is_file(const fs::path *pth, fs::fs_error *err = nullptr);
-bool is_pipe(const fs::path *pth, fs::fs_error *err = nullptr);
-bool is_block_device(const fs::path *pth, fs::fs_error *err = nullptr);
-bool is_special_character_file(const fs::path *pth, fs::fs_error *err = nullptr);
-bool is_socket(const fs::path *pth, fs::fs_error *err = nullptr);
-bool is_symlink(const fs::path *pth, fs::fs_error *err = nullptr);
-bool is_directory(const fs::path *pth, fs::fs_error *err = nullptr);
-bool is_other(const fs::path *pth, fs::fs_error *err = nullptr);
+bool exists(const fs::path *pth, bool follow_symlinks = true, fs::fs_error *err = nullptr);
 
-bool is_absolute(const fs::path *pth, fs::fs_error *err = nullptr);
-bool is_relative(const fs::path *pth, fs::fs_error *err = nullptr);
-bool are_equivalent(const fs::path *pth1, const fs::path *pth2, fs::fs_error *err = nullptr);
+bool is_file(const fs::filesystem_info *info);
+bool is_pipe(const fs::filesystem_info *info);
+bool is_block_device(const fs::filesystem_info *info);
+bool is_special_character_file(const fs::filesystem_info *info);
+bool is_socket(const fs::filesystem_info *info);
+bool is_symlink(const fs::filesystem_info *info);
+bool is_directory(const fs::filesystem_info *info);
+bool is_other(const fs::filesystem_info *info);
+
+bool is_file(const fs::path *pth, bool follow_symlinks = true, fs::fs_error *err = nullptr);
+bool is_pipe(const fs::path *pth, bool follow_symlinks = true, fs::fs_error *err = nullptr);
+bool is_block_device(const fs::path *pth, bool follow_symlinks = true, fs::fs_error *err = nullptr);
+bool is_special_character_file(const fs::path *pth, bool follow_symlinks = true, fs::fs_error *err = nullptr);
+bool is_socket(const fs::path *pth, bool follow_symlinks = true, fs::fs_error *err = nullptr);
+// is_symlink has follow_symlinks = false for obvious reasons
+bool is_symlink(const fs::path *pth, bool follow_symlinks = false, fs::fs_error *err = nullptr);
+bool is_directory(const fs::path *pth, bool follow_symlinks = true, fs::fs_error *err = nullptr);
+bool is_other(const fs::path *pth, bool follow_symlinks = true, fs::fs_error *err = nullptr);
+
+bool is_absolute(const fs::path *pth, bool follow_symlinks = true, fs::fs_error *err = nullptr);
+bool is_relative(const fs::path *pth, bool follow_symlinks = true, fs::fs_error *err = nullptr);
+bool are_equivalent(const fs::path *pth1, const fs::path *pth2, bool follow_symlinks = true, fs::fs_error *err = nullptr);
 
 /*
 // see append_path

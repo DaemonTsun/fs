@@ -10,6 +10,7 @@
 #include <linux/limits.h>
 #include <string.h>
 #include <errno.h>
+#include <fcntl.h>
 #endif
 
 #include <stdlib.h>
@@ -28,15 +29,6 @@
 #define as_array_ptr(x)     (::array<fs::path_char_t>*)(x)
 #define as_string_ptr(x)    (::string_base<fs::path_char_t>*)(x)
 
-// filesystem info
-struct _fs_info
-{
-#if Windows
-
-#else
-    struct stat stat;
-#endif
-};
 
 // conversion helpers
 template<typename T>
@@ -165,6 +157,8 @@ void fs::set_path(fs::path *pth, const wchar_t *new_path)
 
 void fs::set_path(fs::path *pth, const_string   new_path)
 {
+    assert(pth != nullptr);
+
 #if Windows
     _converted_string converted = ::_convert_string(new_path.c_str, new_path.size);
 
@@ -181,6 +175,8 @@ void fs::set_path(fs::path *pth, const_string   new_path)
 
 void fs::set_path(fs::path *pth, const_wstring  new_path)
 {
+    assert(pth != nullptr);
+
 #if Windows
     ::set_string(as_string_ptr(pth), new_path);
 #else
@@ -277,69 +273,187 @@ hash_t fs::hash(const fs::path *pth)
     return hash_data(pth->data, pth->size * sizeof(fs::path_char_t));
 }
 
-bool fs::exists(const fs::path *pth, fs::fs_error *err)
+bool fs::get_filesystem_info(const fs::path *pth, fs::filesystem_info *out, bool follow_symlinks, fs::fs_error *err)
 {
+    assert(pth != nullptr);
+    assert(out != nullptr);
+
+#if Windows
+    return false;
+
+#else
+    int flags = 0;
+
+    if (!follow_symlinks)
+        flags |= AT_SYMLINK_NOFOLLOW;
+
+    if (::fstatat(AT_FDCWD, pth->data, out, flags) == 0)
+        return true;
+    
+    set_fs_errno_error(err);
+#endif
+
+    return false;
+}
+
+bool fs::exists(const fs::path *pth, bool follow_symlinks, fs::fs_error *err)
+{
+    assert(pth != nullptr);
+
 #if Windows
     return false;
 #else
-    if (access(pth->data, F_OK) == 0)
+    int flags = 0;
+
+    if (!follow_symlinks)
+        flags |= AT_SYMLINK_NOFOLLOW;
+
+    if (::faccessat(AT_FDCWD, pth->data, F_OK, flags) == 0)
         return true;
 
-    get_fs_errno_error(err);
+    set_fs_errno_error(err);
+
+#endif
 
     return false;
+}
+
+bool fs::is_file(const fs::filesystem_info *info)
+{
+    assert(info != nullptr);
+
+#if Windows
+    // TODO: implement
+    return false;
+#else
+
+    return S_ISREG(info->st_mode);
 #endif
 }
 
+bool fs::is_pipe(const fs::filesystem_info *info)
+{
+    assert(info != nullptr);
+
+#if Windows
+    return false;
+#else
+
+    return S_ISFIFO(info->st_mode);
+#endif
+}
+
+bool fs::is_block_device(const fs::filesystem_info *info)
+{
+    assert(info != nullptr);
+
+#if Windows
+    return false;
+#else
+
+    return S_ISBLK(info->st_mode);
+#endif
+}
+
+bool fs::is_special_character_file(const fs::filesystem_info *info)
+{
+    assert(info != nullptr);
+
+#if Windows
+    return false;
+#else
+
+    return S_ISCHR(info->st_mode);
+#endif
+}
+
+bool fs::is_socket(const fs::filesystem_info *info)
+{
+    assert(info != nullptr);
+
+#if Windows
+    return false;
+#else
+
+    return S_ISSOCK(info->st_mode);
+#endif
+}
+
+bool fs::is_symlink(const fs::filesystem_info *info)
+{
+    assert(info != nullptr);
+
+#if Windows
+    // TODO: implement
+    return false;
+#else
+
+    return S_ISLNK(info->st_mode);
+#endif
+}
+
+bool fs::is_directory(const fs::filesystem_info *info)
+{
+    assert(info != nullptr);
+
+#if Windows
+    // TODO: implement
+    return false;
+#else
+
+    return S_ISDIR(info->st_mode);
+#endif
+}
+
+bool fs::is_other(const fs::filesystem_info *info)
+{
+    assert(info != nullptr);
 
 
-bool fs::is_file(const fs::path *pth, fs::fs_error *err)
+#if Windows
+    // TODO: implement
+    return false;
+
+#else
+    const int normal_flags = S_IFDIR | S_IFCHR | S_IFBLK | S_IFREG | S_IFIFO | S_IFLNK | S_IFSOCK;
+
+    // if only normal flags are set, this is not Other.
+    return (info->st_mode & (~normal_flags)) != 0;
+#endif
+}
+
+#define define_is_fs_type(FUNC)\
+bool fs::FUNC(const fs::path *pth, bool follow_symlinks, fs::fs_error *err)\
+{\
+    assert(pth != nullptr);\
+    fs::filesystem_info info;\
+\
+    if (!fs::get_filesystem_info(pth, &info, follow_symlinks, err))\
+        return false;\
+\
+    return fs::FUNC(&info);\
+}
+
+define_is_fs_type(is_file)
+define_is_fs_type(is_pipe)
+define_is_fs_type(is_block_device)
+define_is_fs_type(is_socket)
+define_is_fs_type(is_symlink)
+define_is_fs_type(is_directory)
+define_is_fs_type(is_other)
+
+
+bool fs::is_absolute(const fs::path *pth, bool follow_symlinks, fs::fs_error *err)
 {
     return false;
 }
 
-bool fs::is_pipe(const fs::path *pth, fs::fs_error *err)
+bool fs::is_relative(const fs::path *pth, bool follow_symlinks, fs::fs_error *err)
 {
     return false;
 }
 
-bool fs::is_block_device(const fs::path *pth, fs::fs_error *err)
-{
-    return false;
-}
-
-bool fs::is_socket(const fs::path *pth, fs::fs_error *err)
-{
-    return false;
-}
-
-bool fs::is_symlink(const fs::path *pth, fs::fs_error *err)
-{
-    return false;
-}
-
-bool fs::is_directory(const fs::path *pth, fs::fs_error *err)
-{
-    return false;
-}
-
-bool fs::is_other(const fs::path *pth, fs::fs_error *err)
-{
-    return false;
-}
-
-
-bool fs::is_absolute(const fs::path *pth, fs::fs_error *err)
-{
-    return false;
-}
-
-bool fs::is_relative(const fs::path *pth, fs::fs_error *err)
-{
-    return false;
-}
-
-bool fs::are_equivalent(const fs::path *pth1, const fs::path *pth2, fs::fs_error *err)
+bool fs::are_equivalent(const fs::path *pth1, const fs::path *pth2, bool follow_symlinks, fs::fs_error *err)
 {
     return false;
 }

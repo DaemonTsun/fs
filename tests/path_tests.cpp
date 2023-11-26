@@ -40,8 +40,7 @@ define_test(literal_path_sets_path)
     fs::free(&pth);
 }
 
-/*
-define_test(test2)
+define_test(is_fs_type_tests)
 {
     fs::path p{};
 
@@ -65,7 +64,17 @@ define_test(test2)
 
     // symlink
     fs::set_path(&p, SANDBOX_TEST_SYMLINK);
+    assert_equal(fs::is_file(&p),         true);
+    assert_equal(fs::is_file(&p, false),  false);
+    assert_equal(fs::is_block_device(&p), false);
+    assert_equal(fs::is_symlink(&p),      true);
+    assert_equal(fs::is_pipe(&p),         false);
+    assert_equal(fs::is_socket(&p),       false);
+    assert_equal(fs::is_directory(&p),    false);
+
+    fs::set_path(&p, SANDBOX_TEST_SYMLINK_NO_TARGET);
     assert_equal(fs::is_file(&p),         false);
+    assert_equal(fs::is_file(&p, false),  false);
     assert_equal(fs::is_block_device(&p), false);
     assert_equal(fs::is_symlink(&p),      true);
     assert_equal(fs::is_pipe(&p),         false);
@@ -92,18 +101,47 @@ define_test(test2)
 
     fs::free(&p);
 }
-*/
 
 define_test(exists_returns_true_if_directory_exists)
+{
+    fs::path p{};
+    fs::set_path(&p, SANDBOX_TEST_DIR);
+
+    assert_equal(fs::exists(&p), true);
+
+    fs::free(&p);
+}
+
+define_test(exists_returns_true_if_file_exists)
 {
     fs::path p{};
     fs::set_path(&p, SANDBOX_TEST_FILE);
 
     assert_equal(fs::exists(&p), true);
 
+    fs::free(&p);
+}
+
+define_test(exists_checks_if_symlink_exists)
+{
+    fs::path p{};
+    fs::set_path(&p, SANDBOX_TEST_SYMLINK);
+
+    assert_equal(fs::exists(&p), true);
+
+    fs::set_path(&p, SANDBOX_TEST_SYMLINK_NO_TARGET);
+    assert_equal(fs::exists(&p, false), true);
+
+    fs::free(&p);
+}
+
+define_test(exists_yields_error_when_not_exists)
+{
+    fs::path p{};
     fs::fs_error err;
-    fs::set_path(&p, SANDBOX_TEST_DIR "abc");
-    assert_equal(fs::exists(&p, &err), false);
+    fs::set_path(&p, SANDBOX_TEST_DIR "/abc");
+
+    assert_equal(fs::exists(&p, true, &err), false);
 
 #if Linux
     assert_equal(err.error_code, ENOENT);
@@ -111,6 +149,20 @@ define_test(exists_returns_true_if_directory_exists)
 
     fs::free(&p);
 }
+
+define_test(exists_checks_if_symlink_target_exists)
+{
+    fs::path p{};
+    fs::set_path(&p, SANDBOX_TEST_SYMLINK_NO_TARGET);
+    // target doesnt exist, this checks if symlink exists
+    assert_equal(fs::exists(&p, false), true);
+
+    // this checks if target exists
+    assert_equal(fs::exists(&p, true), false);
+
+    fs::free(&p);
+}
+
 
 #if 0
 define_test(filename_returns_the_filename)
