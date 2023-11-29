@@ -6,6 +6,7 @@
 #if Windows
 #include <windows.h>
 #else
+#include <sys/stat.h>
 #include <unistd.h>
 #include <linux/limits.h>
 #include <string.h>
@@ -24,6 +25,7 @@
 #define PATH_CHAR_LIT(c) L##c
 #else
 #define PATH_CHAR_LIT(c) c
+
 #endif
 
 #define as_array_ptr(x)     (::array<fs::path_char_t>*)(x)
@@ -201,73 +203,6 @@ bool fs::operator==(const fs::path &lhs, const fs::path &rhs)
     return ::compare_strings(::to_const_string(&lhs), ::to_const_string(&rhs));
 }
 
-#if 0
-// append operators
-#define _APPEND_OPERATOR_BODY(...)\
-    {\
-        fs::path ret = lhs;\
-        fs::append_path(&ret, __VA_ARGS__ seg);\
-        return ret;\
-    }
-
-fs::path  fs::operator/ (const fs::path &lhs, const char    *seg) _APPEND_OPERATOR_BODY()
-fs::path  fs::operator/ (const fs::path &lhs, const wchar_t *seg) _APPEND_OPERATOR_BODY()
-fs::path  fs::operator/ (const fs::path &lhs, const_string   seg) _APPEND_OPERATOR_BODY()
-fs::path  fs::operator/ (const fs::path &lhs, const_wstring  seg) _APPEND_OPERATOR_BODY()
-fs::path  fs::operator/ (const fs::path &lhs, const string  &seg) _APPEND_OPERATOR_BODY(&)
-fs::path  fs::operator/ (const fs::path &lhs, const wstring &seg) _APPEND_OPERATOR_BODY(&)
-fs::path  fs::operator/ (const fs::path &lhs, const string  *seg) _APPEND_OPERATOR_BODY()
-fs::path  fs::operator/ (const fs::path &lhs, const wstring *seg) _APPEND_OPERATOR_BODY()
-
-#define _APPEND_ASSIGNMENT_OPERATOR_BODY(...)\
-    {\
-        fs::append_path(&lhs, __VA_ARGS__ seg);\
-        return lhs;\
-    }
-
-fs::path &fs::operator/=(fs::path &lhs, const char    *seg) _APPEND_ASSIGNMENT_OPERATOR_BODY()
-fs::path &fs::operator/=(fs::path &lhs, const wchar_t *seg) _APPEND_ASSIGNMENT_OPERATOR_BODY()
-fs::path &fs::operator/=(fs::path &lhs, const_string   seg) _APPEND_ASSIGNMENT_OPERATOR_BODY()
-fs::path &fs::operator/=(fs::path &lhs, const_wstring  seg) _APPEND_ASSIGNMENT_OPERATOR_BODY()
-fs::path &fs::operator/=(fs::path &lhs, const string  &seg) _APPEND_ASSIGNMENT_OPERATOR_BODY(&)
-fs::path &fs::operator/=(fs::path &lhs, const wstring &seg) _APPEND_ASSIGNMENT_OPERATOR_BODY(&)
-fs::path &fs::operator/=(fs::path &lhs, const string  *seg) _APPEND_ASSIGNMENT_OPERATOR_BODY()
-fs::path &fs::operator/=(fs::path &lhs, const wstring *seg) _APPEND_ASSIGNMENT_OPERATOR_BODY()
-
-// concat operators
-#define _CONCAT_OPERATOR_BODY(...)\
-    {\
-        fs::path ret = lhs;\
-        fs::concat_path(&ret, __VA_ARGS__ seg);\
-        return ret;\
-    }
-
-fs::path  fs::operator+ (const fs::path &lhs, const char    *seg) _CONCAT_OPERATOR_BODY()
-fs::path  fs::operator+ (const fs::path &lhs, const wchar_t *seg) _CONCAT_OPERATOR_BODY()
-fs::path  fs::operator+ (const fs::path &lhs, const_string   seg) _CONCAT_OPERATOR_BODY()
-fs::path  fs::operator+ (const fs::path &lhs, const_wstring  seg) _CONCAT_OPERATOR_BODY()
-fs::path  fs::operator+ (const fs::path &lhs, const string  &seg) _CONCAT_OPERATOR_BODY(&)
-fs::path  fs::operator+ (const fs::path &lhs, const wstring &seg) _CONCAT_OPERATOR_BODY(&)
-fs::path  fs::operator+ (const fs::path &lhs, const string  *seg) _CONCAT_OPERATOR_BODY()
-fs::path  fs::operator+ (const fs::path &lhs, const wstring *seg) _CONCAT_OPERATOR_BODY()
-
-#define _CONCAT_ASSIGNMENT_OPERATOR_BODY(...)\
-    {\
-        fs::concat_path(&lhs, __VA_ARGS__ seg);\
-        return lhs;\
-    }
-
-fs::path &fs::operator+=(fs::path &lhs, const char    *seg) _CONCAT_ASSIGNMENT_OPERATOR_BODY()
-fs::path &fs::operator+=(fs::path &lhs, const wchar_t *seg) _CONCAT_ASSIGNMENT_OPERATOR_BODY()
-fs::path &fs::operator+=(fs::path &lhs, const_string   seg) _CONCAT_ASSIGNMENT_OPERATOR_BODY()
-fs::path &fs::operator+=(fs::path &lhs, const_wstring  seg) _CONCAT_ASSIGNMENT_OPERATOR_BODY()
-fs::path &fs::operator+=(fs::path &lhs, const string  &seg) _CONCAT_ASSIGNMENT_OPERATOR_BODY(&)
-fs::path &fs::operator+=(fs::path &lhs, const wstring &seg) _CONCAT_ASSIGNMENT_OPERATOR_BODY(&)
-fs::path &fs::operator+=(fs::path &lhs, const string  *seg) _CONCAT_ASSIGNMENT_OPERATOR_BODY()
-fs::path &fs::operator+=(fs::path &lhs, const wstring *seg) _CONCAT_ASSIGNMENT_OPERATOR_BODY()
-
-#endif
-
 hash_t fs::hash(const fs::path *pth)
 {
     return hash_data(pth->data, pth->size * sizeof(fs::path_char_t));
@@ -287,7 +222,8 @@ bool fs::get_filesystem_info(const fs::path *pth, fs::filesystem_info *out, bool
     if (!follow_symlinks)
         flags |= AT_SYMLINK_NOFOLLOW;
 
-    if (::fstatat(AT_FDCWD, pth->data, out, flags) == 0)
+    // all stats and creation time
+    if (::statx(AT_FDCWD, pth->data, flags, STATX_BASIC_STATS | STATX_BTIME, (struct statx*)out) == 0)
         return true;
     
     set_fs_errno_error(err);
@@ -318,6 +254,19 @@ bool fs::exists(const fs::path *pth, bool follow_symlinks, fs::fs_error *err)
     return false;
 }
 
+fs::filesystem_type get_filesystem_type(const fs::filesystem_info *info)
+{
+    assert(info != nullptr);
+
+#if Windows
+
+#else
+    return (fs::filesystem_type)(info->stx_mode & S_IFMT);
+#endif
+
+    return fs::filesystem_type::Unknown;
+}
+
 bool fs::is_file(const fs::filesystem_info *info)
 {
     assert(info != nullptr);
@@ -327,7 +276,7 @@ bool fs::is_file(const fs::filesystem_info *info)
     return false;
 #else
 
-    return S_ISREG(info->st_mode);
+    return S_ISREG(info->stx_mode);
 #endif
 }
 
@@ -339,7 +288,7 @@ bool fs::is_pipe(const fs::filesystem_info *info)
     return false;
 #else
 
-    return S_ISFIFO(info->st_mode);
+    return S_ISFIFO(info->stx_mode);
 #endif
 }
 
@@ -351,7 +300,7 @@ bool fs::is_block_device(const fs::filesystem_info *info)
     return false;
 #else
 
-    return S_ISBLK(info->st_mode);
+    return S_ISBLK(info->stx_mode);
 #endif
 }
 
@@ -363,7 +312,7 @@ bool fs::is_special_character_file(const fs::filesystem_info *info)
     return false;
 #else
 
-    return S_ISCHR(info->st_mode);
+    return S_ISCHR(info->stx_mode);
 #endif
 }
 
@@ -375,7 +324,7 @@ bool fs::is_socket(const fs::filesystem_info *info)
     return false;
 #else
 
-    return S_ISSOCK(info->st_mode);
+    return S_ISSOCK(info->stx_mode);
 #endif
 }
 
@@ -388,7 +337,7 @@ bool fs::is_symlink(const fs::filesystem_info *info)
     return false;
 #else
 
-    return S_ISLNK(info->st_mode);
+    return S_ISLNK(info->stx_mode);
 #endif
 }
 
@@ -401,7 +350,7 @@ bool fs::is_directory(const fs::filesystem_info *info)
     return false;
 #else
 
-    return S_ISDIR(info->st_mode);
+    return S_ISDIR(info->stx_mode);
 #endif
 }
 
@@ -409,16 +358,13 @@ bool fs::is_other(const fs::filesystem_info *info)
 {
     assert(info != nullptr);
 
-
 #if Windows
     // TODO: implement
     return false;
 
 #else
-    const int normal_flags = S_IFDIR | S_IFCHR | S_IFBLK | S_IFREG | S_IFIFO | S_IFLNK | S_IFSOCK;
-
     // if only normal flags are set, this is not Other.
-    return (info->st_mode & (~normal_flags)) != 0;
+    return (info->stx_mode & (~(S_IFMT))) != 0;
 #endif
 }
 
@@ -443,21 +389,71 @@ define_is_fs_type(is_directory)
 define_is_fs_type(is_other)
 
 
-bool fs::is_absolute(const fs::path *pth, bool follow_symlinks, fs::fs_error *err)
+bool fs::is_absolute(const fs::path *pth, fs::fs_error *err)
 {
+    assert(pth != nullptr);
+
+#if Windows
+
+#else
+
+    if (pth->size == 0)
+        return false;
+
+    // lol
+    return pth->data[0] == '/';
+#endif
+
     return false;
 }
 
-bool fs::is_relative(const fs::path *pth, bool follow_symlinks, fs::fs_error *err)
+bool fs::is_relative(const fs::path *pth, fs::fs_error *err)
 {
-    return false;
+    return !fs::is_absolute(pth, err);
 }
 
 bool fs::are_equivalent(const fs::path *pth1, const fs::path *pth2, bool follow_symlinks, fs::fs_error *err)
 {
-    return false;
-}
+    assert(pth1 != nullptr);
+    assert(pth2 != nullptr);
 
+    if (::compare_strings(as_string_ptr(pth1), as_string_ptr(pth2)) == 0)
+        return true;
+
+    fs::filesystem_info info1;
+    fs::filesystem_info info2;
+    fs::fs_error err1;
+    fs::fs_error err2;
+
+    bool ok1 = fs::get_filesystem_info(pth1, &info1, follow_symlinks, &err1);
+
+    if (!ok1)
+    {
+        if (err != nullptr)
+            *err = err1;
+
+        return false;
+    }
+
+    bool ok2 = fs::get_filesystem_info(pth2, &info2, follow_symlinks, &err2);
+
+    if (!ok2)
+    {
+        if (err != nullptr)
+            *err = err2;
+
+        return false;
+    }
+
+#if Windows
+    // TODO: implement
+    return false;
+#else
+    return (info1.stx_ino == info2.stx_ino)
+        && (info1.stx_dev_major == info2.stx_dev_major)
+        && (info1.stx_dev_minor == info2.stx_dev_minor);
+#endif
+}
 
 #if 0
 

@@ -11,14 +11,6 @@
 
 #include "fs/fs_error.hpp"
 
-#if Windows
-
-#else
-// I doubt there's any way around including this, stat is a syscall and
-// the struct can change depending on the system.
-#include <sys/stat.h>
-#endif
-
 namespace fs
 {
 #if Windows
@@ -28,13 +20,65 @@ constexpr const path_char_t path_separator = L'\\';
 
 struct filesystem_info {}; // TODO: define
 
+enum class filesystem_type
+{
+    Unknown = 0,
+    File /* = ??? */,
+    Directory,
+    Symlink,
+    // ??
+};
+
+
 #else
 // Linux and others
 
 typedef char path_char_t;
 constexpr const path_char_t path_separator = '/';
 
-typedef struct stat filesystem_info; 
+struct filesystem_timestamp
+{
+    s64 tv_sec;
+    u32 tv_nsec;
+    s32 _pad;
+};
+
+// based on statx
+struct filesystem_info {
+	u32 stx_mask;
+	u32 stx_blksize;
+	u64 stx_attributes;
+	u32 stx_nlink;
+	u32 stx_uid;
+	u32 stx_gid;
+	u16 stx_mode;
+	u16 _pad1;
+	u64 stx_ino;
+	u64 stx_size;
+	u64 stx_blocks;
+	u64 stx_attributes_mask;
+	filesystem_timestamp stx_atime; // access time
+    filesystem_timestamp stx_btime; // creation time
+    filesystem_timestamp stx_ctime; // status change time
+    filesystem_timestamp stx_mtime; // modification time
+	u32 stx_rdev_major;
+	u32 stx_rdev_minor;
+	u32 stx_dev_major;
+	u32 stx_dev_minor;
+	u64 _unused[14];
+};
+
+enum class filesystem_type : u16
+{
+    Unknown         = 0,
+    File            = 0x8000,
+    Directory       = 0x4000,
+    Pipe            = 0x1000,
+    BlockDevice     = 0x6000,
+    CharacterFile   = 0x2000,
+    Socket          = 0xc000,
+    Symlink         = 0xa000
+};
 
 #endif
 
@@ -71,6 +115,7 @@ bool operator==(const fs::path &lhs, const fs::path &rhs);
 hash_t hash(const fs::path *pth);
 
 bool get_filesystem_info(const fs::path *pth, fs::filesystem_info *out, bool follow_symlinks = true, fs::fs_error *err = nullptr);
+fs::filesystem_type get_filesystem_type(const fs::filesystem_info *info);
 
 bool exists(const fs::path *pth, bool follow_symlinks = true, fs::fs_error *err = nullptr);
 
@@ -83,6 +128,7 @@ bool is_symlink(const fs::filesystem_info *info);
 bool is_directory(const fs::filesystem_info *info);
 bool is_other(const fs::filesystem_info *info);
 
+// TODO: const char, const_string
 bool is_file(const fs::path *pth, bool follow_symlinks = true, fs::fs_error *err = nullptr);
 bool is_pipe(const fs::path *pth, bool follow_symlinks = true, fs::fs_error *err = nullptr);
 bool is_block_device(const fs::path *pth, bool follow_symlinks = true, fs::fs_error *err = nullptr);
@@ -93,35 +139,14 @@ bool is_symlink(const fs::path *pth, bool follow_symlinks = false, fs::fs_error 
 bool is_directory(const fs::path *pth, bool follow_symlinks = true, fs::fs_error *err = nullptr);
 bool is_other(const fs::path *pth, bool follow_symlinks = true, fs::fs_error *err = nullptr);
 
-bool is_absolute(const fs::path *pth, bool follow_symlinks = true, fs::fs_error *err = nullptr);
-bool is_relative(const fs::path *pth, bool follow_symlinks = true, fs::fs_error *err = nullptr);
+// TODO: const char, const_string
+bool is_absolute(const fs::path *pth, fs::fs_error *err = nullptr);
+bool is_relative(const fs::path *pth, fs::fs_error *err = nullptr);
 bool are_equivalent(const fs::path *pth1, const fs::path *pth2, bool follow_symlinks = true, fs::fs_error *err = nullptr);
 
 /*
-// see append_path
-fs::path  operator/ (const fs::path &lhs, const char    *seg);
-fs::path  operator/ (const fs::path &lhs, const wchar_t *seg);
-fs::path  operator/ (const fs::path &lhs, const_string   seg);
-fs::path  operator/ (const fs::path &lhs, const_wstring  seg);
-
-fs::path &operator/=(fs::path &lhs, const char    *seg);
-fs::path &operator/=(fs::path &lhs, const wchar_t *seg);
-fs::path &operator/=(fs::path &lhs, const_string   seg);
-fs::path &operator/=(fs::path &lhs, const_wstring  seg);
-
-// see concat_path
-fs::path  operator+ (const fs::path &lhs, const char    *seg);
-fs::path  operator+ (const fs::path &lhs, const wchar_t *seg);
-fs::path  operator+ (const fs::path &lhs, const_string   seg);
-fs::path  operator+ (const fs::path &lhs, const_wstring  seg);
-
-fs::path &operator+=(fs::path &lhs, const char    *seg);
-fs::path &operator+=(fs::path &lhs, const wchar_t *seg);
-fs::path &operator+=(fs::path &lhs, const_string   seg);
-fs::path &operator+=(fs::path &lhs, const_wstring  seg);
-
 const char *filename(const fs::path *pth);
-const char *extension(const fs::path *pth);
+const char *file_extension(const fs::path *pth);
 void parent_path(fs::path *out);
 void parent_path(const fs::path *pth, fs::path *out);
 
