@@ -151,7 +151,7 @@ bool is_absolute(const fs::path *pth, fs::fs_error *err = nullptr);
 bool is_relative(const fs::path *pth, fs::fs_error *err = nullptr);
 bool are_equivalent(const fs::path *pth1, const fs::path *pth2, bool follow_symlinks = true, fs::fs_error *err = nullptr);
 
-const_fs_string filename(const fs::path *pth);
+fs::const_fs_string filename(const fs::path *pth);
 
 // this differs from std::filesystem::path::extension:
 // filenames that have no stem (only an extension) are treated exactly like that:
@@ -160,8 +160,8 @@ const_fs_string filename(const fs::path *pth);
 //
 // . and .. are treated the same as std::filesystem::path::extension:
 // file_extension will return empty strings (not nullptr) in these cases.
-const_fs_string file_extension(const fs::path *pth);
-const_fs_string parent_path(const fs::path *out);
+fs::const_fs_string file_extension(const fs::path *pth);
+fs::const_fs_string parent_path(const fs::path *pth);
 
 /*
 // out = pth / seg

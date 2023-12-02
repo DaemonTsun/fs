@@ -396,18 +396,30 @@ define_test(extension_returns_path_extension)
 
     fs::free(&p);
 }
-#if 0
 
 define_test(parent_path_returns_the_parent_path)
 {
     fs::path p{};
 
-    fs::set_path(&p, "/foo/..bar");
-    assert_equal_str(fs::file_extension(&p), ".bar");
+    fs::set_path(&p, "/foo/bar");
+    assert_equal_str(fs::parent_path(&p), "/foo");
+
+    fs::set_path(&p, "/foo");
+    assert_equal_str(fs::parent_path(&p), "/");
+
+    fs::set_path(&p, "/");
+    assert_equal_str(fs::parent_path(&p), "/");
+
+    fs::set_path(&p, "/bar/");
+    assert_equal_str(fs::parent_path(&p), "/bar");
+
+    fs::set_path(&p, ".");
+    assert_equal_str(fs::parent_path(&p), "");
 
     fs::free(&p);
 }
 
+#if 0
 
 define_test(append_appends_to_path)
 {

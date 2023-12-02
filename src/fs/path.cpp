@@ -31,7 +31,7 @@
 
 #define as_array_ptr(x)     (::array<fs::path_char_t>*)(x)
 #define as_string_ptr(x)    (::string_base<fs::path_char_t>*)(x)
-
+#define empty_fs_string fs::const_fs_string{PC_LIT(""), 0}
 
 // conversion helpers
 template<typename T>
@@ -401,7 +401,7 @@ bool fs::is_absolute(const fs::path *pth, fs::fs_error *err)
         return false;
 
     // lol
-    return pth->data[0] == '/';
+    return pth->data[0] == fs::path_separator;
 #endif
 
     return false;
@@ -469,11 +469,7 @@ fs::const_fs_string fs::filename(const fs::path *pth)
     const fs::path_char_t *cstr = pth->data;
     const fs::path_char_t *found;
 
-#if Windows
-    found = ::strrchr(cstr, '\\');
-#else
-    found = ::strrchr(cstr, '/');
-#endif
+    found = ::strrchr(cstr, fs::path_separator);
 
     if (found == nullptr)
         found = cstr;
@@ -489,19 +485,44 @@ fs::const_fs_string fs::file_extension(const fs::path *pth)
 
     auto fname = fs::filename(pth);
 
+    // to conform to std::filesystem, simply check if first character
+    // of the filename is a '.'.
+
     if (fname.size == 0)
-        return fs::const_fs_string{PC_LIT(""), 0};
+        return empty_fs_string;
 
     if ((fname.size == 1 && fname.c_str[0] == PC_LIT('.'))
      || (fname.size == 2 && fname.c_str[0] == PC_LIT('.') && fname.c_str[1] == PC_LIT('.')))
-        return fs::const_fs_string{PC_LIT(""), 0};
+        return empty_fs_string;
 
     const fs::path_char_t *found = ::strrchr(fname.c_str, '.');
 
     if (found == nullptr)
-        return fs::const_fs_string{PC_LIT(""), 0};
+        return empty_fs_string;
 
     return fs::const_fs_string{found, (u64)((pth->data + pth->size) - found)};
+}
+
+fs::const_fs_string fs::parent_path(const fs::path *pth)
+{
+    assert(pth != nullptr);
+
+    const fs::path_char_t *last_sep = ::strrchr(pth->data, fs::path_separator);
+
+    if (last_sep == nullptr)
+        return empty_fs_string;
+
+    const fs::path_char_t *first_sep = ::strchr(pth->data, fs::path_separator);
+
+#if Windows
+    // TODO: implement check for root
+#else
+    if (first_sep == last_sep
+     && first_sep == pth->data)
+        return fs::const_fs_string{pth->data, 1};
+#endif
+
+    return fs::const_fs_string{pth->data, (u64)(last_sep - pth->data)};
 }
 
 #if 0
@@ -817,7 +838,7 @@ void fs::get_preference_path(fs::path *out, const char *app, const char *org)
 
     size_t len = strlen(envr);
 
-    if (envr[len - 1] == '/')
+    if (envr[len - 1] == fs::path_separator)
         append += 1;
 
     len += strlen(append) + strlen(org) + strlen(app) + 3;
@@ -830,14 +851,14 @@ void fs::get_preference_path(fs::path *out, const char *app, const char *org)
     // recursively create the directories
     for (char *ptr = buf + 1; *ptr; ptr++)
     {
-        if (*ptr == '/')
+        if (*ptr == fs::path_separator)
         {
             *ptr = '\0';
 
             if (mkdir(buf, 0700) != 0 && errno != EEXIST)
                 throw_error("couldn't create directory '%s': '%s'", buf, strerror(errno));
 
-            *ptr = '/';
+            *ptr = fs::path_separator;
         }
     }
 
