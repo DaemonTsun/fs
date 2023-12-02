@@ -276,54 +276,136 @@ define_test(are_equivalent_returns_false_if_only_one_path_doesnt_exist)
     fs::free(&p2);
 }
 
-#if 0
 define_test(filename_returns_the_filename)
 {
+    fs::path p{};
+
+    fs::set_path(&p, "/foo/bar.txt");
+    assert_equal_str(fs::filename(&p), "bar.txt");
+
+    fs::set_path(&p, R"(C:\foo\bar.txt)");
 #if Windows
-    fs::path p(R"=(C:\this\is\a\test)=");
+    assert_equal_str(fs::filename(&p), "bar.txt");
 #else
-    fs::path p("/this/is/a/test");
+    // https://theboostcpplibraries.com/boost.filesystem-paths#ex.filesystem_05
+    // not that we try to imitate boost or std::filesystem (which would be bad),
+    // but interpreting paths of other systems is a bad idea as the default
+    // behavior.
+    assert_equal_str(fs::filename(&p), R"(C:\foo\bar.txt)");
 #endif
 
-    assert_equal_str(fs::filename(&p), "test");
+    fs::set_path(&p, "/foo/.bar");
+    assert_equal_str(fs::filename(&p), ".bar");
+
+    fs::set_path(&p, R"(C:\foo\.bar)");
+#if Windows
+    assert_equal_str(fs::filename(&p), ".bar");
+#else
+    assert_equal_str(fs::filename(&p), R"(C:\foo\.bar)");
+#endif
+
+    fs::set_path(&p, "/foo/bar/");
+    assert_equal_str(fs::filename(&p), "");
+
+    fs::set_path(&p, R"(C:\foo\bar\)");
+#if Windows
+    assert_equal_str(fs::filename(&p), "");
+#else
+    assert_equal_str(fs::filename(&p), R"(C:\foo\bar\)");
+#endif
+
+    fs::set_path(&p, "/foo/.");
+    assert_equal_str(fs::filename(&p), ".");
+
+    fs::set_path(&p, R"(C:\foo\.)");
+#if Windows
+    assert_equal_str(fs::filename(&p), ".");
+#else
+    assert_equal_str(fs::filename(&p), R"(C:\foo\.)");
+#endif
+
+    fs::set_path(&p, "/foo/..");
+    assert_equal_str(fs::filename(&p), "..");
+
+    fs::set_path(&p, R"(C:\foo\..)");
+#if Windows
+    assert_equal_str(fs::filename(&p), "..");
+#else
+    assert_equal_str(fs::filename(&p), R"(C:\foo\..)");
+#endif
+
+    fs::set_path(&p, ".");
+    assert_equal_str(fs::filename(&p), ".");
+
+    fs::set_path(&p, "..");
+    assert_equal_str(fs::filename(&p), "..");
+
+    fs::set_path(&p, "/");
+    assert_equal_str(fs::filename(&p), "");
+
+    fs::set_path(&p, R"(C:\)");
+#if Windows
+    assert_equal_str(fs::filename(&p), "");
+#else
+    assert_equal_str(fs::filename(&p), R"(C:\)");
+#endif
+
+    fs::set_path(&p, "//host");
+    assert_equal_str(fs::filename(&p), "host");
+
+    fs::free(&p);
 }
+
+define_test(extension_returns_path_extension)
+{
+    fs::path p{};
+
+    fs::set_path(&p, "/foo/bar.txt");
+    assert_equal_str(fs::file_extension(&p), ".txt");
+
+    fs::set_path(&p, R"(C:\foo\bar.txt)");
+    assert_equal_str(fs::file_extension(&p), ".txt");
+
+    fs::set_path(&p, "/foo/bar.");
+    assert_equal_str(fs::file_extension(&p), ".");
+
+    fs::set_path(&p, "/foo/bar");
+    assert_equal_str(fs::file_extension(&p), "");
+
+    fs::set_path(&p, "/foo/bar.txt/bar.cc");
+    assert_equal_str(fs::file_extension(&p), ".cc");
+
+    fs::set_path(&p, "/foo/bar.txt/bar.");
+    assert_equal_str(fs::file_extension(&p), ".");
+
+    fs::set_path(&p, "/foo/bar.txt/bar");
+    assert_equal_str(fs::file_extension(&p), "");
+
+    fs::set_path(&p, "/foo/.");
+    assert_equal_str(fs::file_extension(&p), "");
+
+    fs::set_path(&p, "/foo/..");
+    assert_equal_str(fs::file_extension(&p), "");
+
+    fs::set_path(&p, "/foo/.hidden");
+    // this differs from std::filesystem
+    assert_equal_str(fs::file_extension(&p), ".hidden");
+
+    fs::set_path(&p, "/foo/..bar");
+    assert_equal_str(fs::file_extension(&p), ".bar");
+
+    fs::free(&p);
+}
+#if 0
 
 define_test(parent_path_returns_the_parent_path)
 {
-#if Windows
-    fs::path p(R"=(C:\this\is\a\test)=");
-#else
-    fs::path p("/this/is/a/test");
-#endif
+    fs::path p{};
 
-    fs::path parent;
+    fs::set_path(&p, "/foo/..bar");
+    assert_equal_str(fs::file_extension(&p), ".bar");
 
-    fs::parent_path(&p, &parent);
-
-#if Windows
-    assert_equal_str(parent.c_str(), R"=(C:\this\is\a)=");
-#else
-    assert_equal_str(parent.c_str(), "/this/is/a");
-#endif
-}
-
-define_test(parent_path_returns_the_parent_path2)
-{
-#if Windows
-    fs::path p(R"=(C:\)=");
-#else
-    fs::path p("/");
-#endif
-
-    fs::path parent;
-
-    fs::parent_path(&p, &parent);
-
-#if Windows
-    assert_equal_str(parent.c_str(), R"=(C:\)=");
-#else
-    assert_equal_str(parent.c_str(), "/");
-#endif
+    fs::free(&p);
 }
 
 

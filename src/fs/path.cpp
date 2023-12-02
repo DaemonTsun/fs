@@ -22,9 +22,10 @@
 #include "fs/path.hpp"
 
 #if Windows
-#define PATH_CHAR_LIT(c) L##c
+// PC stands for PATH_CHAR
+#define PC_LIT(c) L##c
 #else
-#define PATH_CHAR_LIT(c) c
+#define PC_LIT(c) c
 
 #endif
 
@@ -208,7 +209,7 @@ hash_t fs::hash(const fs::path *pth)
     return hash_data(pth->data, pth->size * sizeof(fs::path_char_t));
 }
 
-bool fs::get_filesystem_info(const fs::path *pth, fs::filesystem_info *out, bool follow_symlinks, fs::fs_error *err)
+bool fs::get_filesystem_info(const fs::path *pth, fs::filesystem_info *out, bool follow_symlinks, int flags, fs::fs_error *err)
 {
     assert(pth != nullptr);
     assert(out != nullptr);
@@ -217,13 +218,12 @@ bool fs::get_filesystem_info(const fs::path *pth, fs::filesystem_info *out, bool
     return false;
 
 #else
-    int flags = 0;
+    int statx_flags = 0;
 
     if (!follow_symlinks)
-        flags |= AT_SYMLINK_NOFOLLOW;
+        statx_flags |= AT_SYMLINK_NOFOLLOW;
 
-    // all stats and creation time
-    if (::statx(AT_FDCWD, pth->data, flags, STATX_BASIC_STATS | STATX_BTIME, (struct statx*)out) == 0)
+    if (::statx(AT_FDCWD, pth->data, statx_flags, flags /* mask */, (struct statx*)out) == 0)
         return true;
     
     set_fs_errno_error(err);
@@ -374,7 +374,7 @@ bool fs::FUNC(const fs::path *pth, bool follow_symlinks, fs::fs_error *err)\
     assert(pth != nullptr);\
     fs::filesystem_info info;\
 \
-    if (!fs::get_filesystem_info(pth, &info, follow_symlinks, err))\
+    if (!fs::get_filesystem_info(pth, &info, follow_symlinks, STATX_TYPE, err))\
         return false;\
 \
     return fs::FUNC(&info);\
@@ -425,7 +425,14 @@ bool fs::are_equivalent(const fs::path *pth1, const fs::path *pth2, bool follow_
     fs::fs_error err1;
     fs::fs_error err2;
 
-    bool ok1 = fs::get_filesystem_info(pth1, &info1, follow_symlinks, &err1);
+    int info_flags = 0;
+
+#if Windows
+#else
+    info_flags = STATX_INO;
+#endif
+
+    bool ok1 = fs::get_filesystem_info(pth1, &info1, follow_symlinks, info_flags, &err1);
 
     if (!ok1)
     {
@@ -435,7 +442,7 @@ bool fs::are_equivalent(const fs::path *pth1, const fs::path *pth2, bool follow_
         return false;
     }
 
-    bool ok2 = fs::get_filesystem_info(pth2, &info2, follow_symlinks, &err2);
+    bool ok2 = fs::get_filesystem_info(pth2, &info2, follow_symlinks, info_flags, &err2);
 
     if (!ok2)
     {
@@ -455,39 +462,49 @@ bool fs::are_equivalent(const fs::path *pth1, const fs::path *pth2, bool follow_
 #endif
 }
 
-#if 0
-
-const char *fs::filename(const fs::path *pth)
+fs::const_fs_string fs::filename(const fs::path *pth)
 {
-    const char *cstr = pth->c_str();
-    const char *ret;
+    assert(pth != nullptr);
+
+    const fs::path_char_t *cstr = pth->data;
+    const fs::path_char_t *found;
 
 #if Windows
-    ret = strrchr(cstr, '\\');
+    found = ::strrchr(cstr, '\\');
 #else
-    ret = strrchr(cstr, '/');
+    found = ::strrchr(cstr, '/');
 #endif
 
-    if (ret == nullptr)
-        ret = cstr;
+    if (found == nullptr)
+        found = cstr;
     else
-        ret++;
+        found++;
 
-    return ret;
+    return fs::const_fs_string{found, (u64)((pth->data + pth->size) - found)};
 }
 
-const char *fs::extension(const fs::path *pth)
+fs::const_fs_string fs::file_extension(const fs::path *pth)
 {
-    const char *ret = pth->c_str();
+    assert(pth != nullptr);
 
-    ret = strrchr(ret, '.');
+    auto fname = fs::filename(pth);
 
-    if (ret == nullptr)
-        ret = "";
+    if (fname.size == 0)
+        return fs::const_fs_string{PC_LIT(""), 0};
 
-    return ret;
+    if ((fname.size == 1 && fname.c_str[0] == PC_LIT('.'))
+     || (fname.size == 2 && fname.c_str[0] == PC_LIT('.') && fname.c_str[1] == PC_LIT('.')))
+        return fs::const_fs_string{PC_LIT(""), 0};
+
+    const fs::path_char_t *found = ::strrchr(fname.c_str, '.');
+
+    if (found == nullptr)
+        return fs::const_fs_string{PC_LIT(""), 0};
+
+    return fs::const_fs_string{found, (u64)((pth->data + pth->size) - found)};
 }
 
+#if 0
 void fs::parent_path(fs::path *out)
 {
     fs::parent_path(out, out);
@@ -943,8 +960,8 @@ fs::path operator ""_path(const wchar_t *pth, u64 size)
     return ret;
 }
 
-const_string_base<fs::path_char_t> to_const_string(const fs::path *path)
+fs::const_fs_string to_const_string(const fs::path *path)
 {
     assert(path != nullptr);
-    return const_string_base<fs::path_char_t>{path->data, path->size};
+    return fs::const_fs_string{path->data, path->size};
 }

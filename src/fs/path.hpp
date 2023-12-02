@@ -19,6 +19,7 @@ typedef wchar_t path_char_t;
 constexpr const path_char_t path_separator = L'\\';
 
 struct filesystem_info {}; // TODO: define
+#define FS_QUERY_DEFAULT_FLAGS 0
 
 enum class filesystem_type
 {
@@ -68,6 +69,9 @@ struct filesystem_info {
 	u64 _unused[14];
 };
 
+// STATX_BASIC_STATS | STATX_BTIME
+#define FS_QUERY_DEFAULT_FLAGS 0xfff
+
 enum class filesystem_type : u16
 {
     Unknown         = 0,
@@ -81,6 +85,9 @@ enum class filesystem_type : u16
 };
 
 #endif
+
+// this will either be const_string or const_wstring
+typedef const_string_base<fs::path_char_t> const_fs_string;
 
 struct path
 {
@@ -114,7 +121,7 @@ bool operator==(const fs::path &lhs, const fs::path &rhs);
 
 hash_t hash(const fs::path *pth);
 
-bool get_filesystem_info(const fs::path *pth, fs::filesystem_info *out, bool follow_symlinks = true, fs::fs_error *err = nullptr);
+bool get_filesystem_info(const fs::path *pth, fs::filesystem_info *out, bool follow_symlinks = true, int flags = FS_QUERY_DEFAULT_FLAGS, fs::fs_error *err = nullptr);
 fs::filesystem_type get_filesystem_type(const fs::filesystem_info *info);
 
 bool exists(const fs::path *pth, bool follow_symlinks = true, fs::fs_error *err = nullptr);
@@ -128,7 +135,7 @@ bool is_symlink(const fs::filesystem_info *info);
 bool is_directory(const fs::filesystem_info *info);
 bool is_other(const fs::filesystem_info *info);
 
-// TODO: const char, const_string
+// TODO: const char, const_string overloads
 bool is_file(const fs::path *pth, bool follow_symlinks = true, fs::fs_error *err = nullptr);
 bool is_pipe(const fs::path *pth, bool follow_symlinks = true, fs::fs_error *err = nullptr);
 bool is_block_device(const fs::path *pth, bool follow_symlinks = true, fs::fs_error *err = nullptr);
@@ -139,17 +146,24 @@ bool is_symlink(const fs::path *pth, bool follow_symlinks = false, fs::fs_error 
 bool is_directory(const fs::path *pth, bool follow_symlinks = true, fs::fs_error *err = nullptr);
 bool is_other(const fs::path *pth, bool follow_symlinks = true, fs::fs_error *err = nullptr);
 
-// TODO: const char, const_string
+// TODO: const char, const_string, filesystem_info overloads
 bool is_absolute(const fs::path *pth, fs::fs_error *err = nullptr);
 bool is_relative(const fs::path *pth, fs::fs_error *err = nullptr);
 bool are_equivalent(const fs::path *pth1, const fs::path *pth2, bool follow_symlinks = true, fs::fs_error *err = nullptr);
 
-/*
-const char *filename(const fs::path *pth);
-const char *file_extension(const fs::path *pth);
-void parent_path(fs::path *out);
-void parent_path(const fs::path *pth, fs::path *out);
+const_fs_string filename(const fs::path *pth);
 
+// this differs from std::filesystem::path::extension:
+// filenames that have no stem (only an extension) are treated exactly like that:
+// no filename, only extension, and as such file_extension returns the full filename
+// for filenames with no stem.
+//
+// . and .. are treated the same as std::filesystem::path::extension:
+// file_extension will return empty strings (not nullptr) in these cases.
+const_fs_string file_extension(const fs::path *pth);
+const_fs_string parent_path(const fs::path *out);
+
+/*
 // out = pth / seg
 // basically adds a directory separator and the segment to the path
 void append_path(fs::path *out, const char    *seg);
@@ -222,4 +236,4 @@ void get_temporary_path(fs::path *out);
 fs::path operator ""_path(const char    *, u64);
 fs::path operator ""_path(const wchar_t *, u64);
 
-const_string_base<fs::path_char_t> to_const_string(const fs::path *path);
+fs::const_fs_string to_const_string(const fs::path *path);
