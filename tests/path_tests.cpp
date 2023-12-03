@@ -397,27 +397,37 @@ define_test(extension_returns_path_extension)
     fs::free(&p);
 }
 
-define_test(parent_path_returns_the_parent_path)
+define_test(parent_path_segment_returns_the_parent_path_segment)
 {
     fs::path p{};
 
     fs::set_path(&p, "/foo/bar");
-    assert_equal_str(fs::parent_path(&p), "/foo");
+    assert_equal_str(fs::parent_path_segment(&p), "/foo");
 
     fs::set_path(&p, "/foo");
-    assert_equal_str(fs::parent_path(&p), "/");
+    assert_equal_str(fs::parent_path_segment(&p), "/");
 
     fs::set_path(&p, "/");
-    assert_equal_str(fs::parent_path(&p), "/");
+    assert_equal_str(fs::parent_path_segment(&p), "/");
 
     fs::set_path(&p, "/bar/");
-    assert_equal_str(fs::parent_path(&p), "/bar");
+    assert_equal_str(fs::parent_path_segment(&p), "/bar");
 
     fs::set_path(&p, ".");
-    assert_equal_str(fs::parent_path(&p), "");
+    assert_equal_str(fs::parent_path_segment(&p), "");
 
     fs::free(&p);
 }
+
+define_test(absolute_path_gets_the_absolute_path)
+{
+    fs::path p{};
+
+    fs::set_path(&p, "/foo/bar");
+    assert_equal_str(fs::absolute_path(&p).data, "/foo/bar");
+
+}
+
 
 #if 0
 
@@ -573,20 +583,6 @@ define_test(weakly_canonical_path_gets_the_weakly_canonical_path)
     assert_equal_str(p.c_str(), "/etc/././passwd123");
     assert_equal_str(p2.c_str(), "/etc/passwd123");
 #endif
-}
-
-define_test(absolute_path_gets_the_absolute_path)
-{
-    fs::path p("abc.txt");
-    fs::path p2;
-
-    fs::absolute_path(&p, &p2);
-
-    fs::path cur;
-    fs::get_current_path(&cur);
-    fs::append_path(&cur, "abc.txt");
-
-    assert_equal(p2, cur);
 }
 
 define_test(relative_gets_the_relative_path)

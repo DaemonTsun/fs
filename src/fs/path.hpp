@@ -1,6 +1,7 @@
 
 /* path.hpp
  TODO: write new docs
+
  */
 
 #pragma once
@@ -161,7 +162,16 @@ fs::const_fs_string filename(const fs::path *pth);
 // . and .. are treated the same as std::filesystem::path::extension:
 // file_extension will return empty strings (not nullptr) in these cases.
 fs::const_fs_string file_extension(const fs::path *pth);
-fs::const_fs_string parent_path(const fs::path *pth);
+fs::const_fs_string parent_path_segment(const fs::path *pth);
+
+fs::path parent_path(const fs::path *pth);
+void parent_path(const fs::path *pth, fs::path *out);
+
+fs::path absolute_path(const fs::path *pth, fs::fs_error *err = nullptr);
+bool absolute_path(const fs::path *pth, fs::path *out, fs::fs_error *err = nullptr);
+
+fs::path canonical_path(const fs::path *pth, fs::fs_error *err = nullptr);
+bool canonical_path(const fs::path *pth, fs::path *out, fs::fs_error *err = nullptr);
 
 /*
 // out = pth / seg
@@ -186,12 +196,6 @@ void concat_path(const fs::path *pth, const wchar_t *seg, fs::path *out);
 void concat_path(const fs::path *pth, const_string   seg, fs::path *out);
 void concat_path(const fs::path *pth, const_wstring  seg, fs::path *out);
 
-void canonical_path(fs::path *out);
-void canonical_path(const fs::path *pth, fs::path *out);
-void weakly_canonical_path(fs::path *out);
-void weakly_canonical_path(const fs::path *pth, fs::path *out);
-void absolute_path(fs::path *out);
-void absolute_path(const fs::path *pth, fs::path *out);
 // often used convenience
 void absolute_canonical_path(fs::path *out);
 void absolute_canonical_path(const fs::path *pth, fs::path *out);

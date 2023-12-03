@@ -8,6 +8,7 @@
 #else
 #include <sys/stat.h>
 #include <unistd.h>
+#include <stdlib.h>
 #include <linux/limits.h>
 #include <string.h>
 #include <errno.h>
@@ -31,7 +32,7 @@
 
 #define as_array_ptr(x)     (::array<fs::path_char_t>*)(x)
 #define as_string_ptr(x)    (::string_base<fs::path_char_t>*)(x)
-#define empty_fs_string fs::const_fs_string{PC_LIT(""), 0}
+#define empty_fs_string     fs::const_fs_string{PC_LIT(""), 0}
 
 // conversion helpers
 template<typename T>
@@ -503,7 +504,7 @@ fs::const_fs_string fs::file_extension(const fs::path *pth)
     return fs::const_fs_string{found, (u64)((pth->data + pth->size) - found)};
 }
 
-fs::const_fs_string fs::parent_path(const fs::path *pth)
+fs::const_fs_string fs::parent_path_segment(const fs::path *pth)
 {
     assert(pth != nullptr);
 
@@ -525,15 +526,78 @@ fs::const_fs_string fs::parent_path(const fs::path *pth)
     return fs::const_fs_string{pth->data, (u64)(last_sep - pth->data)};
 }
 
-#if 0
-void fs::parent_path(fs::path *out)
+fs::path fs::parent_path(const fs::path *pth)
 {
-    fs::parent_path(out, out);
+    assert(pth != nullptr);
+
+    fs::path ret{};
+    fs::parent_path(pth, &ret);
+    return ret;
 }
 
 void fs::parent_path(const fs::path *pth, fs::path *out)
 {
-    out->ptr->data = pth->ptr->data.parent_path();
+    assert(pth != nullptr);
+
+    fs::const_fs_string parent = fs::parent_path_segment(pth);
+
+    ::set_string(as_string_ptr(out), parent);
+}
+
+fs::path fs::absolute_path(const fs::path *pth, fs::fs_error *err)
+{
+    assert(pth != nullptr);
+
+    fs::path ret{};
+    fs::absolute_path(pth, &ret, err);
+    return ret;
+}
+
+bool fs::absolute_path(const fs::path *pth, fs::path *out, fs::fs_error *err)
+{
+    assert(pth != nullptr);
+
+    // TODO: implement
+}
+
+fs::path fs::canonical_path(const fs::path *pth, fs::fs_error *err)
+{
+    assert(pth != nullptr);
+
+    fs::path ret{};
+    fs::canonical_path(pth, &ret, err);
+    return ret;
+}
+
+#if 0
+bool fs::canonical_path(const fs::path *pth, fs::path *out, fs::fs_error *err)
+{
+    assert(pth != nullptr);
+    assert(out != nullptr);
+
+    out->size = 0;
+
+#if Windows
+    // TODO: PathCchCanonicalizeEx or, if not supported, _fullpath
+
+    return false;
+#else
+    char *npath = ::realpath(pth->data, nullptr);
+
+    if (npath == nullptr)
+    {
+        set_fs_errno_error(err);
+        return false;
+    }
+
+    fs::free(out);
+    // this might become problematic once we change allocators
+    out->data = npath;
+    out->size = ::string_length(npath);
+    out->reserved_size = out->size;
+
+    return true;
+#endif
 }
 
 void fs::append_path(fs::path *out, const char    *seg)
@@ -658,16 +722,6 @@ void fs::concat_path(const fs::path *pth, const wstring *seg, fs::path *out)
     fs::concat_path(pth, to_const_string(seg), out);
 }
 
-void fs::canonical_path(fs::path *out)
-{
-    fs::canonical_path(out, out);
-}
-
-void fs::canonical_path(const fs::path *pth, fs::path *out)
-{
-    out->ptr->data = std::filesystem::canonical(pth->ptr->data);
-}
-
 void fs::weakly_canonical_path(fs::path *out)
 {
     fs::weakly_canonical_path(out, out);
@@ -676,16 +730,6 @@ void fs::weakly_canonical_path(fs::path *out)
 void fs::weakly_canonical_path(const fs::path *pth, fs::path *out)
 {
     out->ptr->data = std::filesystem::weakly_canonical(pth->ptr->data);
-}
-
-void fs::absolute_path(fs::path *out)
-{
-    fs::absolute_path(out, out);
-}
-
-void fs::absolute_path(const fs::path *pth, fs::path *out)
-{
-    out->ptr->data = std::filesystem::absolute(pth->ptr->data);
 }
 
 void fs::absolute_canonical_path(fs::path *out)
