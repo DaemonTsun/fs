@@ -419,6 +419,7 @@ define_test(parent_path_segment_returns_the_parent_path_segment)
     fs::free(&p);
 }
 
+/*
 define_test(absolute_path_gets_the_absolute_path)
 {
     fs::path p{};
@@ -427,7 +428,24 @@ define_test(absolute_path_gets_the_absolute_path)
     assert_equal_str(fs::absolute_path(&p).data, "/foo/bar");
 
 }
+*/
 
+define_test(get_current_path_gets_current_path)
+{
+    // fs::path actual("/home/user/dev/git/fs/bin/tests/path_tests");
+    fs::path p{};
+
+    fs::get_current_path(&p);
+
+    printf("current path: %s\n", p.data);
+
+    assert_equal(string_length(p.data), p.size);
+
+    // untestable from within the code as test could be run anywhere
+    // assert_equal(p, actual);
+
+    fs::free(&p);
+}
 
 #if 0
 

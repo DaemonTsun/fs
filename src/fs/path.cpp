@@ -5,6 +5,7 @@
 
 #if Windows
 #include <windows.h>
+#include <direct.h> // _wgetcwd
 #else
 #include <sys/stat.h>
 #include <unistd.h>
@@ -18,16 +19,32 @@
 #include <stdlib.h>
 
 #include "shl/memory.hpp"
+#include "shl/defer.hpp"
 #include "shl/error.hpp"
 
 #include "fs/path.hpp"
 
+
+// constants
+
+// These sizes are used as the default when querying paths with e.g. getcwd.
+// Path sizes quadruple until reaching PATH_ALLOC_MAX_SIZE
+#define PATH_ALLOC_MIN_SIZE 255
+#define PATH_ALLOC_MAX_SIZE 65535
+
+
+
+
+
 #if Windows
 // PC stands for PATH_CHAR
 #define PC_LIT(c) L##c
+
+#define platform_getcwd _wgetcwd
 #else
 #define PC_LIT(c) c
 
+#define platform_getcwd getcwd
 #endif
 
 #define as_array_ptr(x)     (::array<fs::path_char_t>*)(x)
@@ -395,7 +412,7 @@ bool fs::is_absolute(const fs::path *pth, fs::fs_error *err)
     assert(pth != nullptr);
 
 #if Windows
-
+    // TODO: implement
 #else
 
     if (pth->size == 0)
@@ -557,9 +574,56 @@ bool fs::absolute_path(const fs::path *pth, fs::path *out, fs::fs_error *err)
 {
     assert(pth != nullptr);
 
-    // TODO: implement
+    if (!fs::is_absolute(pth))
+    {
+        if (!fs::get_current_path(out, err))
+            return false;
+
+        // fs::append_path(out, to_const_string(pth));
+    }
+
+    // TODO: resolve relative parts or use canonicalize_file_name
+
+    return false;
 }
 
+bool fs::get_current_path(fs::path *out, fs::fs_error *err)
+{
+    assert(out != nullptr);
+
+    out->size = 0;
+    
+    string_base<fs::path_char_t> *outs = as_string_ptr(out);
+
+    if (outs->reserved_size < PATH_ALLOC_MIN_SIZE)
+        ::string_reserve(outs, PATH_ALLOC_MIN_SIZE);
+
+    fs::path_char_t *ret = platform_getcwd(out->data, out->reserved_size);
+
+    while (ret == nullptr && (errno == ERANGE))
+    {
+        if (outs->reserved_size >= PATH_ALLOC_MAX_SIZE)
+        {
+            set_fs_errno_error(err);
+            return false;
+        }
+
+        ::string_reserve(outs, outs->reserved_size << 2);
+        ret = platform_getcwd(out->data, out->reserved_size);
+    }
+
+    if (ret == nullptr)
+    {
+        set_fs_errno_error(err);
+        return false;
+    }
+
+    out->size = ::string_length(out->data);
+
+    return true;
+}
+
+#if 0
 fs::path fs::canonical_path(const fs::path *pth, fs::fs_error *err)
 {
     assert(pth != nullptr);
@@ -569,7 +633,6 @@ fs::path fs::canonical_path(const fs::path *pth, fs::fs_error *err)
     return ret;
 }
 
-#if 0
 bool fs::canonical_path(const fs::path *pth, fs::path *out, fs::fs_error *err)
 {
     assert(pth != nullptr);
@@ -582,6 +645,7 @@ bool fs::canonical_path(const fs::path *pth, fs::path *out, fs::fs_error *err)
 
     return false;
 #else
+    // TODO: replace with a real realpath, not a fake one
     char *npath = ::realpath(pth->data, nullptr);
 
     if (npath == nullptr)
@@ -795,11 +859,6 @@ bool fs::remove(const fs::path *pth)
 bool fs::remove_all(const fs::path *pth)
 {
     return std::filesystem::remove_all(pth->ptr->data);
-}
-
-void fs::get_current_path(fs::path *out)
-{
-    out->ptr->data = std::filesystem::current_path();
 }
 
 void fs::set_current_path(const fs::path *pth)

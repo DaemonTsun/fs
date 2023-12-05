@@ -173,6 +173,7 @@ bool absolute_path(const fs::path *pth, fs::path *out, fs::fs_error *err = nullp
 fs::path canonical_path(const fs::path *pth, fs::fs_error *err = nullptr);
 bool canonical_path(const fs::path *pth, fs::path *out, fs::fs_error *err = nullptr);
 
+bool get_current_path(fs::path *out, fs::fs_error *err = nullptr);
 /*
 // out = pth / seg
 // basically adds a directory separator and the segment to the path
@@ -196,9 +197,6 @@ void concat_path(const fs::path *pth, const wchar_t *seg, fs::path *out);
 void concat_path(const fs::path *pth, const_string   seg, fs::path *out);
 void concat_path(const fs::path *pth, const_wstring  seg, fs::path *out);
 
-// often used convenience
-void absolute_canonical_path(fs::path *out);
-void absolute_canonical_path(const fs::path *pth, fs::path *out);
 void relative_path(const fs::path *from, const fs::path *to, fs::path *out);
 void proximate_path(const fs::path *from, const fs::path *to, fs::path *out);
 
