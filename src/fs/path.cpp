@@ -40,11 +40,13 @@
 // PC stands for PATH_CHAR
 #define PC_LIT(c) L##c
 
-#define platform_getcwd _wgetcwd
+#define platform_getcwd ::_wgetcwd
+#define platform_chdir  ::_chdir
 #else
 #define PC_LIT(c) c
 
-#define platform_getcwd getcwd
+#define platform_getcwd ::getcwd
+#define platform_chdir  ::chdir
 #endif
 
 #define as_array_ptr(x)     (::array<fs::path_char_t>*)(x)
@@ -59,6 +61,15 @@ struct _converted_string
     u64 size;
 };
 
+typedef _converted_string<fs::path_char_t> platform_converted_string;
+
+inline fs::path _converted_string_to_path(platform_converted_string str)
+{
+    assert(str.data != nullptr);
+    assert(str.size != (size_t)-1);
+    return fs::path{.data = str.data, .size = str.size, .reserved_size = str.size};
+}
+
 _converted_string<char> _convert_string(const wchar_t *wcstring, u64 wchar_count)
 {
     _converted_string<char> ret;
@@ -70,6 +81,16 @@ _converted_string<char> _convert_string(const wchar_t *wcstring, u64 wchar_count
     ret.size = ::wcstombs(ret.data, wcstring, wchar_count * sizeof(wchar_t));
 
     return ret;
+}
+
+_converted_string<char> _convert_string(const wchar_t *cstring)
+{
+    return _convert_string(cstring, ::string_length(cstring));
+}
+
+_converted_string<char> _convert_string(const_wstring cstring)
+{
+    return _convert_string(cstring.c_str, cstring.size);
 }
 
 _converted_string<wchar_t> _convert_string(const char *cstring, u64 char_count)
@@ -85,7 +106,22 @@ _converted_string<wchar_t> _convert_string(const char *cstring, u64 char_count)
     return ret;
 }
 
+_converted_string<wchar_t> _convert_string(const char *cstring)
+{
+    return _convert_string(cstring, ::string_length(cstring));
+}
+
+_converted_string<wchar_t> _convert_string(const_string cstring)
+{
+    return _convert_string(cstring.c_str, cstring.size);
+}
+
 // path functions
+
+fs::path::operator const fs::path_char_t* () const
+{
+    return this->data;
+}
 
 const fs::path_char_t *fs::path::c_str() const
 {
@@ -120,7 +156,7 @@ void fs::init(fs::path *path, const_string   str)
     assert(str.c_str != nullptr);
 
 #if Windows
-    _converted_string<wchar_t> converted = ::_convert_string(str.c_str, str.size);
+    platform_converted_string converted = ::_convert_string(str.c_str, str.size);
 
     assert(converted.data != nullptr);
     assert(converted.size != (size_t)-1);
@@ -141,7 +177,7 @@ void fs::init(fs::path *path, const_wstring  str)
 #if Windows
     _path_init(path, str.c_str, str.size);
 #else
-    _converted_string<char> converted = ::_convert_string(str.c_str, str.size);
+    platform_converted_string converted = ::_convert_string(str.c_str, str.size);
 
     assert(converted.data != nullptr);
     assert(converted.size != (size_t)-1);
@@ -181,7 +217,7 @@ void fs::set_path(fs::path *pth, const_string   new_path)
     assert(pth != nullptr);
 
 #if Windows
-    _converted_string converted = ::_convert_string(new_path.c_str, new_path.size);
+    platform_converted_string converted = ::_convert_string(new_path.c_str, new_path.size);
 
     assert(converted.data != nullptr);
     assert(converted.size != (size_t)-1);
@@ -201,7 +237,7 @@ void fs::set_path(fs::path *pth, const_wstring  new_path)
 #if Windows
     ::set_string(as_string_ptr(pth), new_path);
 #else
-    _converted_string converted = ::_convert_string(new_path.c_str, new_path.size);
+    platform_converted_string converted = ::_convert_string(new_path.c_str, new_path.size);
 
     assert(converted.data != nullptr);
     assert(converted.size != (size_t)-1);
@@ -214,6 +250,9 @@ void fs::set_path(fs::path *pth, const_wstring  new_path)
 
 void fs::set_path(fs::path *pth, const fs::path *new_path)
 {
+    assert(pth != nullptr);
+    assert(new_path != nullptr);
+
     ::set_string(as_string_ptr(pth), to_const_string(new_path));
 }
 
@@ -411,18 +450,10 @@ bool fs::is_absolute(const fs::path *pth, fs::fs_error *err)
 {
     assert(pth != nullptr);
 
-#if Windows
-    // TODO: implement
-#else
+    // for relative or invalid paths, root is empty string
+    auto rt = fs::root(pth);
 
-    if (pth->size == 0)
-        return false;
-
-    // lol
-    return pth->data[0] == fs::path_separator;
-#endif
-
-    return false;
+    return rt.size > 0;
 }
 
 bool fs::is_relative(const fs::path *pth, fs::fs_error *err)
@@ -543,6 +574,22 @@ fs::const_fs_string fs::parent_path_segment(const fs::path *pth)
     return fs::const_fs_string{pth->data, (u64)(last_sep - pth->data)};
 }
 
+fs::const_fs_string fs::root(const fs::path *pth)
+{
+    assert(pth != nullptr);
+
+#if Windows
+    // TODO: implement, check for unc, check for long unc (\\?\..., \\?\UNC\...)
+
+    return empty_fs_string;
+#else
+    if (pth->size == 0 || pth->data[0] != fs::path_separator)
+        return empty_fs_string;
+
+    return fs::const_fs_string{pth->data, 1};
+#endif
+}
+
 fs::path fs::parent_path(const fs::path *pth)
 {
     assert(pth != nullptr);
@@ -573,18 +620,32 @@ fs::path fs::absolute_path(const fs::path *pth, fs::fs_error *err)
 bool fs::absolute_path(const fs::path *pth, fs::path *out, fs::fs_error *err)
 {
     assert(pth != nullptr);
+    assert(out != nullptr);
+
+    if (pth == out)
+    {
+        fs::path tmp{};
+
+        if (!fs::absolute_path(pth, &tmp, err))
+            return false;
+
+        fs::free(out);
+        *out = tmp;
+
+        return true;
+    }
 
     if (!fs::is_absolute(pth))
     {
         if (!fs::get_current_path(out, err))
             return false;
 
-        // fs::append_path(out, to_const_string(pth));
+        fs::append_path(out, to_const_string(pth));
     }
+    else
+        fs::set_path(out, pth);
 
-    // TODO: resolve relative parts or use canonicalize_file_name
-
-    return false;
+    return true;
 }
 
 bool fs::get_current_path(fs::path *out, fs::fs_error *err)
@@ -621,6 +682,122 @@ bool fs::get_current_path(fs::path *out, fs::fs_error *err)
     out->size = ::string_length(out->data);
 
     return true;
+}
+
+bool fs::set_current_path(const fs::path *pth, fs::fs_error *err)
+{
+    assert(pth != nullptr);
+
+    if (platform_chdir(pth->data) == -1)
+    {
+        set_fs_errno_error(err);
+        return false;
+    }
+
+    return true;
+}
+
+void fs::append_path(fs::path *out, const char    *seg)
+{
+    return fs::append_path(out, ::to_const_string(seg));
+}
+
+void fs::append_path(fs::path *out, const wchar_t *seg)
+{
+    return fs::append_path(out, ::to_const_string(seg));
+}
+
+void fs::append_path(fs::path *out, const_string   seg)
+{
+    fs::path to_append{}; 
+
+#if Windows
+    _converted_string<wchar_t> converted = ::_convert_string(seg);
+    to_append = ::_converted_string_to_path(converted);
+
+    fs::append_path(out, &to_append);
+
+    ::free_memory(converted.data);
+#else
+    to_append.data = (fs::path_char_t*)seg.c_str;
+    to_append.size = seg.size;
+    to_append.reserved_size = seg.size;
+    fs::append_path(out, &to_append);
+#endif
+}
+
+void fs::append_path(fs::path *out, const_wstring  seg)
+{
+    fs::path to_append{}; 
+
+#if Windows
+    to_append.data = (fs::path_char_t*)seg.c_str;
+    to_append.size = seg.size;
+    to_append.reserved_size = seg.size;
+    fs::append_path(out, &to_append);
+#else
+    platform_converted_string converted = ::_convert_string(seg);
+    to_append = ::_converted_string_to_path(converted);
+
+    fs::append_path(out, &to_append);
+
+    ::free_memory(converted.data);
+#endif
+}
+
+void fs::append_path(fs::path *out, const fs::path *to_append)
+{
+    assert(out != nullptr);
+    assert(to_append != nullptr);
+
+    if (to_append->size == 0)
+        return;
+
+    if (out->size == 0)
+    {
+        fs::set_path(out, to_append);
+        return;
+    }
+
+    if (fs::is_absolute(to_append))
+    {
+        fs::set_path(out, to_append);
+        return;
+    }
+
+    u64 append_from = 0;
+    u64 extra_size_needed = to_append->size + 1;
+    bool add_separator = false;
+
+    fs::path_char_t end_of_out = out->data[out->size - 1];
+    fs::path_char_t start_of_append = to_append->data[0];
+
+    if (end_of_out == fs::path_separator
+     && start_of_append == fs::path_separator)
+    {
+        // if there's a separator at the end of the out path as well
+        // as the front of the path to add, don't add the one from
+        // the path to add.
+        append_from = 1;
+        extra_size_needed -= 1;
+    }
+    else if (end_of_out != fs::path_separator
+          && start_of_append != fs::path_separator)
+    {
+        // or if neither is a separator, we have to add one...
+        add_separator = true;
+        extra_size_needed += 1; // can separators be larger than 1 character?
+    }
+    
+    ::reserve(as_array_ptr(out), out->size + extra_size_needed);
+
+    if (add_separator)
+    {
+        out->data[out->size] = fs::path_separator;
+        out->size += 1;
+    }
+
+    ::append_string(as_string_ptr(out), fs::const_fs_string{to_append->data + append_from, to_append->size - append_from});
 }
 
 #if 0
@@ -859,11 +1036,6 @@ bool fs::remove(const fs::path *pth)
 bool fs::remove_all(const fs::path *pth)
 {
     return std::filesystem::remove_all(pth->ptr->data);
-}
-
-void fs::set_current_path(const fs::path *pth)
-{
-    std::filesystem::current_path(pth->ptr->data);
 }
 
 void fs::get_executable_path(fs::path *out)

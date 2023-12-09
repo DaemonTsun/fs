@@ -419,49 +419,164 @@ define_test(parent_path_segment_returns_the_parent_path_segment)
     fs::free(&p);
 }
 
-/*
-define_test(absolute_path_gets_the_absolute_path)
+define_test(root_returns_the_path_root)
 {
     fs::path p{};
 
+#if Windows
+    // TODO: implement
+#else
     fs::set_path(&p, "/foo/bar");
-    assert_equal_str(fs::absolute_path(&p).data, "/foo/bar");
+    assert_equal_str(fs::root(&p), "/");
 
-}
-*/
+    fs::set_path(&p, "/foo");
+    assert_equal_str(fs::root(&p), "/");
 
-define_test(get_current_path_gets_current_path)
-{
-    // fs::path actual("/home/user/dev/git/fs/bin/tests/path_tests");
-    fs::path p{};
+    fs::set_path(&p, "/");
+    assert_equal_str(fs::root(&p), "/");
 
-    fs::get_current_path(&p);
+    fs::set_path(&p, "bar");
+    assert_equal_str(fs::root(&p), "");
 
-    printf("current path: %s\n", p.data);
+    fs::set_path(&p, ".");
+    assert_equal_str(fs::root(&p), "");
 
-    assert_equal(string_length(p.data), p.size);
+    fs::set_path(&p, "");
+    assert_equal_str(fs::root(&p), "");
 
-    // untestable from within the code as test could be run anywhere
-    // assert_equal(p, actual);
+#endif
 
     fs::free(&p);
 }
 
-#if 0
+define_test(absolute_path_gets_the_absolute_path)
+{
+    fs::path p{};
+    fs::path absp{};
+
+#if Windows
+    // TODO: add tests
+    assert_equal(true, false);
+#else
+    fs::set_path(&p, "/foo/bar");
+    fs::absolute_path(&p, &absp);
+    assert_equal_str(absp, "/foo/bar");
+
+    fs::set_path(&p, "foo/bar");
+    fs::absolute_path(&p, &absp);
+    assert_equal_str(absp, SANDBOX_DIR "/foo/bar");
+
+    // does not expand relative paths within the path, use canonical_path for that
+    fs::set_path(&p, "/foo/bar/./abc/../def");
+    fs::absolute_path(&p, &absp);
+    assert_equal_str(absp, "/foo/bar/./abc/../def");
+
+    fs::set_path(&p, "foo/bar/./abc/../def");
+    fs::absolute_path(&p, &absp);
+    assert_equal_str(absp, SANDBOX_DIR "/foo/bar/./abc/../def");
+
+
+    fs::set_path(&p, "foo/bar");
+    fs::absolute_path(&p, &p);
+    assert_equal_str(p, SANDBOX_DIR "/foo/bar");
+#endif
+
+    fs::free(&absp);
+    fs::free(&p);
+}
+
+define_test(get_current_path_gets_current_path)
+{
+    fs::path p{};
+
+    bool ret = fs::get_current_path(&p);
+
+    assert_equal(ret, true);
+    assert_equal(string_length(p.data), p.size);
+    assert_equal_str(p.data, SANDBOX_DIR);
+
+    fs::free(&p);
+}
+
+define_test(set_current_path_sets_current_path)
+{
+    fs::path p{};
+    fs::path p2{};
+
+    fs::set_path(&p, SANDBOX_TEST_DIR);
+
+    bool ret = fs::set_current_path(&p);
+
+    fs::get_current_path(&p2);
+
+    assert_equal(ret, true);
+    assert_equal_str(p2, SANDBOX_TEST_DIR);
+
+    fs::set_path(&p, SANDBOX_DIR);
+    fs::set_current_path(&p);
+
+    fs::free(&p);
+    fs::free(&p2);
+}
 
 define_test(append_appends_to_path)
 {
+    fs::path p{};
+
 #if Windows
-    fs::path p(R"=(C:\Windows\)=");
+    fs::set_path(&p, R"(C:\Windows)");
     fs::append_path(&p, "notepad.exe");
-    assert_equal_str(p.c_str(), R"=(C:\Windows\notepad.exe)=");
+    assert_equal_str(p.data, R"(C:\Windows\notepad.exe)");
+
+    // TODO: more tests
+    assert_equal(false, true);
 #else
-    fs::path p("/etc/");
+    fs::set_path(&p, "/etc");
     fs::append_path(&p, "passwd");
     assert_equal_str(p.c_str(), "/etc/passwd");
+
+    // with trailing separator, same result
+    fs::set_path(&p, "/etc/");
+    fs::append_path(&p, "passwd");
+    assert_equal_str(p.c_str(), "/etc/passwd");
+
+    // replaces when appending absolute path
+    fs::set_path(&p, "/etc");
+    fs::append_path(&p, "/passwd");
+    assert_equal_str(p.c_str(), "/passwd");
+
+    fs::set_path(&p, "//xyz");
+    fs::append_path(&p, "abc");
+    assert_equal_str(p.c_str(), "//xyz/abc");
+
+    fs::set_path(&p, "//xyz/");
+    fs::append_path(&p, "abc");
+    assert_equal_str(p.c_str(), "//xyz/abc");
+
+    fs::set_path(&p, "//xyz/dir");
+    fs::append_path(&p, "/abc");
+    assert_equal_str(p.c_str(), "/abc");
+
+    fs::set_path(&p, "//xyz/dir");
+    fs::append_path(&p, "//xyz/abc");
+    assert_equal_str(p.c_str(), "//xyz/abc");
+
+    // path alone doesnt check whether what it's pointing to is a directory or not
+    // so this will just append at the end.
+    fs::set_path(&p, "/etc/test.txt");
+    fs::append_path(&p, "passwd");
+    assert_equal_str(p.c_str(), "/etc/test.txt/passwd");
+
+    fs::set_path(&p, "/etc/test.txt");
+    fs::append_path(&p, "passwd/test2.txt");
+    assert_equal_str(p.c_str(), "/etc/test.txt/passwd/test2.txt");
+
 #endif
+
+    fs::free(&p);
 }
 
+/*
 define_test(append_appends_to_path2)
 {
 #if Windows
@@ -478,6 +593,9 @@ define_test(append_appends_to_path2)
     assert_equal_str(p2.c_str(), "/etc/passwd");
 #endif
 }
+*/
+
+#if 0
 
 define_test(append_appends_to_path3)
 {
@@ -657,8 +775,11 @@ define_test(get_executable_path_gets_executable_path)
 }
 #endif
 
+static fs::path old_current_dir;
+
 void _setup()
 {
+    fs::get_current_path(&old_current_dir);
     mkdir(SANDBOX_DIR, 0777);
     mkdir(SANDBOX_TEST_DIR, 0777);
     FILE *f = fopen(SANDBOX_TEST_FILE, "w");
@@ -669,13 +790,20 @@ void _setup()
  
     mkfifo(SANDBOX_TEST_PIPE, 0644);
 
+    fs::path _tmp{};
+    fs::set_path(&_tmp, SANDBOX_DIR);
+    fs::set_current_path(&_tmp);
+    fs::free(&_tmp);
 }
 
 #include <filesystem> // lol
 
 void _cleanup()
 {
+    fs::set_current_path(&old_current_dir);
     std::filesystem::remove_all(SANDBOX_DIR);
+
+    fs::free(&old_current_dir);
 }
 
 define_test_main(_setup(), _cleanup());

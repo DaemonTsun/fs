@@ -147,9 +147,10 @@ bool is_symlink(const fs::path *pth, bool follow_symlinks = false, fs::fs_error 
 bool is_directory(const fs::path *pth, bool follow_symlinks = true, fs::fs_error *err = nullptr);
 bool is_other(const fs::path *pth, bool follow_symlinks = true, fs::fs_error *err = nullptr);
 
-// TODO: const char, const_string, filesystem_info overloads
+// TODO: const char, const_string overloads
 bool is_absolute(const fs::path *pth, fs::fs_error *err = nullptr);
 bool is_relative(const fs::path *pth, fs::fs_error *err = nullptr);
+// TODO: const char, const_string, filesystem_info overloads
 bool are_equivalent(const fs::path *pth1, const fs::path *pth2, bool follow_symlinks = true, fs::fs_error *err = nullptr);
 
 fs::const_fs_string filename(const fs::path *pth);
@@ -164,6 +165,8 @@ fs::const_fs_string filename(const fs::path *pth);
 fs::const_fs_string file_extension(const fs::path *pth);
 fs::const_fs_string parent_path_segment(const fs::path *pth);
 
+fs::const_fs_string root(const fs::path *pth);
+
 fs::path parent_path(const fs::path *pth);
 void parent_path(const fs::path *pth, fs::path *out);
 
@@ -174,13 +177,15 @@ fs::path canonical_path(const fs::path *pth, fs::fs_error *err = nullptr);
 bool canonical_path(const fs::path *pth, fs::path *out, fs::fs_error *err = nullptr);
 
 bool get_current_path(fs::path *out, fs::fs_error *err = nullptr);
-/*
+bool set_current_path(const fs::path *pth, fs::fs_error *err = nullptr);
+
 // out = pth / seg
-// basically adds a directory separator and the segment to the path
 void append_path(fs::path *out, const char    *seg);
 void append_path(fs::path *out, const wchar_t *seg);
 void append_path(fs::path *out, const_string   seg);
 void append_path(fs::path *out, const_wstring  seg);
+void append_path(fs::path *out, const fs::path *to_append);
+/*
 void append_path(const fs::path *pth, const char    *seg, fs::path *out);
 void append_path(const fs::path *pth, const wchar_t *seg, fs::path *out);
 void append_path(const fs::path *pth, const_string   seg, fs::path *out);
@@ -219,7 +224,6 @@ bool remove_all(const fs::path *pth);
 
 // current working directory
 void get_current_path(fs::path *out);
-void set_current_path(const fs::path *pth);
 
 // location of the executable
 void get_executable_path(fs::path *out);
