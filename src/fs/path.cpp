@@ -648,6 +648,59 @@ bool fs::absolute_path(const fs::path *pth, fs::path *out, fs::fs_error *err)
     return true;
 }
 
+fs::path fs::canonical_path(const fs::path *pth, fs::fs_error *err)
+{
+    assert(pth != nullptr);
+
+    fs::path ret{};
+    fs::canonical_path(pth, &ret, err);
+    return ret;
+}
+
+bool fs::canonical_path(const fs::path *pth, fs::path *out, fs::fs_error *err)
+{
+    assert(pth != nullptr);
+    assert(out != nullptr);
+
+    if (pth == out)
+    {
+        fs::path tmp{};
+
+        if (!fs::canonical_path(pth, &tmp, err))
+            return false;
+
+        fs::free(out);
+        *out = tmp;
+
+        return true;
+    }
+
+#if Windows
+    // TODO: PathCchCanonicalizeEx or, if not supported, _fullpath
+
+    return false;
+#else
+
+    // TODO: replace with a real realpath, not a fake one.
+    // Problems with ::realpath: allocates its own buffer,
+    // and the buffer can only be up to PATH_MAX bytes long.
+    char *npath = ::realpath(pth->data, nullptr);
+
+    if (npath == nullptr)
+    {
+        set_fs_errno_error(err);
+        return false;
+    }
+
+    fs::free(out);
+    out->data = npath;
+    out->size = ::string_length(npath);
+    out->reserved_size = out->size;
+
+    return true;
+#endif
+}
+
 bool fs::get_current_path(fs::path *out, fs::fs_error *err)
 {
     assert(out != nullptr);
@@ -801,105 +854,6 @@ void fs::append_path(fs::path *out, const fs::path *to_append)
 }
 
 #if 0
-fs::path fs::canonical_path(const fs::path *pth, fs::fs_error *err)
-{
-    assert(pth != nullptr);
-
-    fs::path ret{};
-    fs::canonical_path(pth, &ret, err);
-    return ret;
-}
-
-bool fs::canonical_path(const fs::path *pth, fs::path *out, fs::fs_error *err)
-{
-    assert(pth != nullptr);
-    assert(out != nullptr);
-
-    out->size = 0;
-
-#if Windows
-    // TODO: PathCchCanonicalizeEx or, if not supported, _fullpath
-
-    return false;
-#else
-    // TODO: replace with a real realpath, not a fake one
-    char *npath = ::realpath(pth->data, nullptr);
-
-    if (npath == nullptr)
-    {
-        set_fs_errno_error(err);
-        return false;
-    }
-
-    fs::free(out);
-    // this might become problematic once we change allocators
-    out->data = npath;
-    out->size = ::string_length(npath);
-    out->reserved_size = out->size;
-
-    return true;
-#endif
-}
-
-void fs::append_path(fs::path *out, const char    *seg)
-{
-    out->ptr->data.append(seg);
-}
-
-void fs::append_path(fs::path *out, const wchar_t *seg)
-{
-    out->ptr->data.append(seg);
-}
-
-void fs::append_path(fs::path *out, const_string   seg)
-{
-    fs::append_path(out, seg.c_str);
-}
-
-void fs::append_path(fs::path *out, const_wstring  seg)
-{
-    fs::append_path(out, seg.c_str);
-}
-
-void fs::append_path(fs::path *out, const string  *seg)
-{
-    fs::append_path(out, to_const_string(seg));
-}
-
-void fs::append_path(fs::path *out, const wstring *seg)
-{
-    fs::append_path(out, to_const_string(seg));
-}
-
-void fs::append_path(const fs::path *pth, const char    *seg, fs::path *out)
-{
-    out->ptr->data = pth->ptr->data / seg;
-}
-
-void fs::append_path(const fs::path *pth, const wchar_t *seg, fs::path *out)
-{
-    out->ptr->data = pth->ptr->data / seg;
-}
-
-void fs::append_path(const fs::path *pth, const_string   seg, fs::path *out)
-{
-    fs::append_path(pth, seg.c_str, out);
-}
-
-void fs::append_path(const fs::path *pth, const_wstring  seg, fs::path *out)
-{
-    fs::append_path(pth, seg.c_str, out);
-}
-
-void fs::append_path(const fs::path *pth, const string  *seg, fs::path *out)
-{
-    fs::append_path(pth, to_const_string(seg), out);
-}
-
-void fs::append_path(const fs::path *pth, const wstring *seg, fs::path *out)
-{
-    fs::append_path(pth, to_const_string(seg), out);
-}
 
 void fs::concat_path(fs::path *out, const char    *seg)
 {

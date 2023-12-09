@@ -485,6 +485,36 @@ define_test(absolute_path_gets_the_absolute_path)
     fs::free(&p);
 }
 
+define_test(canonical_path_gets_canonical_path)
+{
+    fs::path p{};
+    fs::path canonp{};
+
+#if Windows
+    // TODO: add tests
+    assert_equal(true, false);
+#else
+    fs::set_path(&p, SANDBOX_TEST_DIR);
+    assert_equal(fs::canonical_path(&p, &canonp), true);
+    assert_equal_str(canonp, SANDBOX_TEST_DIR);
+
+    fs::set_path(&p, SANDBOX_TEST_DIR "/..");
+    assert_equal(fs::canonical_path(&p, &canonp), true);
+    assert_equal_str(canonp, SANDBOX_DIR);
+
+    fs::set_path(&p, SANDBOX_TEST_DIR "/../");
+    assert_equal(fs::canonical_path(&p, &canonp), true);
+    assert_equal_str(canonp, SANDBOX_DIR);
+
+    // fails on paths that don't exist
+    fs::set_path(&p, "/tmp/abc/../def");
+    assert_equal(fs::canonical_path(&p, &canonp), false);
+#endif
+
+    fs::free(&canonp);
+    fs::free(&p);
+}
+
 define_test(get_current_path_gets_current_path)
 {
     fs::path p{};
