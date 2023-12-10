@@ -449,6 +449,85 @@ define_test(root_returns_the_path_root)
     fs::free(&p);
 }
 
+define_test(normalize_normalizes_path)
+{
+    fs::path p{};
+
+#if Windows
+    // TODO: add tests
+#else
+    fs::set_path(&p, "");
+    fs::normalize(&p);
+    assert_equal_str(p, "");
+
+    fs::set_path(&p, "/");
+    fs::normalize(&p);
+    assert_equal_str(p, "/");
+
+    fs::set_path(&p, "///");
+    fs::normalize(&p);
+    assert_equal_str(p, "/");
+
+    fs::set_path(&p, "/a");
+    fs::normalize(&p);
+    assert_equal_str(p, "/a");
+
+    fs::set_path(&p, "/a/////b");
+    fs::normalize(&p);
+    assert_equal_str(p, "/a/b");
+
+    fs::set_path(&p, "/.");
+    fs::normalize(&p);
+    assert_equal_str(p, "/");
+
+    fs::set_path(&p, "/..");
+    fs::normalize(&p);
+    assert_equal_str(p, "/");
+
+    fs::set_path(&p, "/abc/./def");
+    fs::normalize(&p);
+    assert_equal_str(p, "/abc/def");
+
+    fs::set_path(&p, "/abc/../def");
+    fs::normalize(&p);
+    assert_equal_str(p, "/def");
+
+    fs::set_path(&p, "/abc/def/xyz/../../uvw");
+    fs::normalize(&p);
+    assert_equal_str(p, "/abc/uvw");
+
+    fs::set_path(&p, "/abc/../def/./");
+    fs::normalize(&p);
+    assert_equal_str(p, "/def");
+
+    fs::set_path(&p, "/abc/../def/../../../../");
+    fs::normalize(&p);
+    assert_equal_str(p, "/");
+
+    // relative paths
+    fs::set_path(&p, "..");
+    fs::normalize(&p);
+    assert_equal_str(p, "..");
+
+    /* TODO: test
+    fs::set_path(&p, "../");
+    fs::normalize(&p);
+    assert_equal_str(p, "..");
+
+    fs::set_path(&p, ".");
+    fs::normalize(&p);
+    assert_equal_str(p, ".");
+
+    fs::set_path(&p, "./");
+    fs::normalize(&p);
+    assert_equal_str(p, ".");
+    */
+#endif
+
+    fs::free(&p);
+}
+
+
 define_test(absolute_path_gets_the_absolute_path)
 {
     fs::path p{};

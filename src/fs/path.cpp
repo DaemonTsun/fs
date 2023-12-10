@@ -49,6 +49,9 @@
 #define platform_chdir  ::chdir
 #endif
 
+#define PC_DOT PC_LIT('.')
+#define PC_NUL PC_LIT('\0')
+
 #define as_array_ptr(x)     (::array<fs::path_char_t>*)(x)
 #define as_string_ptr(x)    (::string_base<fs::path_char_t>*)(x)
 #define empty_fs_string     fs::const_fs_string{PC_LIT(""), 0}
@@ -546,8 +549,8 @@ fs::const_fs_string fs::file_extension(const fs::path *pth)
     if (fname.size == 0)
         return empty_fs_string;
 
-    if ((fname.size == 1 && fname.c_str[0] == PC_LIT('.'))
-     || (fname.size == 2 && fname.c_str[0] == PC_LIT('.') && fname.c_str[1] == PC_LIT('.')))
+    if ((fname.size == 1 && fname.c_str[0] == PC_DOT)
+     || (fname.size == 2 && fname.c_str[0] == PC_DOT && fname.c_str[1] == PC_DOT))
         return empty_fs_string;
 
     const fs::path_char_t *found = ::strrchr(fname.c_str, '.');
@@ -612,6 +615,182 @@ void fs::parent_path(const fs::path *pth, fs::path *out)
     fs::const_fs_string parent = fs::parent_path_segment(pth);
 
     ::set_string(as_string_ptr(out), parent);
+}
+
+// The algorithm for normalizing is here
+// https://en.cppreference.com/w/cpp/filesystem/path
+void fs::normalize(fs::path *pth)
+{
+    // TODO: account for windows bs
+    if (pth == nullptr)
+        return;
+
+    if (pth->size == 0)
+        return;
+
+    u64 i = 0;
+    u64 j = 0;
+
+    // Simplify multiple separators into one
+    // e.g. /a/////b -> /a/b
+    while (pth->size > 0 && (i < pth->size - 1))
+    {
+        if (pth->data[i] != fs::path_separator)
+        {
+            i += 1;
+            continue;
+        }
+
+        j = i + 1;
+
+        while (pth->data[j] == fs::path_separator)
+            j += 1;
+
+        if (j == i + 1)
+        {
+            i += 1;
+            continue;
+        }
+
+        assert(j > i + 1);
+        ::remove_elements(as_array_ptr(pth), i, (j - i) - 1);
+
+        i += 1;
+    }
+
+    pth->data[pth->size] = PC_NUL;
+
+    // remove <dir>/..[/]
+
+    i = 0;
+    u64 filename_start = 0;
+
+    // 3 to account for "/.."
+    while (pth->size > 3 && (i < pth->size - 3))
+    {
+        if (pth->data[i] == fs::path_separator)
+        {
+            i += 1;
+            filename_start = i;
+
+            while ((i < pth->size - 3)
+                && pth->data[i] != fs::path_separator)
+                i += 1;
+
+            if (i >= pth->size - 3)
+                break;
+
+            if (pth->data[i] == fs::path_separator
+             && pth->data[i + 1] == PC_DOT
+             && pth->data[i + 2] == PC_DOT)
+            {
+                i += 3;
+
+                while (i < pth->size && pth->data[i] == fs::path_separator)
+                    i += 1;
+
+                ::remove_elements(as_array_ptr(pth), filename_start, i - filename_start);
+                pth->data[pth->size] = PC_NUL;
+
+                // we set i to 0 here because of ../..
+                i = 0;
+                continue;
+            }
+        }
+        else
+            i += 1;
+    }
+
+    pth->data[pth->size] = PC_NUL;
+
+    // remove ./
+
+    i = 0;
+    j = 0;
+
+    while (pth->size > 0 && (i < pth->size - 1))
+    {
+        if (pth->data[i] == PC_DOT
+         && pth->data[i + 1] == fs::path_separator)
+            ::remove_elements(as_array_ptr(pth), i, 2);
+        else
+            i += 1;
+    }
+
+    // remove trailing .. after root
+    auto rt = fs::root(pth);
+
+    if (rt.size > 0)
+    {
+        i = rt.size;
+        j = 0;
+
+        if ((pth->size >= rt.size + 2) && i < pth->size - 1)
+        {
+            if (pth->data[i]     == PC_DOT
+             && pth->data[i + 1] == PC_DOT)
+            {
+                j = i;
+                i += 2;
+
+                while (i < pth->size)
+                {
+                    if (pth->data[i] == fs::path_separator)
+                    {
+                        i += 1;
+                        continue;
+                    }
+
+                    if (i < pth->size - 1
+                     && pth->data[i]     == PC_DOT
+                     && pth->data[i + 1] == PC_DOT)
+                    {
+                        if (i + 2 >= pth->size)
+                        {
+                            i += 2;
+                            continue;
+                        }
+                        else if (pth->data[i + 2] == fs::path_separator)
+                        {
+                            i += 2;
+                            continue;
+                        }
+                        else
+                            break;
+                    }
+                }
+
+                assert(i > j);
+                assert(i <= pth->size);
+                ::remove_elements(as_array_ptr(pth), j, i - j);
+            }
+        }
+    }
+
+    // remove the last /. (not in the rules)
+    if (pth->size > rt.size)
+    {
+        i = pth->size - 1;
+
+        if (pth->data[i] == PC_DOT
+         && pth->data[i - 1] == fs::path_separator)
+            ::remove_elements(as_array_ptr(pth), i, 1);
+
+        pth->data[pth->size] = PC_NUL;
+    }
+
+    // remove the last / (not in the rules)
+    if (pth->size > rt.size)
+    {
+        i = pth->size - 1;
+
+        if (pth->data[i] == fs::path_separator)
+            ::remove_elements(as_array_ptr(pth), i, 1);
+
+        pth->data[pth->size] = PC_NUL;
+    }
+
+    pth->data[pth->size] = PC_NUL;
 }
 
 fs::path fs::absolute_path(const fs::path *pth, fs::fs_error *err)

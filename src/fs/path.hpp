@@ -170,6 +170,8 @@ fs::const_fs_string root(const fs::path *pth);
 fs::path parent_path(const fs::path *pth);
 void parent_path(const fs::path *pth, fs::path *out);
 
+void normalize(fs::path *pth);
+
 fs::path absolute_path(const fs::path *pth, fs::fs_error *err = nullptr);
 bool absolute_path(const fs::path *pth, fs::path *out, fs::fs_error *err = nullptr);
 
@@ -193,8 +195,8 @@ void concat_path(fs::path *out, const wchar_t *seg);
 void concat_path(fs::path *out, const_string   seg);
 void concat_path(fs::path *out, const_wstring  seg);
 void concat_path(fs::path *out, const fs::path *to_concat);
-/*
 
+/*
 void relative_path(const fs::path *from, const fs::path *to, fs::path *out);
 void proximate_path(const fs::path *from, const fs::path *to, fs::path *out);
 
