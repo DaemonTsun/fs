@@ -185,11 +185,6 @@ void append_path(fs::path *out, const wchar_t *seg);
 void append_path(fs::path *out, const_string   seg);
 void append_path(fs::path *out, const_wstring  seg);
 void append_path(fs::path *out, const fs::path *to_append);
-/*
-void append_path(const fs::path *pth, const char    *seg, fs::path *out);
-void append_path(const fs::path *pth, const wchar_t *seg, fs::path *out);
-void append_path(const fs::path *pth, const_string   seg, fs::path *out);
-void append_path(const fs::path *pth, const_wstring  seg, fs::path *out);
 
 // out = pth + seg
 // does not add a directory separator
@@ -197,10 +192,8 @@ void concat_path(fs::path *out, const char    *seg);
 void concat_path(fs::path *out, const wchar_t *seg);
 void concat_path(fs::path *out, const_string   seg);
 void concat_path(fs::path *out, const_wstring  seg);
-void concat_path(const fs::path *pth, const char    *seg, fs::path *out);
-void concat_path(const fs::path *pth, const wchar_t *seg, fs::path *out);
-void concat_path(const fs::path *pth, const_string   seg, fs::path *out);
-void concat_path(const fs::path *pth, const_wstring  seg, fs::path *out);
+void concat_path(fs::path *out, const fs::path *to_concat);
+/*
 
 void relative_path(const fs::path *from, const fs::path *to, fs::path *out);
 void proximate_path(const fs::path *from, const fs::path *to, fs::path *out);

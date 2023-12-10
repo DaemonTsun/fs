@@ -606,129 +606,39 @@ define_test(append_appends_to_path)
     fs::free(&p);
 }
 
-/*
-define_test(append_appends_to_path2)
-{
-#if Windows
-    fs::path p(R"=(C:\Windows\)=");
-    fs::path p2;
-    fs::append_path(&p, "notepad.exe", &p2);
-    assert_equal_str(p.c_str(), R"=(C:\Windows\)=");
-    assert_equal_str(p2.c_str(), R"=(C:\Windows\notepad.exe)=");
-#else
-    fs::path p("/etc");
-    fs::path p2;
-    fs::append_path(&p, "passwd", &p2);
-    assert_equal_str(p.c_str(), "/etc");
-    assert_equal_str(p2.c_str(), "/etc/passwd");
-#endif
-}
-*/
-
-#if 0
-
-define_test(append_appends_to_path3)
-{
-#if Windows
-    fs::path p(R"=(C:\Windows\)=");
-    p = p / "notepad.exe"_cs;
-    assert_equal_str(p.c_str(), R"=(C:\Windows\notepad.exe)=");
-#else
-    fs::path p("/etc/");
-    p = p / "passwd"_cs;
-    assert_equal_str(p.c_str(), "/etc/passwd");
-#endif
-}
-
-define_test(append_appends_to_path4)
-{
-#if Windows
-    fs::path p(R"=(C:\Windows\)=");
-    p /= "notepad.exe";
-    assert_equal_str(p.c_str(), R"=(C:\Windows\notepad.exe)=");
-#else
-    fs::path p("/etc/");
-    p /= "passwd";
-    assert_equal_str(p.c_str(), "/etc/passwd");
-#endif
-}
-
 define_test(concat_concats_to_path)
 {
-#if Windows
-    fs::path p(R"=(C:\Windows)=");
-    fs::concat_path(&p, "notepad.exe");
-    assert_equal_str(p.c_str(), R"=(C:\Windowsnotepad.exe)=");
-#else
-    fs::path p("/etc");
+    fs::path p{};
+
+    fs::set_path(&p, "");
+    fs::concat_path(&p, "");
+    assert_equal(p.size, 0);
+    assert_equal_str(p, "");
+
+    fs::set_path(&p, "/");
+    fs::concat_path(&p, "");
+    assert_equal(p.size, 1);
+    assert_equal_str(p, "/");
+
+    fs::set_path(&p, "");
+    fs::concat_path(&p, "/");
+    assert_equal(p.size, 1);
+    assert_equal_str(p, "/");
+
+    fs::set_path(&p, "abc");
+    fs::concat_path(&p, "def");
+    assert_equal(p.size, 6);
+    assert_equal_str(p, "abcdef");
+
+    fs::set_path(&p, "/etc");
     fs::concat_path(&p, "passwd");
-    assert_equal_str(p.c_str(), "/etcpasswd");
-#endif
+    assert_equal(p.size, 10);
+    assert_equal_str(p, "/etcpasswd");
+
+    fs::free(&p);
 }
 
-define_test(concat_concats_to_path2)
-{
-#if Windows
-    fs::path p(R"=(C:\Windows)=");
-    fs::path p2;
-    fs::concat_path(&p, "notepad.exe", &p2);
-    assert_equal_str(p.c_str(), R"=(C:\Windows)=");
-    assert_equal_str(p2.c_str(), R"=(C:\Windowsnotepad.exe)=");
-#else
-    fs::path p("/etc");
-    fs::path p2;
-    fs::concat_path(&p, "passwd", &p2);
-    assert_equal_str(p.c_str(), "/etc");
-    assert_equal_str(p2.c_str(), "/etcpasswd");
-#endif
-}
-
-define_test(concat_concats_to_path3)
-{
-#if Windows
-    fs::path p(R"=(C:\Windows)=");
-    p = p + "notepad.exe"_cs;
-    assert_equal_str(p.c_str(), R"=(C:\Windowsnotepad.exe)=");
-#else
-    fs::path p("/etc");
-    p = p + "passwd"_cs;
-    assert_equal_str(p.c_str(), "/etcpasswd");
-#endif
-}
-
-define_test(concat_concats_to_path4)
-{
-#if Windows
-    fs::path p(R"=(C:\Windows)=");
-    p += "notepad.exe"_cs;
-    assert_equal_str(p.c_str(), R"=(C:\Windowsnotepad.exe)=");
-#else
-    fs::path p("/etc");
-    p += "passwd"_cs;
-    assert_equal_str(p.c_str(), "/etcpasswd");
-#endif
-}
-
-define_test(canonical_path_gets_the_canonical_path)
-{
-#if Windows
-    fs::path p(R"=(C:\Windows\.\.\notepad.exe)=");
-    fs::path p2;
-
-    fs::canonical_path(&p, &p2);
-
-    assert_equal_str(p.c_str(), R"=(C:\Windows\.\.\notepad.exe)=");
-    assert_equal_str(p2.c_str(), R"=(C:\Windows\notepad.exe)=");
-#else
-    fs::path p("/etc/././passwd");
-    fs::path p2;
-
-    fs::canonical_path(&p, &p2);
-
-    assert_equal_str(p.c_str(), "/etc/././passwd");
-    assert_equal_str(p2.c_str(), "/etc/passwd");
-#endif
-}
+#if 0
 
 define_test(weakly_canonical_path_gets_the_weakly_canonical_path)
 {

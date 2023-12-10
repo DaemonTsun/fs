@@ -61,6 +61,12 @@ struct _converted_string
     u64 size;
 };
 
+template<typename C>
+inline const_string_base<C> to_const_string(_converted_string<C> str)
+{
+    return const_string_base<C>{str.data, str.size};
+}
+
 typedef _converted_string<fs::path_char_t> platform_converted_string;
 
 inline fs::path _converted_string_to_path(platform_converted_string str)
@@ -765,7 +771,7 @@ void fs::append_path(fs::path *out, const_string   seg)
     fs::path to_append{}; 
 
 #if Windows
-    _converted_string<wchar_t> converted = ::_convert_string(seg);
+    platform_converted_string converted = ::_convert_string(seg);
     to_append = ::_converted_string_to_path(converted);
 
     fs::append_path(out, &to_append);
@@ -853,69 +859,53 @@ void fs::append_path(fs::path *out, const fs::path *to_append)
     ::append_string(as_string_ptr(out), fs::const_fs_string{to_append->data + append_from, to_append->size - append_from});
 }
 
-#if 0
-
 void fs::concat_path(fs::path *out, const char    *seg)
 {
-    out->ptr->data.concat(seg);
+    return fs::concat_path(out, ::to_const_string(seg));
 }
 
 void fs::concat_path(fs::path *out, const wchar_t *seg)
 {
-    out->ptr->data.concat(seg);
+    return fs::concat_path(out, ::to_const_string(seg));
 }
 
 void fs::concat_path(fs::path *out, const_string   seg)
 {
-    fs::concat_path(out, seg.c_str);
+#if Windows
+    platform_converted_string converted = ::_convert_string(seg);
+
+    fs::concat_path(out, ::to_const_string(converted));
+
+    ::free_memory(converted.data);
+#else
+    ::reserve(as_array_ptr(out), out->size + seg.size + 1);
+    ::append_string(as_string_ptr(out), seg);
+#endif
 }
 
 void fs::concat_path(fs::path *out, const_wstring  seg)
 {
-    fs::concat_path(out, seg.c_str);
+#if Windows
+    ::reserve(as_array_ptr(out), out->size + seg.size + 1);
+    ::append_string(as_string_ptr(out), seg);
+#else
+    platform_converted_string converted = ::_convert_string(seg);
+
+    fs::concat_path(out, ::to_const_string(converted));
+
+    ::free_memory(converted.data);
+#endif
 }
 
-void fs::concat_path(fs::path *out, const string  *seg)
+void fs::concat_path(fs::path *out, const fs::path *to_concat)
 {
-    fs::concat_path(out, to_const_string(seg));
+    assert(out != nullptr);
+    assert(to_concat != nullptr);
+
+    fs::concat_path(out, to_const_string(to_concat));
 }
 
-void fs::concat_path(fs::path *out, const wstring *seg)
-{
-    fs::concat_path(out, to_const_string(seg));
-}
-
-void fs::concat_path(const fs::path *pth, const char    *seg, fs::path *out)
-{
-    out->ptr->data = pth->ptr->data;
-    out->ptr->data.concat(seg);
-}
-
-void fs::concat_path(const fs::path *pth, const wchar_t *seg, fs::path *out)
-{
-    out->ptr->data = pth->ptr->data;
-    out->ptr->data.concat(seg);
-}
-
-void fs::concat_path(const fs::path *pth, const_string   seg, fs::path *out)
-{
-    fs::concat_path(pth, seg.c_str, out);
-}
-
-void fs::concat_path(const fs::path *pth, const_wstring  seg, fs::path *out)
-{
-    fs::concat_path(pth, seg.c_str, out);
-}
-
-void fs::concat_path(const fs::path *pth, const string  *seg, fs::path *out)
-{
-    fs::concat_path(pth, to_const_string(seg), out);
-}
-
-void fs::concat_path(const fs::path *pth, const wstring *seg, fs::path *out)
-{
-    fs::concat_path(pth, to_const_string(seg), out);
-}
+#if 0
 
 void fs::weakly_canonical_path(fs::path *out)
 {
