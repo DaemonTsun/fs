@@ -504,12 +504,45 @@ define_test(normalize_normalizes_path)
     fs::normalize(&p);
     assert_equal_str(p, "/");
 
+    // make sure other dots don't get changed
+    fs::set_path(&p, "/abc/def./");
+    fs::normalize(&p);
+    assert_equal_str(p, "/abc/def.");
+
+    fs::set_path(&p, "/abc/.def/");
+    fs::normalize(&p);
+    assert_equal_str(p, "/abc/.def");
+
+    fs::set_path(&p, "/abc/def../");
+    fs::normalize(&p);
+    assert_equal_str(p, "/abc/def..");
+
+    fs::set_path(&p, "/abc/..def/");
+    fs::normalize(&p);
+    assert_equal_str(p, "/abc/..def");
+
+    fs::set_path(&p, "/abc/def.../");
+    fs::normalize(&p);
+    assert_equal_str(p, "/abc/def...");
+
+    fs::set_path(&p, "/abc/...def/");
+    fs::normalize(&p);
+    assert_equal_str(p, "/abc/...def");
+
+    // yes this is a valid filename
+    fs::set_path(&p, "/abc/.../");
+    fs::normalize(&p);
+    assert_equal_str(p, "/abc/...");
+
+    fs::set_path(&p, "/abc/..../");
+    fs::normalize(&p);
+    assert_equal_str(p, "/abc/....");
+
     // relative paths
     fs::set_path(&p, "..");
     fs::normalize(&p);
     assert_equal_str(p, "..");
 
-    /* TODO: test
     fs::set_path(&p, "../");
     fs::normalize(&p);
     assert_equal_str(p, "..");
@@ -521,7 +554,14 @@ define_test(normalize_normalizes_path)
     fs::set_path(&p, "./");
     fs::normalize(&p);
     assert_equal_str(p, ".");
-    */
+
+    fs::set_path(&p, "...");
+    fs::normalize(&p);
+    assert_equal_str(p, "...");
+
+    fs::set_path(&p, "....");
+    fs::normalize(&p);
+    assert_equal_str(p, "....");
 #endif
 
     fs::free(&p);

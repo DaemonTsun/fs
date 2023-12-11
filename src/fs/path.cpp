@@ -622,6 +622,7 @@ void fs::parent_path(const fs::path *pth, fs::path *out)
 void fs::normalize(fs::path *pth)
 {
     // TODO: account for windows bs
+
     if (pth == nullptr)
         return;
 
@@ -682,7 +683,8 @@ void fs::normalize(fs::path *pth)
 
             if (pth->data[i] == fs::path_separator
              && pth->data[i + 1] == PC_DOT
-             && pth->data[i + 2] == PC_DOT)
+             && pth->data[i + 2] == PC_DOT
+             && (i + 3 >= pth->size || pth->data[i + 3] == fs::path_separator))
             {
                 i += 3;
 
@@ -712,7 +714,12 @@ void fs::normalize(fs::path *pth)
     {
         if (pth->data[i] == PC_DOT
          && pth->data[i + 1] == fs::path_separator)
-            ::remove_elements(as_array_ptr(pth), i, 2);
+        {
+            if ((i == 0) || (pth->data[i - 1] == fs::path_separator))
+                ::remove_elements(as_array_ptr(pth), i, 2);
+            else
+                i += 1;
+        }
         else
             i += 1;
     }
@@ -772,7 +779,8 @@ void fs::normalize(fs::path *pth)
     {
         i = pth->size - 1;
 
-        if (pth->data[i] == PC_DOT
+        if (i > 0
+         && pth->data[i] == PC_DOT
          && pth->data[i - 1] == fs::path_separator)
             ::remove_elements(as_array_ptr(pth), i, 1);
 
@@ -791,6 +799,14 @@ void fs::normalize(fs::path *pth)
     }
 
     pth->data[pth->size] = PC_NUL;
+
+    if (pth->size == 0)
+    {
+        ::reserve(as_array_ptr(pth), 2);
+        pth->data[0] = PC_DOT;
+        pth->size = 1;
+        pth->data[pth->size] = PC_NUL;
+    }
 }
 
 fs::path fs::absolute_path(const fs::path *pth, fs::fs_error *err)
