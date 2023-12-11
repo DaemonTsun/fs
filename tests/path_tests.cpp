@@ -595,9 +595,11 @@ define_test(absolute_path_gets_the_absolute_path)
     assert_equal_str(absp, SANDBOX_DIR "/foo/bar/./abc/../def");
 
 
+    /* using the same pointer for input and output was removed because it's unintuitive.
     fs::set_path(&p, "foo/bar");
     fs::absolute_path(&p, &p);
     assert_equal_str(p, SANDBOX_DIR "/foo/bar");
+    */
 #endif
 
     fs::free(&absp);

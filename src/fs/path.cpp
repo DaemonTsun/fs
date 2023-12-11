@@ -823,19 +823,6 @@ bool fs::absolute_path(const fs::path *pth, fs::path *out, fs::fs_error *err)
     assert(pth != nullptr);
     assert(out != nullptr);
 
-    if (pth == out)
-    {
-        fs::path tmp{};
-
-        if (!fs::absolute_path(pth, &tmp, err))
-            return false;
-
-        fs::free(out);
-        *out = tmp;
-
-        return true;
-    }
-
     if (!fs::is_absolute(pth))
     {
         if (!fs::get_current_path(out, err))
@@ -862,19 +849,6 @@ bool fs::canonical_path(const fs::path *pth, fs::path *out, fs::fs_error *err)
 {
     assert(pth != nullptr);
     assert(out != nullptr);
-
-    if (pth == out)
-    {
-        fs::path tmp{};
-
-        if (!fs::canonical_path(pth, &tmp, err))
-            return false;
-
-        fs::free(out);
-        *out = tmp;
-
-        return true;
-    }
 
 #if Windows
     // TODO: PathCchCanonicalizeEx or, if not supported, _fullpath
