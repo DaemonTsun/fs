@@ -504,6 +504,10 @@ define_test(normalize_normalizes_path)
     fs::normalize(&p);
     assert_equal_str(p, "/");
 
+    fs::set_path(&p, "/abc/def/./.././");
+    fs::normalize(&p);
+    assert_equal_str(p, "/abc");
+
     // make sure other dots don't get changed
     fs::set_path(&p, "/abc/def./");
     fs::normalize(&p);
@@ -585,7 +589,9 @@ define_test(absolute_path_gets_the_absolute_path)
     fs::absolute_path(&p, &absp);
     assert_equal_str(absp, SANDBOX_DIR "/foo/bar");
 
-    // does not expand relative paths within the path, use canonical_path for that
+    // does not expand relative paths within the path,
+    // use normalize(&p) to remove relative parts (. and ..) within the path,
+    // or resolve the path and symlinks with canonical_path(&p, &canon).
     fs::set_path(&p, "/foo/bar/./abc/../def");
     fs::absolute_path(&p, &absp);
     assert_equal_str(absp, "/foo/bar/./abc/../def");
@@ -621,6 +627,10 @@ define_test(canonical_path_gets_canonical_path)
     assert_equal(fs::canonical_path(&p, &canonp), true);
     assert_equal_str(canonp, SANDBOX_TEST_DIR);
 
+    fs::set_path(&p, SANDBOX_TEST_DIR "/.");
+    assert_equal(fs::canonical_path(&p, &canonp), true);
+    assert_equal_str(canonp, SANDBOX_TEST_DIR);
+
     fs::set_path(&p, SANDBOX_TEST_DIR "/..");
     assert_equal(fs::canonical_path(&p, &canonp), true);
     assert_equal_str(canonp, SANDBOX_DIR);
@@ -629,9 +639,60 @@ define_test(canonical_path_gets_canonical_path)
     assert_equal(fs::canonical_path(&p, &canonp), true);
     assert_equal_str(canonp, SANDBOX_DIR);
 
+    fs::set_path(&p, SANDBOX_TEST_DIR "/./../.");
+    assert_equal(fs::canonical_path(&p, &canonp), true);
+    assert_equal_str(canonp, SANDBOX_DIR);
+
+    fs::set_path(&p, SANDBOX_TEST_DIR "/././.");
+    assert_equal(fs::canonical_path(&p, &canonp), true);
+    assert_equal_str(canonp, SANDBOX_TEST_DIR);
+
     // fails on paths that don't exist
     fs::set_path(&p, "/tmp/abc/../def");
     assert_equal(fs::canonical_path(&p, &canonp), false);
+#endif
+
+    fs::free(&canonp);
+    fs::free(&p);
+}
+
+define_test(weakly_canonical_path_gets_weakly_canonical_path)
+{
+    fs::path p{};
+    fs::path canonp{};
+
+#if Windows
+    // TODO: add tests
+    assert_equal(true, false);
+#else
+    fs::set_path(&p, SANDBOX_TEST_DIR);
+    assert_equal(fs::weakly_canonical_path(&p, &canonp), true);
+    assert_equal_str(canonp, SANDBOX_TEST_DIR);
+
+    fs::set_path(&p, SANDBOX_TEST_DIR "/.");
+    assert_equal(fs::weakly_canonical_path(&p, &canonp), true);
+    assert_equal_str(canonp, SANDBOX_TEST_DIR);
+
+    fs::set_path(&p, SANDBOX_TEST_DIR "/..");
+    assert_equal(fs::weakly_canonical_path(&p, &canonp), true);
+    assert_equal_str(canonp, SANDBOX_DIR);
+
+    fs::set_path(&p, SANDBOX_TEST_DIR "/../");
+    assert_equal(fs::weakly_canonical_path(&p, &canonp), true);
+    assert_equal_str(canonp, SANDBOX_DIR);
+
+    fs::set_path(&p, SANDBOX_TEST_DIR "/./../.");
+    assert_equal(fs::weakly_canonical_path(&p, &canonp), true);
+    assert_equal_str(canonp, SANDBOX_DIR);
+
+    fs::set_path(&p, SANDBOX_TEST_DIR "/././.");
+    assert_equal(fs::weakly_canonical_path(&p, &canonp), true);
+    assert_equal_str(canonp, SANDBOX_TEST_DIR);
+
+    // does not fail on paths that don't exist (assuming /tmp/abc does not exist)
+    fs::set_path(&p, "/tmp/abc/../def");
+    assert_equal(fs::weakly_canonical_path(&p, &canonp), true);
+    assert_equal_str(canonp, "/tmp/def");
 #endif
 
     fs::free(&canonp);

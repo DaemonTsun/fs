@@ -178,6 +178,9 @@ bool absolute_path(const fs::path *pth, fs::path *out, fs::fs_error *err = nullp
 fs::path canonical_path(const fs::path *pth, fs::fs_error *err = nullptr);
 bool canonical_path(const fs::path *pth, fs::path *out, fs::fs_error *err = nullptr);
 
+fs::path weakly_canonical_path(const fs::path *pth, fs::fs_error *err = nullptr);
+bool weakly_canonical_path(const fs::path *pth, fs::path *out, fs::fs_error *err = nullptr);
+
 bool get_current_path(fs::path *out, fs::fs_error *err = nullptr);
 bool set_current_path(const fs::path *pth, fs::fs_error *err = nullptr);
 

@@ -665,6 +665,27 @@ void fs::normalize(fs::path *pth)
 
     pth->data[pth->size] = PC_NUL;
 
+    // remove ./
+
+    i = 0;
+    j = 0;
+
+    while (pth->size > 0 && (i < pth->size - 1))
+    {
+        if (pth->data[i] == PC_DOT
+         && pth->data[i + 1] == fs::path_separator)
+        {
+            if ((i == 0) || (pth->data[i - 1] == fs::path_separator))
+                ::remove_elements(as_array_ptr(pth), i, 2);
+            else
+                i += 1;
+        }
+        else
+            i += 1;
+    }
+
+    pth->data[pth->size] = PC_NUL;
+
     // remove <dir>/..[/]
 
     i = 0;
@@ -708,25 +729,6 @@ void fs::normalize(fs::path *pth)
     }
 
     pth->data[pth->size] = PC_NUL;
-
-    // remove ./
-
-    i = 0;
-    j = 0;
-
-    while (pth->size > 0 && (i < pth->size - 1))
-    {
-        if (pth->data[i] == PC_DOT
-         && pth->data[i + 1] == fs::path_separator)
-        {
-            if ((i == 0) || (pth->data[i - 1] == fs::path_separator))
-                ::remove_elements(as_array_ptr(pth), i, 2);
-            else
-                i += 1;
-        }
-        else
-            i += 1;
-    }
 
     // remove trailing .. after root
     auto rt = fs::root(pth);
@@ -880,6 +882,77 @@ bool fs::canonical_path(const fs::path *pth, fs::path *out, fs::fs_error *err)
 
     return true;
 #endif
+}
+
+fs::path fs::weakly_canonical_path(const fs::path *pth, fs::fs_error *err)
+{
+    assert(pth != nullptr);
+
+    fs::path ret{};
+    fs::weakly_canonical_path(pth, &ret, err);
+    return ret;
+}
+
+bool fs::weakly_canonical_path(const fs::path *pth, fs::path *out, fs::fs_error *err)
+{
+    assert(pth != nullptr);
+    assert(out != nullptr);
+    assert(pth != out);
+
+    if (pth->size == 0)
+    {
+        fs::set_path(out, pth);
+        return true;
+    }
+
+    out->size = 0;
+
+    if (!fs::absolute_path(pth, out, err))
+        return false;
+
+    fs::normalize(out);
+
+    if (out->size == 0)
+        return true;
+
+    auto rt = fs::root(out);
+
+    if (rt.size == 0 || rt.size == out->size)
+        return true;
+
+    fs::path existing_slice = *out;
+    u64 i = 0;
+
+    while (existing_slice.size > rt.size)
+    {
+        if (fs::exists(&existing_slice))
+            break;
+
+        i = existing_slice.size - 1;
+
+        while (i > rt.size && existing_slice.data[i] != fs::path_separator)
+            i--;
+
+        existing_slice.size = i - 1;
+    }
+
+    if (existing_slice.size <= rt.size)
+        return true;
+
+    // existing slice must exist now
+    fs::path old_path{};
+    fs::set_path(&old_path, out);
+    
+    if (!fs::canonical_path(&existing_slice, out, err))
+    {
+        fs::free(&old_path);
+        return false;
+    }
+
+    fs::append_path(out, fs::const_fs_string{.c_str = old_path.data + existing_slice.size, .size = old_path.size - existing_slice.size});
+    fs::free(&old_path);
+
+    return true;
 }
 
 bool fs::get_current_path(fs::path *out, fs::fs_error *err)
