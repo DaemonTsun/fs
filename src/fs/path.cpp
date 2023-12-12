@@ -261,6 +261,7 @@ void fs::set_path(fs::path *pth, const fs::path *new_path)
 {
     assert(pth != nullptr);
     assert(new_path != nullptr);
+    assert(pth != new_path);
 
     ::set_string(as_string_ptr(pth), to_const_string(new_path));
 }
@@ -474,6 +475,9 @@ bool fs::are_equivalent(const fs::path *pth1, const fs::path *pth2, bool follow_
 {
     assert(pth1 != nullptr);
     assert(pth2 != nullptr);
+
+    if (pth1 == pth2)
+        return true;
 
     if (::compare_strings(as_string_ptr(pth1), as_string_ptr(pth2)) == 0)
         return true;
@@ -822,6 +826,7 @@ bool fs::absolute_path(const fs::path *pth, fs::path *out, fs::fs_error *err)
 {
     assert(pth != nullptr);
     assert(out != nullptr);
+    assert(pth != out);
 
     if (!fs::is_absolute(pth))
     {
@@ -849,6 +854,7 @@ bool fs::canonical_path(const fs::path *pth, fs::path *out, fs::fs_error *err)
 {
     assert(pth != nullptr);
     assert(out != nullptr);
+    assert(pth != out);
 
 #if Windows
     // TODO: PathCchCanonicalizeEx or, if not supported, _fullpath
