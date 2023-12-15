@@ -199,9 +199,8 @@ void concat_path(fs::path *out, const_string   seg);
 void concat_path(fs::path *out, const_wstring  seg);
 void concat_path(fs::path *out, const fs::path *to_concat);
 
-/*
 void relative_path(const fs::path *from, const fs::path *to, fs::path *out);
-void proximate_path(const fs::path *from, const fs::path *to, fs::path *out);
+/*
 
 // copies what the first path is pointing to to the location of the second path
 void copy(const fs::path *from, const fs::path *to);

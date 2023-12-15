@@ -822,71 +822,46 @@ define_test(concat_concats_to_path)
     fs::free(&p);
 }
 
+define_test(relative_gets_the_relative_path_to_another)
+{
+    fs::path from{};
+    fs::path to{};
+    fs::path rel{};
+
+#if Windows
+    // TODO: add test
+#else
+#define assert_rel_path(From, To, ExpectedResult)\
+    fs::set_path(&from, From);\
+    fs::set_path(&to, To);\
+    fs::relative_path(&from, &to, &rel);\
+    assert_equal_str(to_const_string(&rel), to_const_string(ExpectedResult))
+
+    assert_rel_path("./",      "./def", "def");
+    assert_rel_path("./",      "def",   "def");
+    assert_rel_path(".",       "def",   "def");
+    assert_rel_path(".",       "./def", "def");
+    assert_rel_path("./dir",   "./def", "../def");
+    assert_rel_path("./dir/",  "./def", "../def");
+    assert_rel_path("./dir/",  "def",   "../def");
+
+    assert_rel_path("/a/b/c",  "/a/d",   "../../d");
+    assert_rel_path("/a/d",    "/a/b/c", "../b/c");
+    assert_rel_path("a",       "a/b/c",  "b/c");
+    assert_rel_path("a",       "/a/b/c", "");
+    assert_rel_path("/a/b/c",  "a",      "");
+
+    assert_rel_path("./dir/a/b/c", "def", "../../../../def");
+
+#endif
+
+    fs::free(&from);
+    fs::free(&to);
+    fs::free(&rel);
+}
+
+
 #if 0
-
-define_test(weakly_canonical_path_gets_the_weakly_canonical_path)
-{
-#if Windows
-    fs::path p(R"=(C:\Windows\.\.\notepad123.exe)=");
-    fs::path p2;
-
-    fs::weakly_canonical_path(&p, &p2);
-
-    assert_equal_str(p.c_str(), R"=(C:\Windows\.\.\notepad123.exe)=");
-    assert_equal_str(p2.c_str(), R"=(C:\Windows\notepad123.exe)=");
-#else
-    fs::path p("/etc/././passwd123");
-    fs::path p2;
-
-    fs::weakly_canonical_path(&p, &p2);
-
-    assert_equal_str(p.c_str(), "/etc/././passwd123");
-    assert_equal_str(p2.c_str(), "/etc/passwd123");
-#endif
-}
-
-define_test(relative_gets_the_relative_path)
-{
-#if Windows
-    fs::path from(R"=(C:\Windows\)=");
-    fs::path to(R"=(C:\Windows\notepad.exe)=");
-#else
-    fs::path from("/etc/");
-    fs::path to("/etc/passwd");
-#endif
-
-    fs::path rel;
-
-    fs::relative_path(&from, &to, &rel);
-
-#if Windows
-    assert_equal_str(rel.c_str(), "notepad.exe");
-#else
-    assert_equal_str(rel.c_str(), "passwd");
-#endif
-}
-
-define_test(relative_gets_the_relative_path2)
-{
-#if Windows
-    fs::path from(R"=(C:\a\b\c)=");
-    fs::path to(R"=(C:\)=");
-#else
-    fs::path from("/a/b/c/");
-    fs::path to("/");
-#endif
-
-    fs::path rel;
-
-    fs::relative_path(&from, &to, &rel);
-
-#if Windows
-    assert_equal_str(rel.c_str(), "..\\..\\..");
-#else
-    assert_equal_str(rel.c_str(), "../../..");
-#endif
-}
-
 define_test(get_executable_path_gets_executable_path)
 {
     // fs::path actual("/home/user/dev/git/fs/bin/tests/path_tests");

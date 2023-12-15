@@ -1153,27 +1153,14 @@ void fs::concat_path(fs::path *out, const fs::path *to_concat)
     fs::concat_path(out, to_const_string(to_concat));
 }
 
+void fs::relative_path(const fs::path *from, const fs::path *to, fs::path *out)
+{
+    assert(from != nullptr);
+    assert(to != nullptr);
+    assert(out != nullptr);
+}
+
 #if 0
-
-void fs::weakly_canonical_path(fs::path *out)
-{
-    fs::weakly_canonical_path(out, out);
-}
-
-void fs::weakly_canonical_path(const fs::path *pth, fs::path *out)
-{
-    out->ptr->data = std::filesystem::weakly_canonical(pth->ptr->data);
-}
-
-void fs::absolute_canonical_path(fs::path *out)
-{
-    fs::absolute_canonical_path(out, out);
-}
-
-void fs::absolute_canonical_path(const fs::path *pth, fs::path *out)
-{
-    out->ptr->data = std::filesystem::absolute(std::filesystem::canonical(pth->ptr->data));
-}
 
 void fs::relative_path(const fs::path *from, const fs::path *to, fs::path *out)
 {
