@@ -419,6 +419,69 @@ define_test(parent_path_segment_returns_the_parent_path_segment)
     fs::free(&p);
 }
 
+define_test(path_segments_gets_the_segments_of_a_path)
+{
+    fs::path p{};
+    array<fs::const_fs_string> segs{};
+
+#if Windows
+    // TODO: add tests
+#else
+    fs::set_path(&p, "/foo/bar");
+    fs::path_segments(&p, &segs);
+
+    assert_equal(segs.size, 3);
+    assert_equal_str(segs[0], "/");
+    assert_equal_str(segs[1], "foo");
+    assert_equal_str(segs[2], "bar");
+
+    // trailing slash is irrelevant
+    fs::set_path(&p, "/foo/bar/");
+    fs::path_segments(&p, &segs);
+    assert_equal(segs.size, 3);
+    assert_equal_str(segs[0], "/");
+    assert_equal_str(segs[1], "foo");
+    assert_equal_str(segs[2], "bar");
+
+    fs::set_path(&p, "/foo/file.txt");
+    fs::path_segments(&p, &segs);
+    assert_equal(segs.size, 3);
+    assert_equal_str(segs[0], "/");
+    assert_equal_str(segs[1], "foo");
+    assert_equal_str(segs[2], "file.txt");
+
+    fs::set_path(&p, "/");
+    fs::path_segments(&p, &segs);
+    assert_equal(segs.size, 1);
+    assert_equal_str(segs[0], "/");
+
+    fs::set_path(&p, "a/b/c");
+    fs::path_segments(&p, &segs);
+    assert_equal(segs.size, 3);
+    assert_equal_str(segs[0], "a");
+    assert_equal_str(segs[1], "b");
+    assert_equal_str(segs[2], "c");
+
+    fs::set_path(&p, ".");
+    fs::path_segments(&p, &segs);
+    assert_equal(segs.size, 1);
+    assert_equal_str(segs[0], ".");
+
+    fs::set_path(&p, "./../");
+    fs::path_segments(&p, &segs);
+    assert_equal(segs.size, 2);
+    assert_equal_str(segs[0], ".");
+    assert_equal_str(segs[1], "..");
+
+    fs::set_path(&p, "");
+    fs::path_segments(&p, &segs);
+    assert_equal(segs.size, 0);
+#endif
+
+    fs::free(&p);
+    ::free(&segs);
+}
+
 define_test(root_returns_the_path_root)
 {
     fs::path p{};
@@ -822,7 +885,7 @@ define_test(concat_concats_to_path)
     fs::free(&p);
 }
 
-define_test(relative_gets_the_relative_path_to_another)
+define_test(relative_path_gets_the_relative_path_to_another)
 {
     fs::path from{};
     fs::path to{};
@@ -848,6 +911,7 @@ define_test(relative_gets_the_relative_path_to_another)
     assert_rel_path("/a/b/c",  "/a/d",   "../../d");
     assert_rel_path("/a/d",    "/a/b/c", "../b/c");
     assert_rel_path("a",       "a/b/c",  "b/c");
+    // roots differ
     assert_rel_path("a",       "/a/b/c", "");
     assert_rel_path("/a/b/c",  "a",      "");
 

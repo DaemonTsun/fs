@@ -125,6 +125,19 @@ _converted_string<wchar_t> _convert_string(const_string cstring)
     return _convert_string(cstring.c_str, cstring.size);
 }
 
+inline bool _is_dot_filename(fs::const_fs_string str)
+{
+    return str.size == 1
+        && str.c_str[0] == PC_DOT;
+}
+
+inline bool _is_dot_dot_filename(fs::const_fs_string str)
+{
+    return str.size == 2
+        && str.c_str[0] == PC_DOT
+        && str.c_str[1] == PC_DOT;
+}
+
 // path functions
 
 fs::path::operator const fs::path_char_t* () const
@@ -553,8 +566,7 @@ fs::const_fs_string fs::file_extension(const fs::path *pth)
     if (fname.size == 0)
         return empty_fs_string;
 
-    if ((fname.size == 1 && fname.c_str[0] == PC_DOT)
-     || (fname.size == 2 && fname.c_str[0] == PC_DOT && fname.c_str[1] == PC_DOT))
+    if (_is_dot_filename(fname) || _is_dot_dot_filename(fname))
         return empty_fs_string;
 
     const fs::path_char_t *found = ::strrchr(fname.c_str, '.');
@@ -601,6 +613,54 @@ fs::const_fs_string fs::root(const fs::path *pth)
 
     return fs::const_fs_string{pth->data, 1};
 #endif
+}
+
+void fs::path_segments(const fs::path *pth, array<fs::const_fs_string> *out)
+{
+    assert(pth != nullptr);
+    assert(out != nullptr);
+
+    ::clear(out);
+
+    auto seg = fs::root(pth);
+
+    if (seg.size > 0)
+        ::add_at_end(out, seg);
+
+    u64 start = seg.size;
+    u64 i = start;
+
+    while (i < pth->size)
+    {
+        if (pth->data[i] != fs::path_separator)
+        {
+            i += 1;
+            continue;
+        }
+
+        // no empty segments
+        if (start == i)
+        {
+            i += 1;
+            continue;
+        }
+
+        seg.c_str = pth->data + start;
+        seg.size = i - start;
+
+        ::add_at_end(out, seg);
+
+        i += 1;
+        start = i;
+    }
+
+    if (start == i)
+        return;
+
+    seg.c_str = pth->data + start;
+    seg.size = i - start;
+
+    ::add_at_end(out, seg);
 }
 
 fs::path fs::parent_path(const fs::path *pth)
@@ -1158,6 +1218,76 @@ void fs::relative_path(const fs::path *from, const fs::path *to, fs::path *out)
     assert(from != nullptr);
     assert(to != nullptr);
     assert(out != nullptr);
+
+    fs::set_path(out, PC_LIT(""));
+
+    auto rt_from = fs::root(from);
+    auto rt_to = fs::root(to);
+
+    if (rt_from != rt_to)
+        return;
+
+    array<fs::const_fs_string> from_segs{};
+    array<fs::const_fs_string> to_segs{};
+
+    defer { ::free(&from_segs); };
+    defer { ::free(&to_segs); };
+
+    fs::path_segments(from, &from_segs);
+    fs::path_segments(to,   &to_segs);
+
+    u64 i = 0;
+
+    while (i < from_segs.size && i < to_segs.size)
+    {
+        if (from_segs[i] != to_segs[i])
+            break;
+
+        i += 1;
+    }
+
+    if (i == from_segs.size && i == to_segs.size)
+    {
+        fs::set_path(out, PC_LIT("."));
+        return;
+    }
+
+    s64 n = 0;
+    u64 j = i;
+    
+    while (j < from_segs.size)
+    {
+        if (_is_dot_dot_filename(from_segs[j]))
+            n -= 1;
+        else if (!_is_dot_filename(from_segs[j]))
+            n += 1;
+
+        j += 1;
+    }
+
+    if (n < 0)
+        return;
+
+    if (n == 0 && i >= to_segs.size)
+    {
+        fs::set_path(out, PC_LIT("."));
+        return;
+    }
+
+    while (n > 0)
+    {
+        fs::append_path(out, PC_LIT(".."));
+        n -= 1;
+    }
+
+    if (i < to_segs.size)
+    {
+        fs::const_fs_string to_append = to_segs[i];
+        to_append.size = (to->data - to_append.c_str) + to->size;
+
+        assert(to_append.c_str != nullptr);
+        fs::append_path(out, to_append);
+    }
 }
 
 #if 0

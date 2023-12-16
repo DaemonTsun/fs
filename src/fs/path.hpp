@@ -164,8 +164,9 @@ fs::const_fs_string filename(const fs::path *pth);
 // file_extension will return empty strings (not nullptr) in these cases.
 fs::const_fs_string file_extension(const fs::path *pth);
 fs::const_fs_string parent_path_segment(const fs::path *pth);
-
 fs::const_fs_string root(const fs::path *pth);
+
+void path_segments(const fs::path *pth, array<fs::const_fs_string> *out);
 
 fs::path parent_path(const fs::path *pth);
 void parent_path(const fs::path *pth, fs::path *out);
