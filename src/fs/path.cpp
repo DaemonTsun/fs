@@ -8,6 +8,7 @@
 #include <direct.h> // _wgetcwd
 #else
 #include <sys/stat.h>
+#include <sys/sendfile.h>
 #include <unistd.h>
 #include <stdlib.h>
 #include <linux/limits.h>
@@ -47,6 +48,22 @@
 
 #define platform_getcwd ::getcwd
 #define platform_chdir  ::chdir
+
+bool operator<(statx_timestamp lhs, statx_timestamp rhs)
+{
+    if (lhs.tv_sec < rhs.tv_sec)
+        return true;
+
+    if (lhs.tv_sec > rhs.tv_sec)
+        return false;
+
+    return lhs.tv_nsec < rhs.tv_nsec;
+}
+
+bool operator>(statx_timestamp lhs, statx_timestamp rhs)  { return rhs < lhs; }
+bool operator<=(statx_timestamp lhs, statx_timestamp rhs) { return !(rhs < lhs); }
+bool operator>=(statx_timestamp lhs, statx_timestamp rhs) { return !(lhs < rhs); }
+
 #endif
 
 #define PC_DOT PC_LIT('.')
@@ -1290,23 +1307,101 @@ void fs::relative_path(const fs::path *from, const fs::path *to, fs::path *out)
     }
 }
 
+bool fs::copy_file(const fs::path *from, const fs::path *to, fs::copy_file_options opt, fs::fs_error *err)
+{
+    assert(from != nullptr);
+    assert(to != nullptr);
+
+#if Windows
+    // TODO: implement
+#else
+    int from_fd = 0;
+    int to_fd = 0;
+    struct statx from_info{};
+    unsigned int statx_mask = STATX_SIZE | STATX_MODE;
+    unsigned int open_from_flags = O_RDONLY;
+    unsigned int open_to_flags = O_CREAT | O_WRONLY | O_TRUNC;
+
+    if (opt != fs::copy_file_options::OverwriteExisting)
+        open_to_flags |= O_EXCL;
+
+    if (opt == fs::copy_file_options::UpdateExisting)
+        statx_mask |= STATX_MTIME;
+
+    from_fd = ::open(from->data, open_from_flags);
+
+    if (from_fd == -1)
+    {
+        set_fs_errno_error(err);
+        return false;
+    }
+
+    defer { ::close(from_fd); };
+
+    if (::statx(from_fd, "", AT_EMPTY_PATH, statx_mask, &from_info) != 0)
+    {
+        set_fs_errno_error(err);
+        return false;
+    }
+
+    to_fd = ::open(to->data, open_to_flags, from_info.stx_mode);
+
+    if (to_fd == -1)
+    {
+        if ((opt == fs::copy_file_options::None)
+         || (errno != EEXIST))
+        {
+            set_fs_errno_error(err);
+            return false;
+        }
+
+        if (opt == fs::copy_file_options::SkipExisting)
+            return true;
+
+        // check change time
+        int tmp_fd = ::open(to->data, O_RDONLY);
+        struct statx tmp_info;
+
+        if (tmp_fd == -1)
+        {
+            set_fs_errno_error(err);
+            return false;
+        }
+
+        defer { ::close(tmp_fd); };
+
+        if (::statx(tmp_fd, "", AT_EMPTY_PATH, STATX_MTIME, &from_info) != 0)
+        {
+            set_fs_errno_error(err);
+            return false;
+        }
+
+        if (tmp_info.stx_mtime >= from_info.stx_mtime)
+            return true;
+
+        open_to_flags &= (~O_EXCL);
+        to_fd = ::open(to->data, open_to_flags, from_info.stx_mode);
+
+        if (to_fd == -1)
+        {
+            set_fs_errno_error(err);
+            return false;
+        }
+    }
+    
+    defer { ::close(to_fd); };
+
+    if (::sendfile(to_fd, from_fd, nullptr, from_info.stx_size) == -1)
+    {
+        set_fs_errno_error(err);
+        return false;
+    }
+#endif
+
+    return true;
+}
+
 #if 0
-
-void fs::relative_path(const fs::path *from, const fs::path *to, fs::path *out)
-{
-    out->ptr->data = std::filesystem::relative(to->ptr->data, from->ptr->data);
-}
-
-void fs::proximate_path(const fs::path *from, const fs::path *to, fs::path *out)
-{
-    out->ptr->data = std::filesystem::proximate(to->ptr->data, from->ptr->data);
-}
-
-void fs::copy(const fs::path *from, const fs::path *to)
-{
-    std::filesystem::copy(from->ptr->data, to->ptr->data);
-}
-
 bool fs::create_directory(const fs::path *pth)
 {
     return std::filesystem::create_directory(pth->ptr->data);
@@ -1569,4 +1664,10 @@ fs::const_fs_string to_const_string(const fs::path *path)
 {
     assert(path != nullptr);
     return fs::const_fs_string{path->data, path->size};
+}
+
+fs::const_fs_string to_const_string(const fs::path &path)
+{
+    assert(path != nullptr);
+    return fs::const_fs_string{path.data, path.size};
 }

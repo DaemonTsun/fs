@@ -201,10 +201,19 @@ void concat_path(fs::path *out, const_wstring  seg);
 void concat_path(fs::path *out, const fs::path *to_concat);
 
 void relative_path(const fs::path *from, const fs::path *to, fs::path *out);
-/*
 
-// copies what the first path is pointing to to the location of the second path
-void copy(const fs::path *from, const fs::path *to);
+enum class copy_file_options
+{
+    None,               // reports an error when destination exists.
+    OverwriteExisting,  // (default) overwrites existing destination.
+    UpdateExisting,     // overwrites existing destination ONLY if destination is older than source,
+                        // but does not report an error in either case.
+                        // looks at MODIFICATION date.
+    SkipExisting        // skips any existing destination files.
+};
+
+bool copy_file(const fs::path *from, const fs::path *to, fs::copy_file_options opt = fs::copy_file_options::OverwriteExisting, fs::fs_error *err = nullptr);
+/*
 // does not create parents
 bool create_directory(const fs::path *pth);
 // creates parents as well
@@ -219,9 +228,6 @@ bool remove_all(const fs::path *pth);
 ////////////////////////
 // getting special paths
 ////////////////////////
-
-// current working directory
-void get_current_path(fs::path *out);
 
 // location of the executable
 void get_executable_path(fs::path *out);
@@ -241,3 +247,4 @@ fs::path operator ""_path(const char    *, u64);
 fs::path operator ""_path(const wchar_t *, u64);
 
 fs::const_fs_string to_const_string(const fs::path *path);
+fs::const_fs_string to_const_string(const fs::path &path);

@@ -9,7 +9,7 @@
 #include "fs/path.hpp"
 
 #define assert_equal_str(STR1, STR2)\
-    assert_equal(compare_strings(STR1, STR2), 0)
+    assert_equal(compare_strings(to_const_string(STR1), STR2), 0)
 
 // TODO: windows tests...
 
@@ -924,6 +924,34 @@ define_test(relative_path_gets_the_relative_path_to_another)
     fs::free(&rel);
 }
 
+define_test(copy_file_copies_file)
+{
+    fs::path from{};
+    fs::path to{};
+
+    fs::set_path(&from, SANDBOX_TEST_FILE);
+    fs::set_path(&to, SANDBOX_TEST_FILE "_copy1");
+
+    fs::fs_error err{};
+
+    assert_equal(fs::copy_file(&from, &to, fs::copy_file_options::None, &err), true);
+
+    assert_equal(fs::copy_file(&from, &to, fs::copy_file_options::None, &err), false);
+
+#if Windows
+    // TODO: implement
+#else
+    assert_equal(err.error_code, EEXIST);
+#endif
+
+    // overwriting
+    assert_equal(fs::copy_file(&from, &to, fs::copy_file_options::OverwriteExisting, &err), true);
+
+    // TODO: test SkipExisting & UpdateExisting
+
+    fs::free(&from);
+    fs::free(&to);
+}
 
 #if 0
 define_test(get_executable_path_gets_executable_path)
