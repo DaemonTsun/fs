@@ -64,6 +64,21 @@ bool operator>(statx_timestamp lhs, statx_timestamp rhs)  { return rhs < lhs; }
 bool operator<=(statx_timestamp lhs, statx_timestamp rhs) { return !(rhs < lhs); }
 bool operator>=(statx_timestamp lhs, statx_timestamp rhs) { return !(lhs < rhs); }
 
+bool fs::operator< (fs::filesystem_timestamp lhs, fs::filesystem_timestamp rhs) 
+{
+    if (lhs.tv_sec < rhs.tv_sec)
+        return true;
+
+    if (lhs.tv_sec > rhs.tv_sec)
+        return false;
+
+    return lhs.tv_nsec < rhs.tv_nsec;
+}
+
+bool fs::operator> (fs::filesystem_timestamp lhs, fs::filesystem_timestamp rhs) { return rhs < lhs; }
+bool fs::operator<=(fs::filesystem_timestamp lhs, fs::filesystem_timestamp rhs) { return !(rhs < lhs); }
+bool fs::operator>=(fs::filesystem_timestamp lhs, fs::filesystem_timestamp rhs) { return !(lhs < rhs); }
+
 #endif
 
 #define PC_DOT PC_LIT('.')
@@ -1307,6 +1322,35 @@ void fs::relative_path(const fs::path *from, const fs::path *to, fs::path *out)
     }
 }
 
+bool fs::touch(const fs::path *pth, fs::fs_error *err)
+{
+    assert(pth != nullptr);
+
+#if Windows
+    // TODO: implement
+#else
+    int fd = ::open(pth->data, O_CREAT | O_WRONLY, 0660);
+
+    if (fd == -1)
+    {
+        set_fs_errno_error(err);
+        return false;
+    }
+
+    defer { ::close(fd); };
+
+    // passing nullptr sets change & mod time to current time
+    if (::futimens(fd, nullptr) == -1)
+    {
+        set_fs_errno_error(err);
+        return false;
+    }
+
+#endif
+
+    return true;
+}
+
 bool fs::copy_file(const fs::path *from, const fs::path *to, fs::copy_file_options opt, fs::fs_error *err)
 {
     assert(from != nullptr);
@@ -1370,7 +1414,7 @@ bool fs::copy_file(const fs::path *from, const fs::path *to, fs::copy_file_optio
 
         defer { ::close(tmp_fd); };
 
-        if (::statx(tmp_fd, "", AT_EMPTY_PATH, STATX_MTIME, &from_info) != 0)
+        if (::statx(tmp_fd, "", AT_EMPTY_PATH, STATX_MTIME, &tmp_info) != 0)
         {
             set_fs_errno_error(err);
             return false;

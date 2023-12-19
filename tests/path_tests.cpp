@@ -1,10 +1,14 @@
 
 #include <t1/t1.hpp>
 
+#if Windows
+#else
 #include <sys/stat.h>
+#endif
 #include <unistd.h>
 
 #include "shl/string.hpp"
+#include "shl/time.hpp" // for sleep
 #include "shl/platform.hpp"
 #include "fs/path.hpp"
 
@@ -924,6 +928,35 @@ define_test(relative_path_gets_the_relative_path_to_another)
     fs::free(&rel);
 }
 
+define_test(touch_touches_file)
+{
+    fs::path p{};
+
+    fs::set_path(&p, SANDBOX_TEST_FILE "_touch1");
+
+    assert_equal(fs::exists(&p), false);
+    assert_equal(fs::touch(&p), true);
+    assert_equal(fs::exists(&p), true);
+
+    fs::filesystem_info old_info{};
+    fs::filesystem_info new_info{};
+
+    fs::get_filesystem_info(&p, &old_info);
+
+    sleep_ms(200);
+
+    assert_equal(fs::touch(&p), true);
+    fs::get_filesystem_info(&p, &new_info);
+
+#if Windows
+    // TODO: implement
+#else
+    assert_greater(new_info.stx_mtime, old_info.stx_mtime);
+#endif
+
+    fs::free(&p);
+}
+
 define_test(copy_file_copies_file)
 {
     fs::path from{};
@@ -947,7 +980,46 @@ define_test(copy_file_copies_file)
     // overwriting
     assert_equal(fs::copy_file(&from, &to, fs::copy_file_options::OverwriteExisting, &err), true);
 
-    // TODO: test SkipExisting & UpdateExisting
+    assert_equal(fs::copy_file(&from, &to, fs::copy_file_options::SkipExisting, &err), true);
+
+    // returns true even if not copied
+    assert_equal(fs::copy_file(&from, &to, fs::copy_file_options::UpdateExisting, &err), true);
+
+    fs::filesystem_info from_info{};
+    fs::filesystem_info to_info{};
+    assert_equal(fs::get_filesystem_info(&from, &from_info), true);
+    assert_equal(fs::get_filesystem_info(&to, &to_info), true);
+
+    // check that the date from To is indeed later than From
+#if Windows
+    // TODO: implement
+#else
+    assert_greater(to_info.stx_mtime, from_info.stx_mtime);
+#endif
+
+    sleep_ms(200);
+    fs::touch(&from);
+
+    assert_equal(fs::get_filesystem_info(&from, &from_info), true);
+
+    // now From should be newer than To
+#if Windows
+    // TODO: implement
+#else
+    assert_greater(from_info.stx_mtime, to_info.stx_mtime);
+#endif
+
+    sleep_ms(200);
+    assert_equal(fs::copy_file(&from, &to, fs::copy_file_options::UpdateExisting, &err), true);
+
+    assert_equal(fs::get_filesystem_info(&to, &to_info), true);
+
+    // and now To is newer again
+#if Windows
+    // TODO: implement
+#else
+    assert_greater(to_info.stx_mtime, from_info.stx_mtime);
+#endif
 
     fs::free(&from);
     fs::free(&to);

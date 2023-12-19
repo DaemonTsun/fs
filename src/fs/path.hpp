@@ -45,6 +45,11 @@ struct filesystem_timestamp
     s32 _pad;
 };
 
+bool operator< (filesystem_timestamp lhs, filesystem_timestamp rhs);
+bool operator> (filesystem_timestamp lhs, filesystem_timestamp rhs);
+bool operator<=(filesystem_timestamp lhs, filesystem_timestamp rhs);
+bool operator>=(filesystem_timestamp lhs, filesystem_timestamp rhs);
+
 // based on statx
 struct filesystem_info {
 	u32 stx_mask;
@@ -201,6 +206,8 @@ void concat_path(fs::path *out, const_wstring  seg);
 void concat_path(fs::path *out, const fs::path *to_concat);
 
 void relative_path(const fs::path *from, const fs::path *to, fs::path *out);
+
+bool touch(const fs::path *pth, fs::fs_error *err = nullptr);
 
 enum class copy_file_options
 {
