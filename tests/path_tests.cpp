@@ -1182,6 +1182,84 @@ define_test(create_directories_creates_directories_and_parents)
     fs::free(&p);
 }
 
+define_test(create_hard_link_creates_hard_link)
+{
+    fs::path target{};
+    fs::path link{};
+    fs::fs_error err{};
+
+    fs::set_path(&target, SANDBOX_TEST_FILE);
+    fs::set_path(&link,   SANDBOX_DIR "/_hardlink1");
+
+    assert_equal(fs::exists(&link), false); 
+    assert_equal(fs::create_hard_link(&target, &link), true); 
+    assert_equal(fs::exists(&link), true); 
+
+    assert_equal(fs::are_equivalent(&target, &link), true);
+    assert_equal(fs::are_equivalent(&target, &link, false), true);
+
+    // does not overwrite links or files
+    assert_equal(fs::create_hard_link(&target, &link, &err), false); 
+
+#if Windows
+    // TODO: check error
+#else
+    assert_equal(err.error_code, EEXIST);
+#endif
+    
+    fs::set_path(&target, SANDBOX_TEST_FILE "_does_not_exist1");
+    fs::set_path(&link,   SANDBOX_DIR "/_hardlink2");
+
+    // can't create hard links to things that don't exist
+    assert_equal(fs::create_hard_link(&target, &link, &err), false); 
+
+#if Windows
+    // TODO: check error
+#else
+    assert_equal(err.error_code, ENOENT);
+#endif
+
+    fs::free(&target);
+    fs::free(&link);
+}
+
+define_test(create_symlink_creates_symlink)
+{
+    fs::path target{};
+    fs::path link{};
+    fs::fs_error err{};
+
+    fs::set_path(&target, SANDBOX_TEST_FILE);
+    fs::set_path(&link,   SANDBOX_DIR "/_symlink1");
+
+    assert_equal(fs::exists(&link), false); 
+    assert_equal(fs::create_symlink(&target, &link), true); 
+    assert_equal(fs::exists(&link), true); 
+
+    assert_equal(fs::are_equivalent(&target, &link), true);
+    assert_equal(fs::are_equivalent(&target, &link, false), false);
+
+    // does not overwrite links or files
+    assert_equal(fs::create_symlink(&target, &link, &err), false); 
+
+#if Windows
+    // TODO: check error
+#else
+    assert_equal(err.error_code, EEXIST);
+#endif
+    
+    fs::set_path(&target, SANDBOX_TEST_FILE "_does_not_exist2");
+    fs::set_path(&link,   SANDBOX_DIR "/_symlink2");
+
+    assert_equal(fs::create_symlink(&target, &link, &err), true);
+
+    assert_equal(fs::exists(&link), false); 
+    assert_equal(fs::exists(&link, false), true); 
+
+    fs::free(&target);
+    fs::free(&link);
+}
+
 #if 0
 define_test(get_executable_path_gets_executable_path)
 {

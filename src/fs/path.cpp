@@ -1563,21 +1563,43 @@ bool fs::create_directories(const fs::path *pth, fs::permission perms, fs::fs_er
     return true;
 }
 
+bool fs::create_hard_link(const fs::path *target, const fs::path *link, fs::fs_error *err)
+{
+    assert(target != nullptr);
+    assert(link != nullptr);
+
+#if Windows
+    // TODO: implement
+#else
+    if (::link(target->data, link->data) == -1)
+    {
+        set_fs_errno_error(err);
+        return false;
+    }
+#endif
+
+    return true;
+}
+
+bool fs::create_symlink(const fs::path *target, const fs::path *link, fs::fs_error *err)
+{
+    assert(target != nullptr);
+    assert(link != nullptr);
+
+#if Windows
+    // TODO: implement
+#else
+    if (::symlink(target->data, link->data) == -1)
+    {
+        set_fs_errno_error(err);
+        return false;
+    }
+#endif
+
+    return true;
+}
+
 #if 0
-void fs::create_hard_link(const fs::path *target, const fs::path *link)
-{
-    std::filesystem::create_hard_link(target->ptr->data, link->ptr->data);
-}
-
-void fs::create_file_symlink(const fs::path *target, const fs::path *link)
-{
-    std::filesystem::create_symlink(target->ptr->data, link->ptr->data);
-}
-
-void fs::create_directory_symlink(const fs::path *target, const fs::path *link)
-{
-    std::filesystem::create_directory_symlink(target->ptr->data, link->ptr->data);
-}
 
 void fs::move(const fs::path *from, const fs::path *to)
 {
