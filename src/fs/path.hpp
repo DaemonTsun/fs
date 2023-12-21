@@ -2,12 +2,18 @@
 /* path.hpp
  TODO: write new docs
 
+Note: fs::path has a size member, but because fs uses a lot of 
+standard library functions / syscalls (e.g. stat), which do not
+check for size, a null character is required to terminate a
+fs::path.
+
  */
 
 #pragma once
 
 #include "shl/hash.hpp"
 #include "shl/string.hpp"
+#include "shl/enum_flag.hpp"
 #include "shl/platform.hpp"
 
 #include "fs/fs_error.hpp"
@@ -91,6 +97,27 @@ enum class filesystem_type : u16
 };
 
 #endif
+
+enum class permission : u16
+{
+    UserRead        = 0400,
+    UserWrite       = 0200,
+    UserExecute     = 0100,
+    GroupRead       = 0040,
+    GroupWrite      = 0020,
+    GroupExecute    = 0010,
+    OtherRead       = 0004,
+    OtherWrite      = 0002,
+    OtherExecute    = 0001,
+
+    // Combined values
+    None            = 0000,
+    User            = 0700,
+    Group           = 0070,
+    Other           = 0007
+};
+
+enum_flag(permission);
 
 // this will either be const_string or const_wstring
 typedef const_string_base<fs::path_char_t> const_fs_string;
@@ -210,9 +237,9 @@ void concat_path(fs::path *out, const fs::path *to_concat);
 
 void relative_path(const fs::path *from, const fs::path *to, fs::path *out);
 
-bool touch(const fs::path *pth, fs::fs_error *err = nullptr);
+bool touch(const fs::path *pth, fs::permission perms = fs::permission::User, fs::fs_error *err = nullptr);
 
-enum class copy_file_options
+enum class copy_file_option
 {
     None,               // reports an error when destination exists.
     OverwriteExisting,  // (default) overwrites existing destination.
@@ -222,14 +249,14 @@ enum class copy_file_options
     SkipExisting        // skips any existing destination files.
 };
 
-bool copy_file(const fs::path *from, const fs::path *to, fs::copy_file_options opt = fs::copy_file_options::OverwriteExisting, fs::fs_error *err = nullptr);
+bool copy_file(const fs::path *from, const fs::path *to, fs::copy_file_option opt = fs::copy_file_option::OverwriteExisting, fs::fs_error *err = nullptr);
 // TODO: add copy_directory
-// bool copy_directory(const fs::path *from, const fs::path *to, fs::copy_file_options opt = fs::copy_file_options::OverwriteExisting, fs::fs_error *err = nullptr);
+// bool copy_directory(const fs::path *from, const fs::path *to, fs::copy_file_option opt = fs::copy_file_option::OverwriteExisting, fs::fs_error *err = nullptr);
 
 // does not create parents
-bool create_directory(const fs::path *pth, fs::fs_error *err);
+bool create_directory(const fs::path *pth, fs::permission perms = fs::permission::User, fs::fs_error *err = nullptr);
 // creates parents as well
-bool create_directories(const fs::path *pth, fs::fs_error *err);
+bool create_directories(const fs::path *pth, fs::permission perms = fs::permission::User, fs::fs_error *err = nullptr);
 /*
 void create_hard_link(const fs::path *target, const fs::path *link);
 void create_file_symlink(const fs::path *target, const fs::path *link);

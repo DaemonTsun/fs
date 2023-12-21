@@ -1358,14 +1358,14 @@ void fs::relative_path(const fs::path *from, const fs::path *to, fs::path *out)
     }
 }
 
-bool fs::touch(const fs::path *pth, fs::fs_error *err)
+bool fs::touch(const fs::path *pth, fs::permission perms, fs::fs_error *err)
 {
     assert(pth != nullptr);
 
 #if Windows
     // TODO: implement
 #else
-    int fd = ::open(pth->data, O_CREAT | O_WRONLY, 0660);
+    int fd = ::open(pth->data, O_CREAT | O_WRONLY, (::mode_t)perms);
 
     if (fd == -1)
     {
@@ -1387,7 +1387,7 @@ bool fs::touch(const fs::path *pth, fs::fs_error *err)
     return true;
 }
 
-bool fs::copy_file(const fs::path *from, const fs::path *to, fs::copy_file_options opt, fs::fs_error *err)
+bool fs::copy_file(const fs::path *from, const fs::path *to, fs::copy_file_option opt, fs::fs_error *err)
 {
     assert(from != nullptr);
     assert(to != nullptr);
@@ -1402,10 +1402,10 @@ bool fs::copy_file(const fs::path *from, const fs::path *to, fs::copy_file_optio
     unsigned int open_from_flags = O_RDONLY;
     unsigned int open_to_flags = O_CREAT | O_WRONLY | O_TRUNC;
 
-    if (opt != fs::copy_file_options::OverwriteExisting)
+    if (opt != fs::copy_file_option::OverwriteExisting)
         open_to_flags |= O_EXCL;
 
-    if (opt == fs::copy_file_options::UpdateExisting)
+    if (opt == fs::copy_file_option::UpdateExisting)
         statx_mask |= STATX_MTIME;
 
     from_fd = ::open(from->data, open_from_flags);
@@ -1428,14 +1428,14 @@ bool fs::copy_file(const fs::path *from, const fs::path *to, fs::copy_file_optio
 
     if (to_fd == -1)
     {
-        if ((opt == fs::copy_file_options::None)
+        if ((opt == fs::copy_file_option::None)
          || (errno != EEXIST))
         {
             set_fs_errno_error(err);
             return false;
         }
 
-        if (opt == fs::copy_file_options::SkipExisting)
+        if (opt == fs::copy_file_option::SkipExisting)
             return true;
 
         // check change time
@@ -1481,17 +1481,53 @@ bool fs::copy_file(const fs::path *from, const fs::path *to, fs::copy_file_optio
     return true;
 }
 
+// TODO: implement copy_directory
+
+bool fs::create_directory(const fs::path *pth, fs::permission perms, fs::fs_error *err)
+{
+    assert(pth != nullptr);
+
+#if Windows
+    // TODO: implement
+    return false;
+#else
+    if (::mkdir(pth->data, (::mode_t)perms) != -1)
+        return true;
+
+    // we have to check for EEXIST because if it already exists and it's a directory
+    // then we return true (failed successfully), but if it exists and is not a
+    // directory then we yield the correct error and return false.
+    int _errcode = errno;
+
+    if (_errcode != EEXIST)
+    {
+        set_fs_error(err, _errcode, ::strerror(_errcode));
+        return false;
+    }
+
+    fs::filesystem_info info;
+
+    if (!fs::get_filesystem_info(pth, &info, false, STATX_TYPE, err))
+        return false;
+
+    if (!S_ISDIR(info.stx_mode))
+    {
+        set_fs_error(err, _errcode, ::strerror(_errcode));
+        return false;
+    }
+#endif
+
+    return true;
+}
+
+bool fs::create_directories(const fs::path *pth, fs::permission perms, fs::fs_error *err)
+{
+    assert(pth != nullptr);
+
+    return false;
+}
+
 #if 0
-bool fs::create_directory(const fs::path *pth)
-{
-    return std::filesystem::create_directory(pth->ptr->data);
-}
-
-bool fs::create_directories(const fs::path *pth)
-{
-    return std::filesystem::create_directories(pth->ptr->data);
-}
-
 void fs::create_hard_link(const fs::path *target, const fs::path *link)
 {
     std::filesystem::create_hard_link(target->ptr->data, link->ptr->data);

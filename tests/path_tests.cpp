@@ -1018,9 +1018,9 @@ define_test(copy_file_copies_file)
 
     fs::fs_error err{};
 
-    assert_equal(fs::copy_file(&from, &to, fs::copy_file_options::None, &err), true);
+    assert_equal(fs::copy_file(&from, &to, fs::copy_file_option::None, &err), true);
 
-    assert_equal(fs::copy_file(&from, &to, fs::copy_file_options::None, &err), false);
+    assert_equal(fs::copy_file(&from, &to, fs::copy_file_option::None, &err), false);
 
 #if Windows
     // TODO: implement
@@ -1029,12 +1029,12 @@ define_test(copy_file_copies_file)
 #endif
 
     // overwriting
-    assert_equal(fs::copy_file(&from, &to, fs::copy_file_options::OverwriteExisting, &err), true);
+    assert_equal(fs::copy_file(&from, &to, fs::copy_file_option::OverwriteExisting, &err), true);
 
-    assert_equal(fs::copy_file(&from, &to, fs::copy_file_options::SkipExisting, &err), true);
+    assert_equal(fs::copy_file(&from, &to, fs::copy_file_option::SkipExisting, &err), true);
 
     // returns true even if not copied
-    assert_equal(fs::copy_file(&from, &to, fs::copy_file_options::UpdateExisting, &err), true);
+    assert_equal(fs::copy_file(&from, &to, fs::copy_file_option::UpdateExisting, &err), true);
 
     fs::filesystem_info from_info{};
     fs::filesystem_info to_info{};
@@ -1061,7 +1061,7 @@ define_test(copy_file_copies_file)
 #endif
 
     sleep_ms(200);
-    assert_equal(fs::copy_file(&from, &to, fs::copy_file_options::UpdateExisting, &err), true);
+    assert_equal(fs::copy_file(&from, &to, fs::copy_file_option::UpdateExisting, &err), true);
 
     assert_equal(fs::get_filesystem_info(&to, &to_info), true);
 
@@ -1074,6 +1074,40 @@ define_test(copy_file_copies_file)
 
     fs::free(&from);
     fs::free(&to);
+}
+
+define_test(create_directory_creates_directory)
+{
+    fs::path p{};
+
+    fs::set_path(&p, SANDBOX_TEST_DIR "/_create_dir1");
+
+    assert_equal(fs::exists(&p), false); 
+    assert_equal(fs::create_directory(&p), true); 
+    assert_equal(fs::exists(&p), true); 
+
+    // creating a directory that already exists does not yield an error
+    assert_equal(fs::create_directory(&p), true); 
+    assert_equal(fs::exists(&p), true); 
+
+
+    fs::fs_error err{};
+
+    // no permission
+    fs::set_path(&p, "/root/_create_dir2");
+    assert_equal(fs::create_directory(&p, fs::permission::User, &err), false); 
+
+    // does not create parent directories
+    fs::set_path(&p, SANDBOX_TEST_DIR "/_create_dir3/abc/def");
+    assert_equal(fs::create_directory(&p, fs::permission::User, &err), false); 
+
+#if Windows
+    // TODO: check error
+#else
+    assert_equal(err.error_code, ENOENT);
+#endif
+
+    fs::free(&p);
 }
 
 #if 0
