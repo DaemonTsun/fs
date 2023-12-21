@@ -344,12 +344,13 @@ bool fs::get_filesystem_info(const fs::path *pth, fs::filesystem_info *out, bool
     return false;
 }
 
-bool fs::exists(const fs::path *pth, bool follow_symlinks, fs::fs_error *err)
+int fs::exists(const fs::path *pth, bool follow_symlinks, fs::fs_error *err)
 {
     assert(pth != nullptr);
 
 #if Windows
-    return false;
+    // TODO: implement
+    return -1;
 #else
     int flags = 0;
 
@@ -357,13 +358,16 @@ bool fs::exists(const fs::path *pth, bool follow_symlinks, fs::fs_error *err)
         flags |= AT_SYMLINK_NOFOLLOW;
 
     if (::faccessat(AT_FDCWD, pth->data, F_OK, flags) == 0)
-        return true;
+        return 1;
+
+    if (errno == ENOENT)
+        return 0;
 
     set_fs_errno_error(err);
 
 #endif
 
-    return false;
+    return -1;
 }
 
 fs::filesystem_type get_filesystem_type(const fs::filesystem_info *info)
@@ -713,6 +717,41 @@ void fs::parent_path(const fs::path *pth, fs::path *out)
     ::set_string(as_string_ptr(out), parent);
 }
 
+fs::path fs::longest_existing_path(const fs::path *pth)
+{
+    assert(pth != nullptr);
+
+    fs::path existing_slice{};
+    fs::longest_existing_path(pth, &existing_slice);
+    return existing_slice;
+}
+
+void fs::longest_existing_path(const fs::path *pth, fs::path *out)
+{
+    assert(pth != nullptr);
+
+    fs::set_path(out, pth);
+    fs::normalize(out);
+
+    u64 i = 0;
+
+    fs::const_fs_string rt = fs::root(out);
+
+    while (out->size > rt.size)
+    {
+        if (fs::exists(out) == 1)
+            break;
+
+        i = out->size - 1;
+
+        while (i > rt.size && out->data[i] != fs::path_separator)
+            i--;
+
+        out->size = i;
+        out->data[i] = PC_NUL;
+    }
+}
+
 // The algorithm for normalizing is here
 // https://en.cppreference.com/w/cpp/filesystem/path
 void fs::normalize(fs::path *pth)
@@ -1012,21 +1051,9 @@ bool fs::weakly_canonical_path(const fs::path *pth, fs::path *out, fs::fs_error 
     if (rt.size == 0 || rt.size == out->size)
         return true;
 
-    fs::path existing_slice = *out;
-    u64 i = 0;
-
-    while (existing_slice.size > rt.size)
-    {
-        if (fs::exists(&existing_slice))
-            break;
-
-        i = existing_slice.size - 1;
-
-        while (i > rt.size && existing_slice.data[i] != fs::path_separator)
-            i--;
-
-        existing_slice.size = i - 1;
-    }
+    fs::path existing_slice{};
+    fs::longest_existing_path(out, &existing_slice);
+    defer { fs::free(&existing_slice); };
 
     if (existing_slice.size <= rt.size)
         return true;
@@ -1034,15 +1061,24 @@ bool fs::weakly_canonical_path(const fs::path *pth, fs::path *out, fs::fs_error 
     // existing slice must exist now
     fs::path old_path{};
     fs::set_path(&old_path, out);
+    defer { fs::free(&old_path); };
     
     if (!fs::canonical_path(&existing_slice, out, err))
-    {
-        fs::free(&old_path);
         return false;
+
+    fs::const_fs_string rest{.c_str = old_path.data + existing_slice.size,
+                             .size  = old_path.size - existing_slice.size};
+
+    if (rest.size == 0)
+        return true;
+
+    if (rest.c_str[0] == fs::path_separator)
+    {
+        rest.c_str += 1;
+        rest.size  -= 1;
     }
 
-    fs::append_path(out, fs::const_fs_string{.c_str = old_path.data + existing_slice.size, .size = old_path.size - existing_slice.size});
-    fs::free(&old_path);
+    fs::append_path(out, rest);
 
     return true;
 }

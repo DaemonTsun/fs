@@ -10,6 +10,7 @@
 #include "shl/string.hpp"
 #include "shl/time.hpp" // for sleep
 #include "shl/platform.hpp"
+#include "shl/print.hpp"
 #include "fs/path.hpp"
 
 #define assert_equal_str(STR1, STR2)\
@@ -112,7 +113,7 @@ define_test(exists_returns_true_if_directory_exists)
     fs::path p{};
     fs::set_path(&p, SANDBOX_TEST_DIR);
 
-    assert_equal(fs::exists(&p), true);
+    assert_equal(fs::exists(&p), 1);
 
     fs::free(&p);
 }
@@ -122,7 +123,7 @@ define_test(exists_returns_true_if_file_exists)
     fs::path p{};
     fs::set_path(&p, SANDBOX_TEST_FILE);
 
-    assert_equal(fs::exists(&p), true);
+    assert_equal(fs::exists(&p), 1);
 
     fs::free(&p);
 }
@@ -132,24 +133,35 @@ define_test(exists_checks_if_symlink_exists)
     fs::path p{};
     fs::set_path(&p, SANDBOX_TEST_SYMLINK);
 
-    assert_equal(fs::exists(&p), true);
+    assert_equal(fs::exists(&p), 1);
 
     fs::set_path(&p, SANDBOX_TEST_SYMLINK_NO_TARGET);
-    assert_equal(fs::exists(&p, false), true);
+    assert_equal(fs::exists(&p, false), 1);
 
     fs::free(&p);
 }
 
-define_test(exists_yields_error_when_not_exists)
+define_test(exists_returns_false_when_not_exists)
 {
     fs::path p{};
     fs::fs_error err;
     fs::set_path(&p, SANDBOX_TEST_DIR "/abc");
 
-    assert_equal(fs::exists(&p, true, &err), false);
+    assert_equal(fs::exists(&p, true, &err), 0);
+
+    fs::free(&p);
+}
+
+define_test(exists_yields_error_when_unauthorized)
+{
+    fs::path p{};
+    fs::fs_error err;
+    fs::set_path(&p, "/root/abc");
+
+    assert_equal(fs::exists(&p, true, &err), -1);
 
 #if Linux
-    assert_equal(err.error_code, ENOENT);
+    assert_equal(err.error_code, EACCES);
 #endif
 
     fs::free(&p);
@@ -160,10 +172,10 @@ define_test(exists_checks_if_symlink_target_exists)
     fs::path p{};
     fs::set_path(&p, SANDBOX_TEST_SYMLINK_NO_TARGET);
     // target doesnt exist, this checks if symlink exists
-    assert_equal(fs::exists(&p, false), true);
+    assert_equal(fs::exists(&p, false), 1);
 
     // this checks if target exists
-    assert_equal(fs::exists(&p, true), false);
+    assert_equal(fs::exists(&p, true), 0);
 
     fs::free(&p);
 }
@@ -638,6 +650,40 @@ define_test(normalize_normalizes_path)
     fs::free(&p);
 }
 
+define_test(longest_existing_path_returns_longest_existing_path)
+{
+    fs::path p{};
+    fs::path longest{};
+
+#if Windows
+    // TODO: add tests
+#else
+    fs::set_path(&p, "/foo/bar");
+    fs::longest_existing_path(&p, &longest);
+    assert_equal_str(longest, "/");
+
+    fs::set_path(&p, SANDBOX_DIR);
+    fs::longest_existing_path(&p, &longest);
+    assert_equal_str(longest, SANDBOX_DIR);
+
+    fs::set_path(&p, SANDBOX_TEST_FILE);
+    fs::longest_existing_path(&p, &longest);
+    assert_equal_str(longest, SANDBOX_TEST_FILE);
+
+    fs::set_path(&p, "/tmp");
+    fs::longest_existing_path(&p, &longest);
+    assert_equal_str(longest, "/tmp");
+
+    // let's hope abcxyz doesn't exist
+    fs::set_path(&p, "/tmp/abcxyz");
+    fs::longest_existing_path(&p, &longest);
+    assert_equal_str(longest, "/tmp");
+#endif
+
+    fs::free(&p);
+    fs::free(&longest);
+}
+
 
 define_test(absolute_path_gets_the_absolute_path)
 {
@@ -760,6 +806,11 @@ define_test(weakly_canonical_path_gets_weakly_canonical_path)
     fs::set_path(&p, "/tmp/abc/../def");
     assert_equal(fs::weakly_canonical_path(&p, &canonp), true);
     assert_equal_str(canonp, "/tmp/def");
+
+    fs::set_path(&p, "/tmp/././abc/../def/abc");
+    assert_equal(fs::weakly_canonical_path(&p, &canonp), true);
+    assert_equal_str(canonp, "/tmp/def/abc");
+    
 #endif
 
     fs::free(&canonp);
@@ -934,9 +985,9 @@ define_test(touch_touches_file)
 
     fs::set_path(&p, SANDBOX_TEST_FILE "_touch1");
 
-    assert_equal(fs::exists(&p), false);
+    assert_equal(fs::exists(&p), 0);
     assert_equal(fs::touch(&p), true);
-    assert_equal(fs::exists(&p), true);
+    assert_equal(fs::exists(&p), 1);
 
     fs::filesystem_info old_info{};
     fs::filesystem_info new_info{};

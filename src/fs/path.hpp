@@ -130,7 +130,8 @@ hash_t hash(const fs::path *pth);
 bool get_filesystem_info(const fs::path *pth, fs::filesystem_info *out, bool follow_symlinks = true, int flags = FS_QUERY_DEFAULT_FLAGS, fs::fs_error *err = nullptr);
 fs::filesystem_type get_filesystem_type(const fs::filesystem_info *info);
 
-bool exists(const fs::path *pth, bool follow_symlinks = true, fs::fs_error *err = nullptr);
+// 0 = doesn't exist, 1 = exists, -1 = error
+int exists(const fs::path *pth, bool follow_symlinks = true, fs::fs_error *err = nullptr);
 
 bool is_file(const fs::filesystem_info *info);
 bool is_pipe(const fs::filesystem_info *info);
@@ -175,6 +176,8 @@ void path_segments(const fs::path *pth, array<fs::const_fs_string> *out);
 
 fs::path parent_path(const fs::path *pth);
 void parent_path(const fs::path *pth, fs::path *out);
+fs::path longest_existing_path(const fs::path *pth);
+void longest_existing_path(const fs::path *pth, fs::path *out);
 
 void normalize(fs::path *pth);
 
@@ -220,11 +223,14 @@ enum class copy_file_options
 };
 
 bool copy_file(const fs::path *from, const fs::path *to, fs::copy_file_options opt = fs::copy_file_options::OverwriteExisting, fs::fs_error *err = nullptr);
-/*
+// TODO: add copy_directory
+// bool copy_directory(const fs::path *from, const fs::path *to, fs::copy_file_options opt = fs::copy_file_options::OverwriteExisting, fs::fs_error *err = nullptr);
+
 // does not create parents
-bool create_directory(const fs::path *pth);
+bool create_directory(const fs::path *pth, fs::fs_error *err);
 // creates parents as well
-bool create_directories(const fs::path *pth);
+bool create_directories(const fs::path *pth, fs::fs_error *err);
+/*
 void create_hard_link(const fs::path *target, const fs::path *link);
 void create_file_symlink(const fs::path *target, const fs::path *link);
 void create_directory_symlink(const fs::path *target, const fs::path *link);
