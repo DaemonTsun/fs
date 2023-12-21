@@ -731,7 +731,6 @@ void fs::longest_existing_path(const fs::path *pth, fs::path *out)
     assert(pth != nullptr);
 
     fs::set_path(out, pth);
-    fs::normalize(out);
 
     u64 i = 0;
 
@@ -1524,7 +1523,44 @@ bool fs::create_directories(const fs::path *pth, fs::permission perms, fs::fs_er
 {
     assert(pth != nullptr);
 
-    return false;
+    fs::path longest_part{};
+    fs::longest_existing_path(pth, &longest_part);
+    defer { fs::free(&longest_part); };
+
+    array<fs::const_fs_string> segs{};
+    fs::path_segments(pth, &segs);
+    defer { ::free(&segs); };
+
+    u64 i = 0;
+
+    // find the first segment after longest_part that doesn't exist
+    if (longest_part.size > 0)
+    while (i < segs.size)
+    {
+        u64 offset = (segs[i].c_str - pth->data);
+
+        if (offset > longest_part.size)
+            break;
+
+        i += 1;
+    }
+
+    // we do this to make sure longest_part is a directory
+    if (longest_part.size > 0
+     && !fs::create_directory(&longest_part, perms, err))
+        return false;
+
+    while (i < segs.size)
+    {
+        fs::append_path(&longest_part, segs[i]);
+
+        if (!fs::create_directory(&longest_part, perms, err))
+            return false;
+
+        i += 1;
+    }
+
+    return true;
 }
 
 #if 0

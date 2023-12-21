@@ -903,6 +903,15 @@ define_test(append_appends_to_path)
     fs::append_path(&p, "passwd/test2.txt");
     assert_equal_str(p.c_str(), "/etc/test.txt/passwd/test2.txt");
 
+    // relative
+    fs::set_path(&p, "abc");
+    fs::append_path(&p, "xyz");
+    assert_equal_str(p.c_str(), "abc/xyz");
+
+    fs::set_path(&p, "");
+    fs::append_path(&p, "xyz");
+    assert_equal_str(p.c_str(), "xyz");
+
 #endif
 
     fs::free(&p);
@@ -1090,15 +1099,27 @@ define_test(create_directory_creates_directory)
     assert_equal(fs::create_directory(&p), true); 
     assert_equal(fs::exists(&p), true); 
 
+    // relative path (in sandbox)
+    fs::set_path(&p, "_create_dir2");
+
+    assert_equal(fs::exists(&p), false); 
+    assert_equal(fs::create_directory(&p), true); 
+    assert_equal(fs::exists(&p), true); 
+
+    fs::set_path(&p, "_create_dir2/xyz");
+
+    assert_equal(fs::exists(&p), false); 
+    assert_equal(fs::create_directory(&p), true); 
+    assert_equal(fs::exists(&p), true); 
 
     fs::fs_error err{};
 
     // no permission
-    fs::set_path(&p, "/root/_create_dir2");
+    fs::set_path(&p, "/root/_create_dir3");
     assert_equal(fs::create_directory(&p, fs::permission::User, &err), false); 
 
     // does not create parent directories
-    fs::set_path(&p, SANDBOX_TEST_DIR "/_create_dir3/abc/def");
+    fs::set_path(&p, SANDBOX_TEST_DIR "/_create_dir4/abc/def");
     assert_equal(fs::create_directory(&p, fs::permission::User, &err), false); 
 
 #if Windows
@@ -1106,6 +1127,57 @@ define_test(create_directory_creates_directory)
 #else
     assert_equal(err.error_code, ENOENT);
 #endif
+
+    fs::free(&p);
+}
+
+define_test(create_directories_creates_directories_and_parents)
+{
+    fs::path p{};
+
+    fs::set_path(&p, SANDBOX_TEST_DIR "/_create_dirs1");
+
+    assert_equal(fs::exists(&p), false); 
+    assert_equal(fs::create_directories(&p), true); 
+    assert_equal(fs::exists(&p), true); 
+
+    // creating a directory that already exists does not yield an error
+    assert_equal(fs::create_directories(&p), true); 
+    assert_equal(fs::exists(&p), true); 
+
+    // relative path (in sandbox)
+    fs::set_path(&p, "_create_dirs2");
+
+    assert_equal(fs::exists(&p), false); 
+    assert_equal(fs::create_directories(&p), true); 
+    assert_equal(fs::exists(&p), true); 
+
+    fs::set_path(&p, "_create_dirs2/xyz");
+
+    assert_equal(fs::exists(&p), false); 
+    assert_equal(fs::create_directories(&p), true); 
+    assert_equal(fs::exists(&p), true); 
+    
+    
+    // DOES create parent directories
+    fs::set_path(&p, SANDBOX_TEST_DIR "/_create_dirs4/abc/def");
+    assert_equal(fs::exists(&p), false); 
+    assert_equal(fs::create_directories(&p), true); 
+    assert_equal(fs::exists(&p), true); 
+
+    fs::set_path(&p, "_create_dirs5/xyz");
+    assert_equal(fs::exists(&p), false); 
+    assert_equal(fs::create_directories(&p), true); 
+    assert_equal(fs::exists(&p), true); 
+
+    fs::fs_error err{};
+
+    // no permission
+    fs::set_path(&p, "/root/_create_dirs3");
+    assert_equal(fs::create_directories(&p, fs::permission::User, &err), false); 
+
+    fs::set_path(&p, "/root/_create_dirs3/xyz");
+    assert_equal(fs::create_directories(&p, fs::permission::User, &err), false); 
 
     fs::free(&p);
 }
