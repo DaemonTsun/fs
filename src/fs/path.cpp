@@ -8,13 +8,24 @@
 #include <direct.h> // _wgetcwd
 #else
 #include <sys/stat.h>
-#include <sys/sendfile.h>
-#include <unistd.h>
-#include <stdlib.h>
-#include <linux/limits.h>
-#include <string.h>
+#include <sys/syscall.h>
+#include <unistd.h> // syscall and faccessat
+#include <string.h> // strerror
 #include <errno.h>
 #include <fcntl.h>
+
+// some syscalls
+// from sys/sendfile.h
+int sendfile(int out_fd, int in_fd, off_t *offset, size_t count)
+{
+    return ::syscall(SYS_sendfile, out_fd, in_fd, offset, count);
+}
+
+// from stdio.h
+int rename(const char *oldpath, const char *newpath)
+{
+    return ::syscall(SYS_rename, oldpath, newpath);
+}
 #endif
 
 #include <stdlib.h>
@@ -64,21 +75,6 @@ bool operator>(statx_timestamp lhs, statx_timestamp rhs)  { return rhs < lhs; }
 bool operator<=(statx_timestamp lhs, statx_timestamp rhs) { return !(rhs < lhs); }
 bool operator>=(statx_timestamp lhs, statx_timestamp rhs) { return !(lhs < rhs); }
 
-bool fs::operator< (fs::filesystem_timestamp lhs, fs::filesystem_timestamp rhs) 
-{
-    if (lhs.tv_sec < rhs.tv_sec)
-        return true;
-
-    if (lhs.tv_sec > rhs.tv_sec)
-        return false;
-
-    return lhs.tv_nsec < rhs.tv_nsec;
-}
-
-bool fs::operator> (fs::filesystem_timestamp lhs, fs::filesystem_timestamp rhs) { return rhs < lhs; }
-bool fs::operator<=(fs::filesystem_timestamp lhs, fs::filesystem_timestamp rhs) { return !(rhs < lhs); }
-bool fs::operator>=(fs::filesystem_timestamp lhs, fs::filesystem_timestamp rhs) { return !(lhs < rhs); }
-
 #endif
 
 #define PC_DOT PC_LIT('.')
@@ -89,73 +85,13 @@ bool fs::operator>=(fs::filesystem_timestamp lhs, fs::filesystem_timestamp rhs) 
 #define empty_fs_string     fs::const_fs_string{PC_LIT(""), 0}
 
 // conversion helpers
-template<typename T>
-struct _converted_string
-{
-    T *data;
-    u64 size;
-};
-
-template<typename C>
-inline const_string_base<C> to_const_string(_converted_string<C> str)
-{
-    return const_string_base<C>{str.data, str.size};
-}
-
-typedef _converted_string<fs::path_char_t> platform_converted_string;
-
-inline fs::path _converted_string_to_path(platform_converted_string str)
+inline fs::path _converted_string_to_path(fs::platform_converted_string str)
 {
     assert(str.data != nullptr);
     assert(str.size != (size_t)-1);
     return fs::path{.data = str.data, .size = str.size, .reserved_size = str.size};
 }
 
-_converted_string<char> _convert_string(const wchar_t *wcstring, u64 wchar_count)
-{
-    _converted_string<char> ret;
-    u64 sz = (wchar_count + 1) * sizeof(char);
-    ret.data = (char*)::allocate_memory(sz);
-
-    ::fill_memory(ret.data, 0, sz);
-
-    ret.size = ::wcstombs(ret.data, wcstring, wchar_count * sizeof(wchar_t));
-
-    return ret;
-}
-
-_converted_string<char> _convert_string(const wchar_t *cstring)
-{
-    return _convert_string(cstring, ::string_length(cstring));
-}
-
-_converted_string<char> _convert_string(const_wstring cstring)
-{
-    return _convert_string(cstring.c_str, cstring.size);
-}
-
-_converted_string<wchar_t> _convert_string(const char *cstring, u64 char_count)
-{
-    _converted_string<wchar_t> ret;
-    u64 sz = (char_count + 1) * sizeof(wchar_t);
-    ret.data = (wchar_t*)::allocate_memory(sz);
-
-    ::fill_memory(ret.data, 0, sz);
-
-    ret.size = ::mbstowcs(ret.data, cstring, char_count * sizeof(char));
-
-    return ret;
-}
-
-_converted_string<wchar_t> _convert_string(const char *cstring)
-{
-    return _convert_string(cstring, ::string_length(cstring));
-}
-
-_converted_string<wchar_t> _convert_string(const_string cstring)
-{
-    return _convert_string(cstring.c_str, cstring.size);
-}
 
 inline bool _is_dot_filename(fs::const_fs_string str)
 {
@@ -204,42 +140,35 @@ void _path_init(fs::path *path, const fs::path_char_t *str, u64 size)
     ::init(as_string_ptr(path), str, size);
 }
 
-void fs::init(fs::path *path, const_string   str)
+template<typename C>
+void _init(fs::path *path, const_string_base<C> str)
 {
     assert(path != nullptr);
     assert(str.c_str != nullptr);
 
-#if Windows
-    platform_converted_string converted = ::_convert_string(str.c_str, str.size);
+    if constexpr (needs_conversion(C))
+    {
+        fs::platform_converted_string converted = fs::convert_string(str.c_str, str.size);
 
-    assert(converted.data != nullptr);
-    assert(converted.size != (size_t)-1);
+        assert(converted.data != nullptr);
+        assert(converted.size != (size_t)-1);
 
-    _path_init(path, converted.data, converted.size);
+        ::init(as_string_ptr(path), converted.data, converted.size);
 
-    ::free_memory(converted.data);
-#else
-    _path_init(path, str.c_str, str.size);
-#endif
+        fs::free(&converted);
+    }
+    else
+        ::init(as_string_ptr(path), str.c_str, str.size);
 }
 
-void fs::init(fs::path *path, const_wstring  str)
+void fs::init(fs::path *path, const_string   str)
 {
-    assert(path != nullptr);
-    assert(str.c_str != nullptr);
+    return _init(path, str);
+}
 
-#if Windows
-    _path_init(path, str.c_str, str.size);
-#else
-    platform_converted_string converted = ::_convert_string(str.c_str, str.size);
-
-    assert(converted.data != nullptr);
-    assert(converted.size != (size_t)-1);
-
-    _path_init(path, converted.data, converted.size);
-
-    ::free_memory(converted.data);
-#endif
+void fs::init(fs::path *path, const_wstring   str)
+{
+    return _init(path, str);
 }
 
 void fs::init(fs::path *path, const fs::path *other)
@@ -266,40 +195,36 @@ void fs::set_path(fs::path *pth, const wchar_t *new_path)
     fs::set_path(pth, ::to_const_string(new_path));
 }
 
-void fs::set_path(fs::path *pth, const_string   new_path)
+template<typename C>
+void _set_path(fs::path *pth, const_string_base<C> new_path)
 {
     assert(pth != nullptr);
 
-#if Windows
-    platform_converted_string converted = ::_convert_string(new_path.c_str, new_path.size);
+    if constexpr (needs_conversion(C))
+    {
+        fs::platform_converted_string converted = fs::convert_string(new_path.c_str, new_path.size);
 
-    assert(converted.data != nullptr);
-    assert(converted.size != (size_t)-1);
+        assert(converted.data != nullptr);
+        assert(converted.size != (size_t)-1);
 
-    ::set_string(as_string_ptr(pth), converted.data, converted.size);
+        ::set_string(as_string_ptr(pth), converted.data, converted.size);
 
-    ::free_memory(converted.data);
-#else
-    ::set_string(as_string_ptr(pth), new_path);
-#endif
+        fs::free(&converted);
+    }
+    else
+    {
+        ::set_string(as_string_ptr(pth), new_path);
+    }
+}
+
+void fs::set_path(fs::path *pth, const_string   new_path)
+{
+    _set_path(pth, new_path);
 }
 
 void fs::set_path(fs::path *pth, const_wstring  new_path)
 {
-    assert(pth != nullptr);
-
-#if Windows
-    ::set_string(as_string_ptr(pth), new_path);
-#else
-    platform_converted_string converted = ::_convert_string(new_path.c_str, new_path.size);
-
-    assert(converted.data != nullptr);
-    assert(converted.size != (size_t)-1);
-
-    ::set_string(as_string_ptr(pth), converted.data, converted.size);
-
-    ::free_memory(converted.data);
-#endif
+    _set_path(pth, new_path);
 }
 
 void fs::set_path(fs::path *pth, const fs::path *new_path)
@@ -344,10 +269,8 @@ bool fs::get_filesystem_info(const fs::path *pth, fs::filesystem_info *out, bool
     return false;
 }
 
-int fs::exists(const fs::path *pth, bool follow_symlinks, fs::fs_error *err)
+int fs::_exists(fs::const_fs_string pth, bool follow_symlinks, fs::fs_error *err)
 {
-    assert(pth != nullptr);
-
 #if Windows
     // TODO: implement
     return -1;
@@ -357,7 +280,7 @@ int fs::exists(const fs::path *pth, bool follow_symlinks, fs::fs_error *err)
     if (!follow_symlinks)
         flags |= AT_SYMLINK_NOFOLLOW;
 
-    if (::faccessat(AT_FDCWD, pth->data, F_OK, flags) == 0)
+    if (::faccessat(AT_FDCWD, pth.c_str, F_OK, flags) == 0)
         return 1;
 
     if (errno == ENOENT)
@@ -1141,42 +1064,37 @@ void fs::append_path(fs::path *out, const wchar_t *seg)
     return fs::append_path(out, ::to_const_string(seg));
 }
 
-void fs::append_path(fs::path *out, const_string   seg)
+template<typename C>
+void _append_string(fs::path *out, const_string_base<C> seg)
 {
     fs::path to_append{}; 
 
-#if Windows
-    platform_converted_string converted = ::_convert_string(seg);
-    to_append = ::_converted_string_to_path(converted);
+    if constexpr (needs_conversion(C))
+    {
+        fs::platform_converted_string converted = fs::convert_string(seg);
+        to_append = ::_converted_string_to_path(converted);
 
-    fs::append_path(out, &to_append);
+        fs::append_path(out, &to_append);
 
-    ::free_memory(converted.data);
-#else
-    to_append.data = (fs::path_char_t*)seg.c_str;
-    to_append.size = seg.size;
-    to_append.reserved_size = seg.size;
-    fs::append_path(out, &to_append);
-#endif
+        fs::free(&converted);
+    }
+    else
+    {
+        to_append.data = (fs::path_char_t*)seg.c_str;
+        to_append.size = seg.size;
+        to_append.reserved_size = seg.size;
+        fs::append_path(out, &to_append);
+    }
+}
+
+void fs::append_path(fs::path *out, const_string   seg)
+{
+    _append_string(out, seg);
 }
 
 void fs::append_path(fs::path *out, const_wstring  seg)
 {
-    fs::path to_append{}; 
-
-#if Windows
-    to_append.data = (fs::path_char_t*)seg.c_str;
-    to_append.size = seg.size;
-    to_append.reserved_size = seg.size;
-    fs::append_path(out, &to_append);
-#else
-    platform_converted_string converted = ::_convert_string(seg);
-    to_append = ::_converted_string_to_path(converted);
-
-    fs::append_path(out, &to_append);
-
-    ::free_memory(converted.data);
-#endif
+    _append_string(out, seg);
 }
 
 void fs::append_path(fs::path *out, const fs::path *to_append)
@@ -1244,32 +1162,34 @@ void fs::concat_path(fs::path *out, const wchar_t *seg)
     return fs::concat_path(out, ::to_const_string(seg));
 }
 
+template<typename C>
+void _concat_path(fs::path *out, const_string_base<C> seg)
+{
+    assert(out != nullptr);
+
+    if constexpr (needs_conversion(C))
+    {
+        fs::platform_converted_string converted = fs::convert_string(seg);
+
+        _concat_path(out, ::to_const_string(converted));
+
+        fs::free(&converted);
+    }
+    else
+    {
+        ::reserve(as_array_ptr(out), out->size + seg.size + 1);
+        ::append_string(as_string_ptr(out), seg);
+    }
+}
+
 void fs::concat_path(fs::path *out, const_string   seg)
 {
-#if Windows
-    platform_converted_string converted = ::_convert_string(seg);
-
-    fs::concat_path(out, ::to_const_string(converted));
-
-    ::free_memory(converted.data);
-#else
-    ::reserve(as_array_ptr(out), out->size + seg.size + 1);
-    ::append_string(as_string_ptr(out), seg);
-#endif
+    _concat_path(out, seg);
 }
 
 void fs::concat_path(fs::path *out, const_wstring  seg)
 {
-#if Windows
-    ::reserve(as_array_ptr(out), out->size + seg.size + 1);
-    ::append_string(as_string_ptr(out), seg);
-#else
-    platform_converted_string converted = ::_convert_string(seg);
-
-    fs::concat_path(out, ::to_const_string(converted));
-
-    ::free_memory(converted.data);
-#endif
+    _concat_path(out, seg);
 }
 
 void fs::concat_path(fs::path *out, const fs::path *to_concat)
@@ -1599,12 +1519,25 @@ bool fs::create_symlink(const fs::path *target, const fs::path *link, fs::fs_err
     return true;
 }
 
-#if 0
-
-void fs::move(const fs::path *from, const fs::path *to)
+bool fs::move(const fs::path *src, const fs::path *dest, fs::fs_error *err)
 {
-    std::filesystem::rename(from->ptr->data, to->ptr->data);
+    assert(src != nullptr);
+    assert(dest != nullptr);
+
+#if Windows
+    // TODO: implement
+#else
+    if (::rename(src->data, dest->data) == -1)
+    {
+        set_fs_errno_error(err);
+        return false;
+    }
+#endif
+
+    return true;
 }
+
+#if 0
 
 bool fs::remove(const fs::path *pth)
 {
@@ -1834,6 +1767,18 @@ fs::path operator ""_path(const wchar_t *pth, u64 size)
     return ret;
 }
 
+fs::const_fs_string to_const_string(const fs::path_char_t *path)
+{
+    assert(path != nullptr);
+    return fs::const_fs_string{path, string_length(path)};
+}
+
+fs::const_fs_string to_const_string(const fs::path_char_t *path, u64 size)
+{
+    assert(path != nullptr);
+    return fs::const_fs_string{path, size};
+}
+
 fs::const_fs_string to_const_string(const fs::path *path)
 {
     assert(path != nullptr);
@@ -1842,6 +1787,10 @@ fs::const_fs_string to_const_string(const fs::path *path)
 
 fs::const_fs_string to_const_string(const fs::path &path)
 {
-    assert(path != nullptr);
     return fs::const_fs_string{path.data, path.size};
+}
+
+fs::const_fs_string to_const_string(fs::const_fs_string path)
+{
+    return path;
 }

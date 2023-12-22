@@ -12,116 +12,14 @@ fs::path.
 #pragma once
 
 #include "shl/hash.hpp"
-#include "shl/string.hpp"
-#include "shl/enum_flag.hpp"
 #include "shl/platform.hpp"
 
+#include "fs/common.hpp"
+#include "fs/convert.hpp"
 #include "fs/fs_error.hpp"
 
 namespace fs
 {
-#if Windows
-
-typedef wchar_t path_char_t;
-constexpr const path_char_t path_separator = L'\\';
-
-struct filesystem_info {}; // TODO: define
-#define FS_QUERY_DEFAULT_FLAGS 0
-
-enum class filesystem_type
-{
-    Unknown = 0,
-    File /* = ??? */,
-    Directory,
-    Symlink,
-    // ??
-};
-
-
-#else
-// Linux and others
-
-typedef char path_char_t;
-constexpr const path_char_t path_separator = '/';
-
-struct filesystem_timestamp
-{
-    s64 tv_sec;
-    u32 tv_nsec;
-    s32 _pad;
-};
-
-bool operator< (filesystem_timestamp lhs, filesystem_timestamp rhs);
-bool operator> (filesystem_timestamp lhs, filesystem_timestamp rhs);
-bool operator<=(filesystem_timestamp lhs, filesystem_timestamp rhs);
-bool operator>=(filesystem_timestamp lhs, filesystem_timestamp rhs);
-
-// based on statx
-struct filesystem_info {
-	u32 stx_mask;
-	u32 stx_blksize;
-	u64 stx_attributes;
-	u32 stx_nlink;
-	u32 stx_uid;
-	u32 stx_gid;
-	u16 stx_mode;
-	u16 _pad1;
-	u64 stx_ino;
-	u64 stx_size;
-	u64 stx_blocks;
-	u64 stx_attributes_mask;
-	filesystem_timestamp stx_atime; // access time
-    filesystem_timestamp stx_btime; // creation time
-    filesystem_timestamp stx_ctime; // status change time
-    filesystem_timestamp stx_mtime; // modification time
-	u32 stx_rdev_major;
-	u32 stx_rdev_minor;
-	u32 stx_dev_major;
-	u32 stx_dev_minor;
-	u64 _unused[14];
-};
-
-// STATX_BASIC_STATS | STATX_BTIME
-#define FS_QUERY_DEFAULT_FLAGS 0xfff
-
-enum class filesystem_type : u16
-{
-    Unknown         = 0,
-    File            = 0x8000,
-    Directory       = 0x4000,
-    Pipe            = 0x1000,
-    BlockDevice     = 0x6000,
-    CharacterFile   = 0x2000,
-    Socket          = 0xc000,
-    Symlink         = 0xa000
-};
-
-#endif
-
-enum class permission : u16
-{
-    UserRead        = 0400,
-    UserWrite       = 0200,
-    UserExecute     = 0100,
-    GroupRead       = 0040,
-    GroupWrite      = 0020,
-    GroupExecute    = 0010,
-    OtherRead       = 0004,
-    OtherWrite      = 0002,
-    OtherExecute    = 0001,
-
-    // Combined values
-    None            = 0000,
-    User            = 0700,
-    Group           = 0070,
-    Other           = 0007
-};
-
-enum_flag(permission);
-
-// this will either be const_string or const_wstring
-typedef const_string_base<fs::path_char_t> const_fs_string;
-
 struct path
 {
     typedef fs::path_char_t value_type;
@@ -134,6 +32,37 @@ struct path
 
     const value_type *c_str() const;
 };
+}
+
+
+fs::const_fs_string to_const_string(const fs::path_char_t *path);
+fs::const_fs_string to_const_string(const fs::path_char_t *path, u64 size);
+template<u64 N> fs::const_fs_string to_const_string(const fs::path_char_t path[N]) { return fs::const_fs_string{path, N}; }
+fs::const_fs_string to_const_string(const fs::path *path);
+fs::const_fs_string to_const_string(const fs::path &path);
+fs::const_fs_string to_const_string(fs::const_fs_string path);
+
+namespace fs
+{
+// this function returns a string that's always using the character
+// type for paths on the current system.
+// This will allocate memory if needs_conversion(C) is true, in which case
+// it needs to be freed by calling fs::free(&return value of this function).
+template<typename C>
+fs::platform_converted_string _get_platform_string(::const_string_base<C> str)
+{
+    if constexpr (needs_conversion(C))
+        return fs::convert_string(str);
+    else
+        return fs::converted_string<C>{const_cast<C*>(str.c_str), str.size};
+}
+
+template<typename T>
+auto get_platform_string(T str)
+    -> decltype(fs::_get_platform_string(::to_const_string(str)))
+{
+    return fs::_get_platform_string(::to_const_string(str));
+}
 
 void init(fs::path *path);
 void init(fs::path *path, const char    *str);
@@ -158,7 +87,20 @@ bool get_filesystem_info(const fs::path *pth, fs::filesystem_info *out, bool fol
 fs::filesystem_type get_filesystem_type(const fs::filesystem_info *info);
 
 // 0 = doesn't exist, 1 = exists, -1 = error
-int exists(const fs::path *pth, bool follow_symlinks = true, fs::fs_error *err = nullptr);
+int _exists(fs::const_fs_string pth, bool follow_symlinks, fs::fs_error *err);
+
+template<typename T>
+auto exists(T pth, bool follow_symlinks = true, fs::fs_error *err = nullptr)
+    -> decltype(fs::_exists(::to_const_string(fs::get_platform_string(pth)), follow_symlinks, err))
+{
+    auto pth_str = fs::get_platform_string(pth);
+    auto ret = _exists(::to_const_string(pth_str), follow_symlinks, err);
+
+    if constexpr (needs_conversion(T))
+        fs::free(&pth_str);
+
+    return ret;
+}
 
 bool is_file(const fs::filesystem_info *info);
 bool is_pipe(const fs::filesystem_info *info);
@@ -251,6 +193,7 @@ enum class copy_file_option
 
 bool copy_file(const fs::path *from, const fs::path *to, fs::copy_file_option opt = fs::copy_file_option::OverwriteExisting, fs::fs_error *err = nullptr);
 // TODO: add copy_directory
+// TODO: add copy
 // bool copy_directory(const fs::path *from, const fs::path *to, fs::copy_file_option opt = fs::copy_file_option::OverwriteExisting, fs::fs_error *err = nullptr);
 
 // does not create parents
@@ -260,10 +203,14 @@ bool create_directories(const fs::path *pth, fs::permission perms = fs::permissi
 
 bool create_hard_link(const fs::path *target, const fs::path *link, fs::fs_error *err = nullptr);
 bool create_symlink(const fs::path *target, const fs::path *link, fs::fs_error *err = nullptr);
+
+bool _move(fs::const_fs_string src, fs::const_fs_string dest, fs::fs_error *err = nullptr);
+bool move(const fs::path *src, const fs::path *dest, fs::fs_error *err = nullptr);
 /*
 void move(const fs::path *from, const fs::path *to);
+bool remove_file(const fs::path *pth);
+bool remove_directory(const fs::path *pth);
 bool remove(const fs::path *pth);
-bool remove_all(const fs::path *pth);
 
 ////////////////////////
 // getting special paths
@@ -286,5 +233,3 @@ void get_temporary_path(fs::path *out);
 fs::path operator ""_path(const char    *, u64);
 fs::path operator ""_path(const wchar_t *, u64);
 
-fs::const_fs_string to_const_string(const fs::path *path);
-fs::const_fs_string to_const_string(const fs::path &path);

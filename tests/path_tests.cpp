@@ -125,6 +125,11 @@ define_test(exists_returns_true_if_file_exists)
 
     assert_equal(fs::exists(&p), 1);
 
+    // testing other inputs
+    assert_equal(fs::exists(SANDBOX_TEST_FILE), 1);
+    assert_equal(fs::exists("/tmp/sandbox/file"), 1);
+    assert_equal(fs::exists(L"/tmp/sandbox/file"), 1);
+
     fs::free(&p);
 }
 
@@ -946,6 +951,12 @@ define_test(concat_concats_to_path)
     assert_equal(p.size, 10);
     assert_equal_str(p, "/etcpasswd");
 
+    // wide paths will get converted
+    fs::set_path(&p, "/etc");
+    fs::concat_path(&p, L"passwd");
+    assert_equal(p.size, 10);
+    assert_equal_str(p, "/etcpasswd");
+
     fs::free(&p);
 }
 
@@ -1219,6 +1230,20 @@ define_test(create_hard_link_creates_hard_link)
     assert_equal(err.error_code, ENOENT);
 #endif
 
+    // cannot create hard link to a directory
+    fs::set_path(&target, SANDBOX_TEST_DIR);
+    fs::set_path(&link,   SANDBOX_DIR "/_hardlink3");
+
+    assert_equal(fs::exists(&link), false); 
+    assert_equal(fs::create_hard_link(&target, &link, &err), false); 
+    assert_equal(fs::exists(&link), false); 
+
+#if Windows
+    // TODO: check error
+#else
+    assert_equal(err.error_code, EPERM);
+#endif
+
     fs::free(&target);
     fs::free(&link);
 }
@@ -1256,8 +1281,58 @@ define_test(create_symlink_creates_symlink)
     assert_equal(fs::exists(&link), false); 
     assert_equal(fs::exists(&link, false), true); 
 
+    // works on directories
+    fs::set_path(&target, SANDBOX_TEST_DIR);
+    fs::set_path(&link,   SANDBOX_DIR "/_symlink3");
+
+    assert_equal(fs::exists(&link), false); 
+    assert_equal(fs::create_symlink(&target, &link), true); 
+    assert_equal(fs::exists(&link), true); 
+
+    assert_equal(fs::are_equivalent(&target, &link), true);
+    assert_equal(fs::are_equivalent(&target, &link, false), false);
+
     fs::free(&target);
     fs::free(&link);
+}
+
+define_test(move_moves_files_and_directories)
+{
+    fs::path orig{};
+    fs::path src{};
+    fs::path dst{};
+    fs::fs_error err{};
+
+    fs::set_path(&orig, SANDBOX_TEST_FILE);
+    fs::set_path(&src, SANDBOX_DIR "/_move1");
+    fs::set_path(&dst, SANDBOX_DIR "/_move2");
+
+    fs::copy_file(&orig, &src);
+
+    assert_equal(fs::exists(&src), true); 
+    assert_equal(fs::exists(&dst), false); 
+    assert_equal(fs::move(&src, &dst), true); 
+    assert_equal(fs::exists(&src), false); 
+    assert_equal(fs::exists(&dst), true); 
+
+    fs::copy_file(&orig, &src);
+
+    // overwrites existing files
+    assert_equal(fs::exists(&src), true); 
+    assert_equal(fs::exists(&dst), true); 
+    assert_equal(fs::move(&src, &dst), true); 
+    assert_equal(fs::exists(&src), false); 
+    assert_equal(fs::exists(&dst), true); 
+
+    // can move directories
+    /*
+    fs::set_path(&src_dir, SANDBOX_DIR "/_movedir1");
+    fs::set_path(&dst_dir, SANDBOX_DIR "/_movedir2");
+    */
+
+    fs::free(&orig);
+    fs::free(&src);
+    fs::free(&dst);
 }
 
 #if 0
