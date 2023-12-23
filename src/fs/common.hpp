@@ -15,6 +15,7 @@ constexpr const path_char_t path_separator = L'\\';
 
 struct filesystem_info {}; // TODO: define
 #define FS_QUERY_DEFAULT_FLAGS 0
+#define FS_QUERY_TYPE          0
 
 enum class filesystem_type
 {
@@ -71,6 +72,7 @@ struct filesystem_info
 
 // STATX_BASIC_STATS | STATX_BTIME
 #define FS_QUERY_DEFAULT_FLAGS 0xfff
+#define FS_QUERY_TYPE          0x001 // STATX_TYPE
 
 enum class filesystem_type : u16
 {

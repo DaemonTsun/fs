@@ -13,6 +13,7 @@ fs::path.
 
 #include "shl/hash.hpp"
 #include "shl/platform.hpp"
+#include "shl/type_functions.hpp"
 
 #include "fs/common.hpp"
 #include "fs/convert.hpp"
@@ -33,7 +34,6 @@ struct path
     const value_type *c_str() const;
 };
 }
-
 
 fs::const_fs_string to_const_string(const fs::path_char_t *path);
 fs::const_fs_string to_const_string(const fs::path_char_t *path, u64 size);
@@ -64,6 +64,59 @@ auto get_platform_string(T str)
     return fs::_get_platform_string(::to_const_string(str));
 }
 
+#define define_fs_conversion_body(Func, Pth, ...)                                                       \
+-> decltype(Func(::to_const_string(fs::get_platform_string(Pth)) __VA_OPT__(,) __VA_ARGS__))            \
+{                                                                                                       \
+    auto pth_str = fs::get_platform_string(Pth);                                                        \
+                                                                                                        \
+    if constexpr (is_same(void, decltype(Func(::to_const_string(pth_str) __VA_OPT__(,) __VA_ARGS__))))  \
+    {                                                                                                   \
+        Func(::to_const_string(pth_str) __VA_OPT__(,) __VA_ARGS__);                                     \
+                                                                                                        \
+        if constexpr (needs_conversion(T))                                                              \
+            fs::free(&pth_str);                                                                         \
+    }                                                                                                   \
+    else                                                                                                \
+    {                                                                                                   \
+        auto ret = Func(::to_const_string(pth_str) __VA_OPT__(,) __VA_ARGS__);                          \
+                                                                                                        \
+        if constexpr (needs_conversion(T))                                                              \
+            fs::free(&pth_str);                                                                         \
+                                                                                                        \
+        return ret;                                                                                     \
+    }                                                                                                   \
+}
+
+#define define_fs_conversion_body2(Func, Pth1, Pth2, ...)                                                                                       \
+-> decltype(Func(::to_const_string(fs::get_platform_string(Pth1)), ::to_const_string(fs::get_platform_string(Pth2)) __VA_OPT__(,) __VA_ARGS__)) \
+{                                                                                                                                               \
+    auto pth_str1 = fs::get_platform_string(Pth1);                                                                                              \
+    auto pth_str2 = fs::get_platform_string(Pth2);                                                                                              \
+                                                                                                                                                \
+    if constexpr (is_same(void, decltype(Func(::to_const_string(pth_str1), ::to_const_string(pth_str2) __VA_OPT__(,) __VA_ARGS__))))            \
+    {                                                                                                                                           \
+        Func(::to_const_string(pth_str1), ::to_const_string(pth_str2) __VA_OPT__(,) __VA_ARGS__);                                               \
+                                                                                                                                                \
+        if constexpr (needs_conversion(T1))                                                                                                     \
+            fs::free(&pth_str1);                                                                                                                \
+                                                                                                                                                \
+        if constexpr (needs_conversion(T2))                                                                                                     \
+            fs::free(&pth_str2);                                                                                                                \
+    }                                                                                                                                           \
+    else                                                                                                                                        \
+    {                                                                                                                                           \
+        auto ret = Func(::to_const_string(pth_str1), ::to_const_string(pth_str2) __VA_OPT__(,) __VA_ARGS__);                                    \
+                                                                                                                                                \
+        if constexpr (needs_conversion(T1))                                                                                                     \
+            fs::free(&pth_str1);                                                                                                                \
+                                                                                                                                                \
+        if constexpr (needs_conversion(T2))                                                                                                     \
+            fs::free(&pth_str2);                                                                                                                \
+                                                                                                                                                \
+        return ret;                                                                                                                             \
+    }                                                                                                                                           \
+}
+
 void init(fs::path *path);
 void init(fs::path *path, const char    *str);
 void init(fs::path *path, const wchar_t *str);
@@ -83,51 +136,71 @@ bool operator==(const fs::path &lhs, const fs::path &rhs);
 
 hash_t hash(const fs::path *pth);
 
-bool get_filesystem_info(const fs::path *pth, fs::filesystem_info *out, bool follow_symlinks = true, int flags = FS_QUERY_DEFAULT_FLAGS, fs::fs_error *err = nullptr);
+bool _get_filesystem_info(fs::const_fs_string pth, fs::filesystem_info *out, bool follow_symlinks, int flags, fs::fs_error *err);
+
+// type T is anything that can be converted to fs::const_fs_string
+template<typename T>
+auto get_filesystem_info(T pth, fs::filesystem_info *out, bool follow_symlinks = true, int flags = FS_QUERY_DEFAULT_FLAGS, fs::fs_error *err = nullptr)
+    define_fs_conversion_body(fs::_get_filesystem_info, pth, out, follow_symlinks, flags, err)
+
 fs::filesystem_type get_filesystem_type(const fs::filesystem_info *info);
 
 // 0 = doesn't exist, 1 = exists, -1 = error
 int _exists(fs::const_fs_string pth, bool follow_symlinks, fs::fs_error *err);
 
+// type T is anything that can be converted to fs::const_fs_string
 template<typename T>
 auto exists(T pth, bool follow_symlinks = true, fs::fs_error *err = nullptr)
-    -> decltype(fs::_exists(::to_const_string(fs::get_platform_string(pth)), follow_symlinks, err))
-{
-    auto pth_str = fs::get_platform_string(pth);
-    auto ret = _exists(::to_const_string(pth_str), follow_symlinks, err);
+    define_fs_conversion_body(fs::_exists, pth, follow_symlinks, err)
 
-    if constexpr (needs_conversion(T))
-        fs::free(&pth_str);
+bool is_file_info(const fs::filesystem_info *info);
+bool is_pipe_info(const fs::filesystem_info *info);
+bool is_block_device_info(const fs::filesystem_info *info);
+bool is_special_character_file_info(const fs::filesystem_info *info);
+bool is_socket_info(const fs::filesystem_info *info);
+bool is_symlink_info(const fs::filesystem_info *info);
+bool is_directory_info(const fs::filesystem_info *info);
+bool is_other_info(const fs::filesystem_info *info);
 
-    return ret;
+#define define_path_is_type_body(InfoFunc, Pth)\
+    -> decltype(fs::get_filesystem_info(Pth, (fs::filesystem_info*)nullptr, follow_symlinks, FS_QUERY_TYPE, err))\
+{\
+    fs::filesystem_info info{};\
+\
+    if (!fs::get_filesystem_info(Pth, &info, follow_symlinks, FS_QUERY_TYPE, err))\
+        return false;\
+\
+    return InfoFunc(&info);\
 }
 
-bool is_file(const fs::filesystem_info *info);
-bool is_pipe(const fs::filesystem_info *info);
-bool is_block_device(const fs::filesystem_info *info);
-bool is_special_character_file(const fs::filesystem_info *info);
-bool is_socket(const fs::filesystem_info *info);
-bool is_symlink(const fs::filesystem_info *info);
-bool is_directory(const fs::filesystem_info *info);
-bool is_other(const fs::filesystem_info *info);
-
-// TODO: const char, const_string overloads
-bool is_file(const fs::path *pth, bool follow_symlinks = true, fs::fs_error *err = nullptr);
-bool is_pipe(const fs::path *pth, bool follow_symlinks = true, fs::fs_error *err = nullptr);
-bool is_block_device(const fs::path *pth, bool follow_symlinks = true, fs::fs_error *err = nullptr);
-bool is_special_character_file(const fs::path *pth, bool follow_symlinks = true, fs::fs_error *err = nullptr);
-bool is_socket(const fs::path *pth, bool follow_symlinks = true, fs::fs_error *err = nullptr);
+// T is anything that can be passed to get_filesystem_info, i.e. strings and paths
+template<typename T> auto is_file(T pth, bool follow_symlinks = true, fs::fs_error *err = nullptr) define_path_is_type_body(fs::is_file_info, pth)
+template<typename T> auto is_pipe(T pth, bool follow_symlinks = true, fs::fs_error *err = nullptr) define_path_is_type_body(fs::is_pipe_info, pth)
+template<typename T> auto is_block_device(T pth, bool follow_symlinks = true, fs::fs_error *err = nullptr) define_path_is_type_body(fs::is_block_device_info, pth)
+template<typename T> auto is_special_character_file(T pth, bool follow_symlinks = true, fs::fs_error *err = nullptr) define_path_is_type_body(fs::is_special_character_file_info, pth)
+template<typename T> auto is_socket(T pth, bool follow_symlinks = true, fs::fs_error *err = nullptr) define_path_is_type_body(fs::is_socket_info, pth)
 // is_symlink has follow_symlinks = false for obvious reasons
-bool is_symlink(const fs::path *pth, bool follow_symlinks = false, fs::fs_error *err = nullptr);
-bool is_directory(const fs::path *pth, bool follow_symlinks = true, fs::fs_error *err = nullptr);
-bool is_other(const fs::path *pth, bool follow_symlinks = true, fs::fs_error *err = nullptr);
+template<typename T> auto is_symlink(T pth, bool follow_symlinks = false, fs::fs_error *err = nullptr) define_path_is_type_body(fs::is_symlink_info, pth)
+template<typename T> auto is_directory(T pth, bool follow_symlinks = true, fs::fs_error *err = nullptr) define_path_is_type_body(fs::is_directory_info, pth)
+template<typename T> auto is_other(T pth, bool follow_symlinks = true, fs::fs_error *err = nullptr) define_path_is_type_body(fs::is_other_info, pth)
 
-// TODO: const char, const_string overloads
-bool is_absolute(const fs::path *pth, fs::fs_error *err = nullptr);
-bool is_relative(const fs::path *pth, fs::fs_error *err = nullptr);
-// TODO: const char, const_string, filesystem_info overloads
-bool are_equivalent(const fs::path *pth1, const fs::path *pth2, bool follow_symlinks = true, fs::fs_error *err = nullptr);
+bool _is_absolute(fs::const_fs_string pth, fs::fs_error *err);
+bool _is_relative(fs::const_fs_string pth, fs::fs_error *err);
 
+template<typename T> auto is_absolute(T pth, fs::fs_error *err = nullptr) define_fs_conversion_body(fs::_is_absolute, pth, err)
+template<typename T> auto is_relative(T pth, fs::fs_error *err = nullptr) define_fs_conversion_body(fs::_is_relative, pth, err)
+
+bool are_equivalent_infos(const fs::filesystem_info *info1, const fs::filesystem_info *info2);
+
+bool _are_equivalent(fs::const_fs_string pth1, fs::const_fs_string pth2, bool follow_symlinks = true, fs::fs_error *err = nullptr);
+
+// type T1 and T2 are anything that can be converted to fs::const_fs_string,
+// but do not have to be the same type.
+template<typename T1, typename T2>
+auto are_equivalent(T1 pth1, T2 pth2, bool follow_symlinks = true, fs::fs_error *err = nullptr)
+    define_fs_conversion_body2(fs::_are_equivalent, pth1, pth2, follow_symlinks, err)
+
+fs::const_fs_string filename(fs::const_fs_string pth);
 fs::const_fs_string filename(const fs::path *pth);
 
 // this differs from std::filesystem::path::extension:
@@ -137,30 +210,47 @@ fs::const_fs_string filename(const fs::path *pth);
 //
 // . and .. are treated the same as std::filesystem::path::extension:
 // file_extension will return empty strings (not nullptr) in these cases.
+fs::const_fs_string file_extension(fs::const_fs_string pth);
 fs::const_fs_string file_extension(const fs::path *pth);
+fs::const_fs_string parent_path_segment(fs::const_fs_string pth);
 fs::const_fs_string parent_path_segment(const fs::path *pth);
+fs::const_fs_string root(fs::const_fs_string pth);
 fs::const_fs_string root(const fs::path *pth);
 
+void path_segments(fs::const_fs_string pth, array<fs::const_fs_string> *out);
 void path_segments(const fs::path *pth, array<fs::const_fs_string> *out);
 
-fs::path parent_path(const fs::path *pth);
-void parent_path(const fs::path *pth, fs::path *out);
-fs::path longest_existing_path(const fs::path *pth);
-void longest_existing_path(const fs::path *pth, fs::path *out);
+fs::path _parent_path(fs::const_fs_string pth);
+void     _parent_path(fs::const_fs_string pth, fs::path *out);
+template<typename T> auto parent_path(T pth) define_fs_conversion_body(fs::_parent_path, pth)
+template<typename T> auto parent_path(T pth, fs::path *out) define_fs_conversion_body(fs::_parent_path, pth, out)
+
+fs::path _longest_existing_path(fs::const_fs_string pth);
+void     _longest_existing_path(fs::const_fs_string pth, fs::path *out);
+template<typename T> auto longest_existing_path(T pth) define_fs_conversion_body(fs::_longest_existing_path, pth)
+template<typename T> auto longest_existing_path(T pth, fs::path *out) define_fs_conversion_body(fs::_longest_existing_path, pth, out)
 
 void normalize(fs::path *pth);
 
-fs::path absolute_path(const fs::path *pth, fs::fs_error *err = nullptr);
-bool absolute_path(const fs::path *pth, fs::path *out, fs::fs_error *err = nullptr);
+fs::path _absolute_path(fs::const_fs_string pth, fs::fs_error *err);
+bool     _absolute_path(fs::const_fs_string pth, fs::path *out, fs::fs_error *err);
+template<typename T> auto absolute_path(T pth, fs::fs_error *err = nullptr) define_fs_conversion_body(fs::_absolute_path, pth, err);
+template<typename T> auto absolute_path(T pth, fs::path *out, fs::fs_error *err = nullptr) define_fs_conversion_body(fs::_absolute_path, pth, out, err);
 
-fs::path canonical_path(const fs::path *pth, fs::fs_error *err = nullptr);
-bool canonical_path(const fs::path *pth, fs::path *out, fs::fs_error *err = nullptr);
+fs::path _canonical_path(fs::const_fs_string pth, fs::fs_error *err);
+bool     _canonical_path(fs::const_fs_string pth, fs::path *out, fs::fs_error *err);
+template<typename T> auto canonical_path(T pth, fs::fs_error *err = nullptr) define_fs_conversion_body(fs::_canonical_path, pth, err);
+template<typename T> auto canonical_path(T pth, fs::path *out, fs::fs_error *err = nullptr) define_fs_conversion_body(fs::_canonical_path, pth, out, err);
 
-fs::path weakly_canonical_path(const fs::path *pth, fs::fs_error *err = nullptr);
-bool weakly_canonical_path(const fs::path *pth, fs::path *out, fs::fs_error *err = nullptr);
+fs::path _weakly_canonical_path(fs::const_fs_string pth, fs::fs_error *err);
+bool     _weakly_canonical_path(fs::const_fs_string pth, fs::path *out, fs::fs_error *err);
+template<typename T> auto weakly_canonical_path(T pth, fs::fs_error *err = nullptr) define_fs_conversion_body(fs::_weakly_canonical_path, pth, err);
+template<typename T> auto weakly_canonical_path(T pth, fs::path *out, fs::fs_error *err = nullptr) define_fs_conversion_body(fs::_weakly_canonical_path, pth, out, err);
 
 bool get_current_path(fs::path *out, fs::fs_error *err = nullptr);
-bool set_current_path(const fs::path *pth, fs::fs_error *err = nullptr);
+
+bool _set_current_path(fs::const_fs_string pth, fs::fs_error *err);
+template<typename T> auto set_current_path(T pth, fs::fs_error *err = nullptr) define_fs_conversion_body(fs::_set_current_path, pth, err)
 
 // out = pth / seg
 void append_path(fs::path *out, const char    *seg);
@@ -177,9 +267,16 @@ void concat_path(fs::path *out, const_string   seg);
 void concat_path(fs::path *out, const_wstring  seg);
 void concat_path(fs::path *out, const fs::path *to_concat);
 
-void relative_path(const fs::path *from, const fs::path *to, fs::path *out);
+void _relative_path(fs::const_fs_string from, fs::const_fs_string to, fs::path *out);
 
-bool touch(const fs::path *pth, fs::permission perms = fs::permission::User, fs::fs_error *err = nullptr);
+template<typename T1, typename T2>
+auto relative_path(T1 from_path, T2 to_path, fs::path *out)
+    define_fs_conversion_body2(fs::_relative_path, from_path, to_path, out)
+
+// modification operations
+
+bool _touch(fs::const_fs_string pth, fs::permission perms, fs::fs_error *err);
+template<typename T> auto touch(T pth, fs::permission perms = fs::permission::User, fs::fs_error *err = nullptr) define_fs_conversion_body(fs::_touch, pth, perms, err)
 
 enum class copy_file_option
 {
@@ -191,23 +288,40 @@ enum class copy_file_option
     SkipExisting        // skips any existing destination files.
 };
 
-bool copy_file(const fs::path *from, const fs::path *to, fs::copy_file_option opt = fs::copy_file_option::OverwriteExisting, fs::fs_error *err = nullptr);
+bool _copy_file(fs::const_fs_string from, fs::const_fs_string to, fs::copy_file_option opt, fs::fs_error *err);
+
+template<typename T1, typename T2>
+auto copy_file(T1 from, T2 to, fs::copy_file_option opt = fs::copy_file_option::OverwriteExisting, fs::fs_error *err = nullptr)
+    define_fs_conversion_body2(fs::_copy_file, from, to, opt, err)
+
 // TODO: add copy_directory
 // TODO: add copy
 // bool copy_directory(const fs::path *from, const fs::path *to, fs::copy_file_option opt = fs::copy_file_option::OverwriteExisting, fs::fs_error *err = nullptr);
 
 // does not create parents
-bool create_directory(const fs::path *pth, fs::permission perms = fs::permission::User, fs::fs_error *err = nullptr);
-// creates parents as well
-bool create_directories(const fs::path *pth, fs::permission perms = fs::permission::User, fs::fs_error *err = nullptr);
+bool _create_directory(fs::const_fs_string pth, fs::permission perms, fs::fs_error *err);
 
-bool create_hard_link(const fs::path *target, const fs::path *link, fs::fs_error *err = nullptr);
-bool create_symlink(const fs::path *target, const fs::path *link, fs::fs_error *err = nullptr);
+template<typename T>
+auto create_directory(T pth, fs::permission perms = fs::permission::User, fs::fs_error *err = nullptr)
+    define_fs_conversion_body(fs::_create_directory, pth, perms, err)
+
+// creates parents as well
+bool _create_directories(fs::const_fs_string pth, fs::permission perms, fs::fs_error *err);
+
+template<typename T>
+auto create_directories(T pth, fs::permission perms = fs::permission::User, fs::fs_error *err = nullptr)
+    define_fs_conversion_body(fs::_create_directories, pth, perms, err)
+
+bool _create_hard_link(const_fs_string target, const_fs_string link, fs::fs_error *err);
+template<typename T1, typename T2> auto create_hard_link(T1 target, T2 link, fs::fs_error *err = nullptr) define_fs_conversion_body2(fs::_create_hard_link, target, link, err)
+
+bool _create_symlink(const_fs_string target, const_fs_string link, fs::fs_error *err);
+template<typename T1, typename T2> auto create_symlink(T1 target, T2 link, fs::fs_error *err = nullptr) define_fs_conversion_body2(fs::_create_symlink, target, link, err)
 
 bool _move(fs::const_fs_string src, fs::const_fs_string dest, fs::fs_error *err = nullptr);
-bool move(const fs::path *src, const fs::path *dest, fs::fs_error *err = nullptr);
+template<typename T1, typename T2> auto move(T1 src, T2 dest, fs::fs_error *err = nullptr) define_fs_conversion_body2(fs::_move, src, dest, err)
+
 /*
-void move(const fs::path *from, const fs::path *to);
 bool remove_file(const fs::path *pth);
 bool remove_directory(const fs::path *pth);
 bool remove(const fs::path *pth);

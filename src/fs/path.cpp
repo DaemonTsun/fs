@@ -106,6 +106,34 @@ inline bool _is_dot_dot_filename(fs::const_fs_string str)
         && str.c_str[1] == PC_DOT;
 }
 
+fs::const_fs_string to_const_string(const fs::path_char_t *path)
+{
+    assert(path != nullptr);
+    return fs::const_fs_string{path, string_length(path)};
+}
+
+fs::const_fs_string to_const_string(const fs::path_char_t *path, u64 size)
+{
+    assert(path != nullptr);
+    return fs::const_fs_string{path, size};
+}
+
+fs::const_fs_string to_const_string(const fs::path *path)
+{
+    assert(path != nullptr);
+    return fs::const_fs_string{path->data, path->size};
+}
+
+fs::const_fs_string to_const_string(const fs::path &path)
+{
+    return fs::const_fs_string{path.data, path.size};
+}
+
+fs::const_fs_string to_const_string(fs::const_fs_string path)
+{
+    return path;
+}
+
 // path functions
 
 fs::path::operator const fs::path_char_t* () const
@@ -246,9 +274,8 @@ hash_t fs::hash(const fs::path *pth)
     return hash_data(pth->data, pth->size * sizeof(fs::path_char_t));
 }
 
-bool fs::get_filesystem_info(const fs::path *pth, fs::filesystem_info *out, bool follow_symlinks, int flags, fs::fs_error *err)
+bool fs::_get_filesystem_info(fs::const_fs_string pth, fs::filesystem_info *out, bool follow_symlinks, int flags, fs::fs_error *err)
 {
-    assert(pth != nullptr);
     assert(out != nullptr);
 
 #if Windows
@@ -260,7 +287,7 @@ bool fs::get_filesystem_info(const fs::path *pth, fs::filesystem_info *out, bool
     if (!follow_symlinks)
         statx_flags |= AT_SYMLINK_NOFOLLOW;
 
-    if (::statx(AT_FDCWD, pth->data, statx_flags, flags /* mask */, (struct statx*)out) == 0)
+    if (::statx(AT_FDCWD, pth.c_str, statx_flags, flags /* mask */, (struct statx*)out) == 0)
         return true;
     
     set_fs_errno_error(err);
@@ -306,7 +333,7 @@ fs::filesystem_type get_filesystem_type(const fs::filesystem_info *info)
     return fs::filesystem_type::Unknown;
 }
 
-bool fs::is_file(const fs::filesystem_info *info)
+bool fs::is_file_info(const fs::filesystem_info *info)
 {
     assert(info != nullptr);
 
@@ -319,7 +346,7 @@ bool fs::is_file(const fs::filesystem_info *info)
 #endif
 }
 
-bool fs::is_pipe(const fs::filesystem_info *info)
+bool fs::is_pipe_info(const fs::filesystem_info *info)
 {
     assert(info != nullptr);
 
@@ -331,7 +358,7 @@ bool fs::is_pipe(const fs::filesystem_info *info)
 #endif
 }
 
-bool fs::is_block_device(const fs::filesystem_info *info)
+bool fs::is_block_device_info(const fs::filesystem_info *info)
 {
     assert(info != nullptr);
 
@@ -343,7 +370,7 @@ bool fs::is_block_device(const fs::filesystem_info *info)
 #endif
 }
 
-bool fs::is_special_character_file(const fs::filesystem_info *info)
+bool fs::is_special_character_file_info(const fs::filesystem_info *info)
 {
     assert(info != nullptr);
 
@@ -355,7 +382,7 @@ bool fs::is_special_character_file(const fs::filesystem_info *info)
 #endif
 }
 
-bool fs::is_socket(const fs::filesystem_info *info)
+bool fs::is_socket_info(const fs::filesystem_info *info)
 {
     assert(info != nullptr);
 
@@ -367,7 +394,7 @@ bool fs::is_socket(const fs::filesystem_info *info)
 #endif
 }
 
-bool fs::is_symlink(const fs::filesystem_info *info)
+bool fs::is_symlink_info(const fs::filesystem_info *info)
 {
     assert(info != nullptr);
 
@@ -380,7 +407,7 @@ bool fs::is_symlink(const fs::filesystem_info *info)
 #endif
 }
 
-bool fs::is_directory(const fs::filesystem_info *info)
+bool fs::is_directory_info(const fs::filesystem_info *info)
 {
     assert(info != nullptr);
 
@@ -393,7 +420,7 @@ bool fs::is_directory(const fs::filesystem_info *info)
 #endif
 }
 
-bool fs::is_other(const fs::filesystem_info *info)
+bool fs::is_other_info(const fs::filesystem_info *info)
 {
     assert(info != nullptr);
 
@@ -407,51 +434,40 @@ bool fs::is_other(const fs::filesystem_info *info)
 #endif
 }
 
-#define define_is_fs_type(FUNC)\
-bool fs::FUNC(const fs::path *pth, bool follow_symlinks, fs::fs_error *err)\
-{\
-    assert(pth != nullptr);\
-    fs::filesystem_info info;\
-\
-    if (!fs::get_filesystem_info(pth, &info, follow_symlinks, STATX_TYPE, err))\
-        return false;\
-\
-    return fs::FUNC(&info);\
-}
-
-define_is_fs_type(is_file)
-define_is_fs_type(is_pipe)
-define_is_fs_type(is_block_device)
-define_is_fs_type(is_socket)
-define_is_fs_type(is_symlink)
-define_is_fs_type(is_directory)
-define_is_fs_type(is_other)
-
-
-bool fs::is_absolute(const fs::path *pth, fs::fs_error *err)
+bool fs::_is_absolute(fs::const_fs_string pth, fs::fs_error *err)
 {
-    assert(pth != nullptr);
-
     // for relative or invalid paths, root is empty string
     auto rt = fs::root(pth);
 
     return rt.size > 0;
 }
 
-bool fs::is_relative(const fs::path *pth, fs::fs_error *err)
+bool fs::_is_relative(fs::const_fs_string pth, fs::fs_error *err)
 {
-    return !fs::is_absolute(pth, err);
+    return !fs::_is_absolute(pth, err);
 }
 
-bool fs::are_equivalent(const fs::path *pth1, const fs::path *pth2, bool follow_symlinks, fs::fs_error *err)
+bool fs::are_equivalent_infos(const fs::filesystem_info *info1, const fs::filesystem_info *info2)
 {
-    assert(pth1 != nullptr);
-    assert(pth2 != nullptr);
+    assert(info1 != nullptr);
+    assert(info2 != nullptr);
 
-    if (pth1 == pth2)
+    if (info1 == info2)
         return true;
 
-    if (::compare_strings(as_string_ptr(pth1), as_string_ptr(pth2)) == 0)
+#if Windows
+    // TODO: implement
+    return false;
+#else
+    return (info1->stx_ino       == info2->stx_ino)
+        && (info1->stx_dev_major == info2->stx_dev_major)
+        && (info1->stx_dev_minor == info2->stx_dev_minor);
+#endif
+}
+
+bool fs::_are_equivalent(fs::const_fs_string pth1, fs::const_fs_string pth2, bool follow_symlinks, fs::fs_error *err)
+{
+    if (pth1 == pth2)
         return true;
 
     fs::filesystem_info info1;
@@ -486,21 +502,12 @@ bool fs::are_equivalent(const fs::path *pth1, const fs::path *pth2, bool follow_
         return false;
     }
 
-#if Windows
-    // TODO: implement
-    return false;
-#else
-    return (info1.stx_ino == info2.stx_ino)
-        && (info1.stx_dev_major == info2.stx_dev_major)
-        && (info1.stx_dev_minor == info2.stx_dev_minor);
-#endif
+    return fs::are_equivalent_infos(&info1, &info2);
 }
 
-fs::const_fs_string fs::filename(const fs::path *pth)
+fs::const_fs_string fs::filename(fs::const_fs_string pth)
 {
-    assert(pth != nullptr);
-
-    const fs::path_char_t *cstr = pth->data;
+    const fs::path_char_t *cstr = pth.c_str;
     const fs::path_char_t *found;
 
     found = ::strrchr(cstr, fs::path_separator);
@@ -510,13 +517,18 @@ fs::const_fs_string fs::filename(const fs::path *pth)
     else
         found++;
 
-    return fs::const_fs_string{found, (u64)((pth->data + pth->size) - found)};
+    return fs::const_fs_string{found, (u64)((pth.c_str + pth.size) - found)};
 }
 
-fs::const_fs_string fs::file_extension(const fs::path *pth)
+fs::const_fs_string fs::filename(const fs::path *pth)
 {
     assert(pth != nullptr);
 
+    return fs::filename(to_const_string(pth));
+}
+
+fs::const_fs_string fs::file_extension(fs::const_fs_string pth)
+{
     auto fname = fs::filename(pth);
 
     // to conform to std::filesystem, simply check if first character
@@ -533,50 +545,66 @@ fs::const_fs_string fs::file_extension(const fs::path *pth)
     if (found == nullptr)
         return empty_fs_string;
 
-    return fs::const_fs_string{found, (u64)((pth->data + pth->size) - found)};
+    return fs::const_fs_string{found, (u64)((pth.c_str + pth.size) - found)};
+}
+
+fs::const_fs_string fs::file_extension(const fs::path *pth)
+{
+    assert(pth != nullptr);
+
+    return fs::file_extension(to_const_string(pth));
+}
+
+fs::const_fs_string fs::parent_path_segment(fs::const_fs_string pth)
+{
+    const fs::path_char_t *last_sep = ::strrchr(pth.c_str, fs::path_separator);
+
+    if (last_sep == nullptr)
+        return empty_fs_string;
+
+    const fs::path_char_t *first_sep = ::strchr(pth.c_str, fs::path_separator);
+
+#if Windows
+    // TODO: implement check for root
+#else
+    if (first_sep == last_sep
+     && first_sep == pth.c_str)
+        return fs::const_fs_string{pth.c_str, 1};
+#endif
+
+    return fs::const_fs_string{pth.c_str, (u64)(last_sep - pth.c_str)};
 }
 
 fs::const_fs_string fs::parent_path_segment(const fs::path *pth)
 {
     assert(pth != nullptr);
 
-    const fs::path_char_t *last_sep = ::strrchr(pth->data, fs::path_separator);
+    return fs::parent_path_segment(to_const_string(pth));
+}
 
-    if (last_sep == nullptr)
+fs::const_fs_string fs::root(fs::const_fs_string pth)
+{
+#if Windows
+    // TODO: implement, check for unc, check for long unc (\\?\..., \\?\UNC\...)
+
+    return empty_fs_string;
+#else
+    if (pth.size == 0 || pth.c_str[0] != fs::path_separator)
         return empty_fs_string;
 
-    const fs::path_char_t *first_sep = ::strchr(pth->data, fs::path_separator);
-
-#if Windows
-    // TODO: implement check for root
-#else
-    if (first_sep == last_sep
-     && first_sep == pth->data)
-        return fs::const_fs_string{pth->data, 1};
+    return fs::const_fs_string{pth.c_str, 1};
 #endif
-
-    return fs::const_fs_string{pth->data, (u64)(last_sep - pth->data)};
 }
 
 fs::const_fs_string fs::root(const fs::path *pth)
 {
     assert(pth != nullptr);
 
-#if Windows
-    // TODO: implement, check for unc, check for long unc (\\?\..., \\?\UNC\...)
-
-    return empty_fs_string;
-#else
-    if (pth->size == 0 || pth->data[0] != fs::path_separator)
-        return empty_fs_string;
-
-    return fs::const_fs_string{pth->data, 1};
-#endif
+    return fs::root(to_const_string(pth));
 }
 
-void fs::path_segments(const fs::path *pth, array<fs::const_fs_string> *out)
+void fs::path_segments(fs::const_fs_string pth, array<fs::const_fs_string> *out)
 {
-    assert(pth != nullptr);
     assert(out != nullptr);
 
     ::clear(out);
@@ -589,9 +617,9 @@ void fs::path_segments(const fs::path *pth, array<fs::const_fs_string> *out)
     u64 start = seg.size;
     u64 i = start;
 
-    while (i < pth->size)
+    while (i < pth.size)
     {
-        if (pth->data[i] != fs::path_separator)
+        if (pth.c_str[i] != fs::path_separator)
         {
             i += 1;
             continue;
@@ -604,7 +632,7 @@ void fs::path_segments(const fs::path *pth, array<fs::const_fs_string> *out)
             continue;
         }
 
-        seg.c_str = pth->data + start;
+        seg.c_str = pth.c_str + start;
         seg.size = i - start;
 
         ::add_at_end(out, seg);
@@ -616,42 +644,46 @@ void fs::path_segments(const fs::path *pth, array<fs::const_fs_string> *out)
     if (start == i)
         return;
 
-    seg.c_str = pth->data + start;
+    seg.c_str = pth.c_str + start;
     seg.size = i - start;
 
     ::add_at_end(out, seg);
 }
 
-fs::path fs::parent_path(const fs::path *pth)
+void fs::path_segments(const fs::path *pth, array<fs::const_fs_string> *out)
 {
     assert(pth != nullptr);
+    assert(out != nullptr);
 
+    fs::path_segments(to_const_string(pth), out);
+}
+
+fs::path fs::_parent_path(fs::const_fs_string pth)
+{
     fs::path ret{};
-    fs::parent_path(pth, &ret);
+    fs::_parent_path(pth, &ret);
     return ret;
 }
 
-void fs::parent_path(const fs::path *pth, fs::path *out)
+void fs::_parent_path(fs::const_fs_string pth, fs::path *out)
 {
-    assert(pth != nullptr);
+    assert(out != nullptr);
 
     fs::const_fs_string parent = fs::parent_path_segment(pth);
 
     ::set_string(as_string_ptr(out), parent);
 }
 
-fs::path fs::longest_existing_path(const fs::path *pth)
+fs::path fs::_longest_existing_path(fs::const_fs_string pth)
 {
-    assert(pth != nullptr);
-
     fs::path existing_slice{};
-    fs::longest_existing_path(pth, &existing_slice);
+    fs::_longest_existing_path(pth, &existing_slice);
     return existing_slice;
 }
 
-void fs::longest_existing_path(const fs::path *pth, fs::path *out)
+void fs::_longest_existing_path(fs::const_fs_string pth, fs::path *out)
 {
-    assert(pth != nullptr);
+    assert(out != nullptr);
 
     fs::set_path(out, pth);
 
@@ -868,27 +900,24 @@ void fs::normalize(fs::path *pth)
     }
 }
 
-fs::path fs::absolute_path(const fs::path *pth, fs::fs_error *err)
+fs::path fs::_absolute_path(fs::const_fs_string pth, fs::fs_error *err)
 {
-    assert(pth != nullptr);
-
     fs::path ret{};
-    fs::absolute_path(pth, &ret, err);
+    fs::_absolute_path(pth, &ret, err);
     return ret;
 }
 
-bool fs::absolute_path(const fs::path *pth, fs::path *out, fs::fs_error *err)
+bool fs::_absolute_path(fs::const_fs_string pth, fs::path *out, fs::fs_error *err)
 {
-    assert(pth != nullptr);
     assert(out != nullptr);
-    assert(pth != out);
+    assert(pth.c_str != out->data);
 
     if (!fs::is_absolute(pth))
     {
         if (!fs::get_current_path(out, err))
             return false;
 
-        fs::append_path(out, to_const_string(pth));
+        fs::append_path(out, pth);
     }
     else
         fs::set_path(out, pth);
@@ -896,20 +925,17 @@ bool fs::absolute_path(const fs::path *pth, fs::path *out, fs::fs_error *err)
     return true;
 }
 
-fs::path fs::canonical_path(const fs::path *pth, fs::fs_error *err)
+fs::path fs::_canonical_path(fs::const_fs_string pth, fs::fs_error *err)
 {
-    assert(pth != nullptr);
-
     fs::path ret{};
     fs::canonical_path(pth, &ret, err);
     return ret;
 }
 
-bool fs::canonical_path(const fs::path *pth, fs::path *out, fs::fs_error *err)
+bool fs::_canonical_path(fs::const_fs_string pth, fs::path *out, fs::fs_error *err)
 {
-    assert(pth != nullptr);
     assert(out != nullptr);
-    assert(pth != out);
+    assert(pth.c_str != out->data);
 
 #if Windows
     // TODO: PathCchCanonicalizeEx or, if not supported, _fullpath
@@ -920,7 +946,7 @@ bool fs::canonical_path(const fs::path *pth, fs::path *out, fs::fs_error *err)
     // TODO: replace with a real realpath, not a fake one.
     // Problems with ::realpath: allocates its own buffer,
     // and the buffer can only be up to PATH_MAX bytes long.
-    char *npath = ::realpath(pth->data, nullptr);
+    char *npath = ::realpath(pth.c_str, nullptr);
 
     if (npath == nullptr)
     {
@@ -937,22 +963,19 @@ bool fs::canonical_path(const fs::path *pth, fs::path *out, fs::fs_error *err)
 #endif
 }
 
-fs::path fs::weakly_canonical_path(const fs::path *pth, fs::fs_error *err)
+fs::path fs::_weakly_canonical_path(fs::const_fs_string pth, fs::fs_error *err)
 {
-    assert(pth != nullptr);
-
     fs::path ret{};
     fs::weakly_canonical_path(pth, &ret, err);
     return ret;
 }
 
-bool fs::weakly_canonical_path(const fs::path *pth, fs::path *out, fs::fs_error *err)
+bool fs::_weakly_canonical_path(fs::const_fs_string pth, fs::path *out, fs::fs_error *err)
 {
-    assert(pth != nullptr);
     assert(out != nullptr);
-    assert(pth != out);
+    assert(pth.c_str != out->data);
 
-    if (pth->size == 0)
+    if (pth.size == 0)
     {
         fs::set_path(out, pth);
         return true;
@@ -1041,11 +1064,9 @@ bool fs::get_current_path(fs::path *out, fs::fs_error *err)
     return true;
 }
 
-bool fs::set_current_path(const fs::path *pth, fs::fs_error *err)
+bool fs::_set_current_path(fs::const_fs_string pth, fs::fs_error *err)
 {
-    assert(pth != nullptr);
-
-    if (platform_chdir(pth->data) == -1)
+    if (platform_chdir(pth.c_str) == -1)
     {
         set_fs_errno_error(err);
         return false;
@@ -1200,10 +1221,8 @@ void fs::concat_path(fs::path *out, const fs::path *to_concat)
     fs::concat_path(out, to_const_string(to_concat));
 }
 
-void fs::relative_path(const fs::path *from, const fs::path *to, fs::path *out)
+void fs::_relative_path(fs::const_fs_string from, fs::const_fs_string to, fs::path *out)
 {
-    assert(from != nullptr);
-    assert(to != nullptr);
     assert(out != nullptr);
 
     fs::set_path(out, PC_LIT(""));
@@ -1270,21 +1289,19 @@ void fs::relative_path(const fs::path *from, const fs::path *to, fs::path *out)
     if (i < to_segs.size)
     {
         fs::const_fs_string to_append = to_segs[i];
-        to_append.size = (to->data - to_append.c_str) + to->size;
+        to_append.size = (to.c_str - to_append.c_str) + to.size;
 
         assert(to_append.c_str != nullptr);
         fs::append_path(out, to_append);
     }
 }
 
-bool fs::touch(const fs::path *pth, fs::permission perms, fs::fs_error *err)
+bool fs::_touch(fs::const_fs_string pth, fs::permission perms, fs::fs_error *err)
 {
-    assert(pth != nullptr);
-
 #if Windows
     // TODO: implement
 #else
-    int fd = ::open(pth->data, O_CREAT | O_WRONLY, (::mode_t)perms);
+    int fd = ::open(pth.c_str, O_CREAT | O_WRONLY, (::mode_t)perms);
 
     if (fd == -1)
     {
@@ -1306,11 +1323,8 @@ bool fs::touch(const fs::path *pth, fs::permission perms, fs::fs_error *err)
     return true;
 }
 
-bool fs::copy_file(const fs::path *from, const fs::path *to, fs::copy_file_option opt, fs::fs_error *err)
+bool fs::_copy_file(fs::const_fs_string from, fs::const_fs_string to, fs::copy_file_option opt, fs::fs_error *err)
 {
-    assert(from != nullptr);
-    assert(to != nullptr);
-
 #if Windows
     // TODO: implement
 #else
@@ -1327,7 +1341,7 @@ bool fs::copy_file(const fs::path *from, const fs::path *to, fs::copy_file_optio
     if (opt == fs::copy_file_option::UpdateExisting)
         statx_mask |= STATX_MTIME;
 
-    from_fd = ::open(from->data, open_from_flags);
+    from_fd = ::open(from.c_str, open_from_flags);
 
     if (from_fd == -1)
     {
@@ -1343,7 +1357,7 @@ bool fs::copy_file(const fs::path *from, const fs::path *to, fs::copy_file_optio
         return false;
     }
 
-    to_fd = ::open(to->data, open_to_flags, from_info.stx_mode);
+    to_fd = ::open(to.c_str, open_to_flags, from_info.stx_mode);
 
     if (to_fd == -1)
     {
@@ -1358,7 +1372,7 @@ bool fs::copy_file(const fs::path *from, const fs::path *to, fs::copy_file_optio
             return true;
 
         // check change time
-        int tmp_fd = ::open(to->data, O_RDONLY);
+        int tmp_fd = ::open(to.c_str, O_RDONLY);
         struct statx tmp_info;
 
         if (tmp_fd == -1)
@@ -1379,7 +1393,7 @@ bool fs::copy_file(const fs::path *from, const fs::path *to, fs::copy_file_optio
             return true;
 
         open_to_flags &= (~O_EXCL);
-        to_fd = ::open(to->data, open_to_flags, from_info.stx_mode);
+        to_fd = ::open(to.c_str, open_to_flags, from_info.stx_mode);
 
         if (to_fd == -1)
         {
@@ -1402,15 +1416,13 @@ bool fs::copy_file(const fs::path *from, const fs::path *to, fs::copy_file_optio
 
 // TODO: implement copy_directory
 
-bool fs::create_directory(const fs::path *pth, fs::permission perms, fs::fs_error *err)
+bool fs::_create_directory(fs::const_fs_string pth, fs::permission perms, fs::fs_error *err)
 {
-    assert(pth != nullptr);
-
 #if Windows
     // TODO: implement
     return false;
 #else
-    if (::mkdir(pth->data, (::mode_t)perms) != -1)
+    if (::mkdir(pth.c_str, (::mode_t)perms) != -1)
         return true;
 
     // we have to check for EEXIST because if it already exists and it's a directory
@@ -1439,10 +1451,8 @@ bool fs::create_directory(const fs::path *pth, fs::permission perms, fs::fs_erro
     return true;
 }
 
-bool fs::create_directories(const fs::path *pth, fs::permission perms, fs::fs_error *err)
+bool fs::_create_directories(fs::const_fs_string pth, fs::permission perms, fs::fs_error *err)
 {
-    assert(pth != nullptr);
-
     fs::path longest_part{};
     fs::longest_existing_path(pth, &longest_part);
     defer { fs::free(&longest_part); };
@@ -1457,7 +1467,7 @@ bool fs::create_directories(const fs::path *pth, fs::permission perms, fs::fs_er
     if (longest_part.size > 0)
     while (i < segs.size)
     {
-        u64 offset = (segs[i].c_str - pth->data);
+        u64 offset = (segs[i].c_str - pth.c_str);
 
         if (offset > longest_part.size)
             break;
@@ -1483,15 +1493,12 @@ bool fs::create_directories(const fs::path *pth, fs::permission perms, fs::fs_er
     return true;
 }
 
-bool fs::create_hard_link(const fs::path *target, const fs::path *link, fs::fs_error *err)
+bool fs::_create_hard_link(fs::const_fs_string target, fs::const_fs_string link, fs::fs_error *err)
 {
-    assert(target != nullptr);
-    assert(link != nullptr);
-
 #if Windows
     // TODO: implement
 #else
-    if (::link(target->data, link->data) == -1)
+    if (::link(target.c_str, link.c_str) == -1)
     {
         set_fs_errno_error(err);
         return false;
@@ -1501,15 +1508,12 @@ bool fs::create_hard_link(const fs::path *target, const fs::path *link, fs::fs_e
     return true;
 }
 
-bool fs::create_symlink(const fs::path *target, const fs::path *link, fs::fs_error *err)
+bool fs::_create_symlink(fs::const_fs_string target, fs::const_fs_string link, fs::fs_error *err)
 {
-    assert(target != nullptr);
-    assert(link != nullptr);
-
 #if Windows
     // TODO: implement
 #else
-    if (::symlink(target->data, link->data) == -1)
+    if (::symlink(target.c_str, link.c_str) == -1)
     {
         set_fs_errno_error(err);
         return false;
@@ -1519,15 +1523,12 @@ bool fs::create_symlink(const fs::path *target, const fs::path *link, fs::fs_err
     return true;
 }
 
-bool fs::move(const fs::path *src, const fs::path *dest, fs::fs_error *err)
+bool fs::_move(fs::const_fs_string src, fs::const_fs_string dest, fs::fs_error *err)
 {
-    assert(src != nullptr);
-    assert(dest != nullptr);
-
 #if Windows
     // TODO: implement
 #else
-    if (::rename(src->data, dest->data) == -1)
+    if (::rename(src.c_str, dest.c_str) == -1)
     {
         set_fs_errno_error(err);
         return false;
@@ -1765,32 +1766,4 @@ fs::path operator ""_path(const wchar_t *pth, u64 size)
     fs::path ret;
     fs::init(&ret, ::to_const_string(pth, size));
     return ret;
-}
-
-fs::const_fs_string to_const_string(const fs::path_char_t *path)
-{
-    assert(path != nullptr);
-    return fs::const_fs_string{path, string_length(path)};
-}
-
-fs::const_fs_string to_const_string(const fs::path_char_t *path, u64 size)
-{
-    assert(path != nullptr);
-    return fs::const_fs_string{path, size};
-}
-
-fs::const_fs_string to_const_string(const fs::path *path)
-{
-    assert(path != nullptr);
-    return fs::const_fs_string{path->data, path->size};
-}
-
-fs::const_fs_string to_const_string(const fs::path &path)
-{
-    return fs::const_fs_string{path.data, path.size};
-}
-
-fs::const_fs_string to_const_string(fs::const_fs_string path)
-{
-    return path;
 }

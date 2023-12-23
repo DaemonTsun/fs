@@ -68,6 +68,8 @@ define_test(is_fs_type_tests)
     assert_equal(fs::is_socket(&p),       false);
     assert_equal(fs::is_directory(&p),    false);
 
+    assert_equal(fs::is_file(SANDBOX_TEST_FILE), true);
+
     // symlink
     fs::set_path(&p, SANDBOX_TEST_SYMLINK);
     assert_equal(fs::is_file(&p),         true);
@@ -1298,16 +1300,14 @@ define_test(create_symlink_creates_symlink)
 
 define_test(move_moves_files_and_directories)
 {
-    fs::path orig{};
     fs::path src{};
     fs::path dst{};
     fs::fs_error err{};
 
-    fs::set_path(&orig, SANDBOX_TEST_FILE);
     fs::set_path(&src, SANDBOX_DIR "/_move1");
     fs::set_path(&dst, SANDBOX_DIR "/_move2");
 
-    fs::copy_file(&orig, &src);
+    fs::copy_file(SANDBOX_TEST_FILE, &src);
 
     assert_equal(fs::exists(&src), true); 
     assert_equal(fs::exists(&dst), false); 
@@ -1315,7 +1315,7 @@ define_test(move_moves_files_and_directories)
     assert_equal(fs::exists(&src), false); 
     assert_equal(fs::exists(&dst), true); 
 
-    fs::copy_file(&orig, &src);
+    fs::copy_file(SANDBOX_TEST_FILE, &src);
 
     // overwrites existing files
     assert_equal(fs::exists(&src), true); 
@@ -1325,12 +1325,45 @@ define_test(move_moves_files_and_directories)
     assert_equal(fs::exists(&dst), true); 
 
     // can move directories
-    /*
-    fs::set_path(&src_dir, SANDBOX_DIR "/_movedir1");
-    fs::set_path(&dst_dir, SANDBOX_DIR "/_movedir2");
-    */
+    auto src_dir = SANDBOX_DIR "/_movedir1";
+    auto dst_dir = SANDBOX_DIR "/_movedir2";
 
-    fs::free(&orig);
+    fs::create_directory(src_dir);
+
+    assert_equal(fs::exists(src_dir), true); 
+    assert_equal(fs::exists(dst_dir), false); 
+    assert_equal(fs::move(src_dir, dst_dir), true); 
+    assert_equal(fs::exists(src_dir), false); 
+    assert_equal(fs::exists(dst_dir), true); 
+
+    assert_equal(fs::move(dst_dir, src_dir), true); 
+
+    // cannot move directory into file
+    assert_equal(fs::move(src_dir, dst, &err), false); 
+
+#if Windows
+#else
+    assert_equal(err.error_code, ENOTDIR);
+#endif
+
+    // cannot move file into directory
+    assert_equal(fs::move(dst, src_dir, &err), false); 
+
+#if Windows
+#else
+    assert_equal(err.error_code, EISDIR);
+#endif
+
+    // can move directory thats not empty
+    assert_equal(fs::move(dst, SANDBOX_DIR "/_movedir1/_move1"), true);
+
+    assert_equal(fs::exists(src_dir), true); 
+    assert_equal(fs::exists(dst_dir), false); 
+    assert_equal(fs::move(src_dir, dst_dir), true); 
+    assert_equal(fs::exists(src_dir), false); 
+    assert_equal(fs::exists(dst_dir), true); 
+    assert_equal(fs::exists(SANDBOX_DIR "/_movedir2/_move1"), true); 
+
     fs::free(&src);
     fs::free(&dst);
 }
