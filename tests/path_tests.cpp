@@ -1368,6 +1368,35 @@ define_test(move_moves_files_and_directories)
     fs::free(&dst);
 }
 
+define_test(remove_file_removes_file)
+{
+    fs::path p{};
+    fs::fs_error err{};
+
+    fs::set_path(&p, SANDBOX_DIR "/_remove_file1");
+    fs::copy_file(SANDBOX_TEST_FILE, &p);
+
+    assert_equal(fs::exists(p), true); 
+    assert_equal(fs::remove_file(p), true); 
+    assert_equal(fs::exists(p), false); 
+
+    assert_equal(fs::remove_file(p, &err), false); 
+
+#if Windows
+#else
+    assert_equal(err.error_code, ENOENT);
+#endif
+
+    assert_equal(fs::remove_file(SANDBOX_DIR, &err), false); 
+
+#if Windows
+#else
+    assert_equal(err.error_code, EISDIR);
+#endif
+
+    fs::free(&p);
+}
+
 #if 0
 define_test(get_executable_path_gets_executable_path)
 {

@@ -312,19 +312,23 @@ template<typename T>
 auto create_directories(T pth, fs::permission perms = fs::permission::User, fs::fs_error *err = nullptr)
     define_fs_conversion_body(fs::_create_directories, pth, perms, err)
 
-bool _create_hard_link(const_fs_string target, const_fs_string link, fs::fs_error *err);
+bool _create_hard_link(fs::const_fs_string target, fs::const_fs_string link, fs::fs_error *err);
 template<typename T1, typename T2> auto create_hard_link(T1 target, T2 link, fs::fs_error *err = nullptr) define_fs_conversion_body2(fs::_create_hard_link, target, link, err)
 
-bool _create_symlink(const_fs_string target, const_fs_string link, fs::fs_error *err);
+bool _create_symlink(fs::const_fs_string target, fs::const_fs_string link, fs::fs_error *err);
 template<typename T1, typename T2> auto create_symlink(T1 target, T2 link, fs::fs_error *err = nullptr) define_fs_conversion_body2(fs::_create_symlink, target, link, err)
 
 bool _move(fs::const_fs_string src, fs::const_fs_string dest, fs::fs_error *err = nullptr);
 template<typename T1, typename T2> auto move(T1 src, T2 dest, fs::fs_error *err = nullptr) define_fs_conversion_body2(fs::_move, src, dest, err)
 
+bool _remove_file(fs::const_fs_string pth, fs::fs_error *err);
+template<typename T> auto remove_file(T pth, fs::fs_error *err = nullptr) define_fs_conversion_body(fs::_remove_file, pth, err)
 /*
-bool remove_file(const fs::path *pth);
+// TODO: implement
 bool remove_directory(const fs::path *pth);
 bool remove(const fs::path *pth);
+
+// TODO: iterators
 
 ////////////////////////
 // getting special paths

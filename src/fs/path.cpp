@@ -1538,6 +1538,21 @@ bool fs::_move(fs::const_fs_string src, fs::const_fs_string dest, fs::fs_error *
     return true;
 }
 
+bool fs::_remove_file(fs::const_fs_string pth, fs::fs_error *err)
+{
+#if Windows
+    // TODO: implement
+#else
+    if (::unlink(pth.c_str) == -1)
+    {
+        set_fs_errno_error(err);
+        return false;
+    }
+#endif
+
+    return true;
+}
+
 #if 0
 
 bool fs::remove(const fs::path *pth)
