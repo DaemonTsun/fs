@@ -36,25 +36,13 @@ int rename(const char *oldpath, const char *newpath)
 
 #include "fs/path.hpp"
 
-
-// constants
-
-// These sizes are used as the default when querying paths with e.g. getcwd.
-// Path sizes quadruple until reaching PATH_ALLOC_MAX_SIZE
-#define PATH_ALLOC_MIN_SIZE 255
-#define PATH_ALLOC_MAX_SIZE 65535
-
-
-
-
-
 #if Windows
 // PC stands for PATH_CHAR
 #define PC_LIT(c) L##c
 
 #define platform_getcwd ::_wgetcwd
 #define platform_chdir  ::_chdir
-#else
+#else // Linux
 #define PC_LIT(c) c
 
 #define platform_getcwd ::getcwd

@@ -1397,6 +1397,33 @@ define_test(remove_file_removes_file)
     fs::free(&p);
 }
 
+/*
+ * these are more for debugging than testing
+define_test(iterator_test1)
+{
+    fs::fs_error err{};
+
+    if (fs::fs_iterator it; true)
+    if (defer { fs::free(&it); }; fs::init(&it, SANDBOX_DIR, &err))
+    for (fs::fs_iterator_item *item = fs::_iterate(&it, &err);
+         item != nullptr;
+         item = fs::_iterate(&it, &err))
+        printf("%x - %s\n", (u32)item->type, item->name.c_str);
+
+    assert_equal(err.error_code, 0);
+}
+
+define_test(iterator_test2)
+{
+    fs::fs_error err{};
+
+    for_fullpath_directories(item, SANDBOX_DIR, &err)
+        printf("%x - %s\n", (u32)item->type, item->path.c_str);
+
+    assert_equal(err.error_code, 0);
+}
+*/
+
 #if 0
 define_test(get_executable_path_gets_executable_path)
 {

@@ -351,3 +351,4 @@ void get_temporary_path(fs::path *out);
 fs::path operator ""_path(const char    *, u64);
 fs::path operator ""_path(const wchar_t *, u64);
 
+#include "fs/impl/iterator.hpp"

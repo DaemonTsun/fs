@@ -14,13 +14,13 @@ add_lib(fs STATIC
     VERSION 0.8
     SOURCES_DIR "${ROOT}/src/"
     GENERATE_TARGET_HEADER "${ROOT}/src/fs/fs_info.hpp"
-    CPP_VERSION 17
+    CPP_VERSION 20
     CPP_WARNINGS ALL SANE FATAL
     LIBRARIES
         @Linux pthread
 
     EXT
-        LIB shl 0.8.3 "${ROOT}/ext/shl" INCLUDE LINK GIT_SUBMODULE
+        LIB shl 0.8.4 "${ROOT}/ext/shl" INCLUDE LINK GIT_SUBMODULE
 
     TESTS "${TEST_SOURCE_DIR}"
     )

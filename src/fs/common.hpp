@@ -6,6 +6,18 @@
 #include "shl/enum_flag.hpp"
 #include "shl/number_types.hpp"
 
+// constants
+
+// These sizes are used as the default when querying paths with e.g. getcwd.
+// Path sizes quadruple until reaching PATH_ALLOC_MAX_SIZE
+#define PATH_ALLOC_MIN_SIZE 255
+#define PATH_ALLOC_MAX_SIZE 65535
+
+// used in the buffer of getdents64 on linux
+#define DIRENT_STACK_BUFFER_SIZE 512
+#define DIRENT_ALLOC_GROWTH_FACTOR 4
+#define DIRENT_ALLOC_MAX_SIZE 16777215
+
 namespace fs
 {
 #if Windows
