@@ -7,6 +7,7 @@
 #include <errno.h>
 #include <stddef.h> // offsetof
 
+#include "shl/fixed_array.hpp"
 #include "shl/scratch_buffer.hpp"
 #include "fs/path.hpp"
 
@@ -99,7 +100,7 @@ void fs::free(fs_iterator *it)
     it->fd = -1;
 }
 
-template<bool fullpath, bool use_type_filter>
+template<fs::iterate_option Opts, bool UseTypeFilter>
 fs::fs_iterator_item *_iterate(fs::fs_iterator *it, int type_filter, fs::fs_error *err)
 {
     if (it->dirent_size == 0)
@@ -117,7 +118,7 @@ fs::fs_iterator_item *_iterate(fs::fs_iterator *it, int type_filter, fs::fs_erro
     it->current_item.dirent = (dirent64*)(it->buffer.data + it->dirent_offset);
     fs::filesystem_type current_type = (fs::filesystem_type)(it->current_item.dirent->type << 12);
 
-    if constexpr (use_type_filter)
+    if constexpr (UseTypeFilter)
     {
         fs::filesystem_type target_type = (fs::filesystem_type)type_filter;
 
@@ -145,7 +146,7 @@ fs::fs_iterator_item *_iterate(fs::fs_iterator *it, int type_filter, fs::fs_erro
     // the name is null terminated.
     const char *name = ((char*)it->current_item.dirent) + offsetof(dirent64, type) + 1;
 
-    if constexpr (fullpath)
+    if constexpr (is_flag_set(Opts, fs::iterate_option::Fullpaths))
     {
         auto parent_seg = fs::parent_path_segment(&it->path_it);
         auto name_s = ::to_const_string(name);
@@ -167,23 +168,39 @@ fs::fs_iterator_item *_iterate(fs::fs_iterator *it, int type_filter, fs::fs_erro
     return &it->current_item;
 }
 
-fs::fs_iterator_item *fs::_iterate(fs::fs_iterator *it, fs::fs_error *err)
+constexpr inline fs::iterate_option to_iterate_opt(int x)
 {
-    return ::_iterate<false, false>(it, -1, err);
+    return static_cast<fs::iterate_option>(x);
 }
 
-fs::fs_iterator_item *fs::_iterate_fullpath(fs::fs_iterator *it, fs::fs_error *err)
+typedef fs::fs_iterator_item *(*_iterate_func)(fs::fs_iterator *, int, fs::fs_error *);
+// we do this to bake all the options at compile time. C++ is a beautiful thing.
+constexpr fixed_array _iterate_functions = {
+    ::_iterate<to_iterate_opt(0b000), false>,
+    ::_iterate<to_iterate_opt(0b001), false>,
+    ::_iterate<to_iterate_opt(0b010), false>,
+    ::_iterate<to_iterate_opt(0b011), false>,
+    ::_iterate<to_iterate_opt(0b100), false>,
+    ::_iterate<to_iterate_opt(0b101), false>,
+    ::_iterate<to_iterate_opt(0b110), false>,
+    ::_iterate<to_iterate_opt(0b111), false>,
+    ::_iterate<to_iterate_opt(0b000), true>,
+    ::_iterate<to_iterate_opt(0b001), true>,
+    ::_iterate<to_iterate_opt(0b010), true>,
+    ::_iterate<to_iterate_opt(0b011), true>,
+    ::_iterate<to_iterate_opt(0b100), true>,
+    ::_iterate<to_iterate_opt(0b101), true>,
+    ::_iterate<to_iterate_opt(0b110), true>,
+    ::_iterate<to_iterate_opt(0b111), true>,
+};
+
+fs::fs_iterator_item *fs::_iterate(fs::fs_iterator *it, fs::iterate_option opt, fs::fs_error *err)
 {
-    return ::_iterate<true, false>(it, -1, err);
+    return ::_iterate_functions[(int)opt](it, -1, err);
 }
 
-fs::fs_iterator_item *fs::_iterate_type(fs::fs_iterator *it, int type_filter, fs::fs_error *err)
+fs::fs_iterator_item *fs::_iterate_type(fs::fs_iterator *it, int type_filter, fs::iterate_option opt, fs::fs_error *err)
 {
-    return ::_iterate<false, true>(it, type_filter, err);
-}
-
-fs::fs_iterator_item *fs::_iterate_fullpath_type(fs::fs_iterator *it, int type_filter, fs::fs_error *err)
-{
-    return ::_iterate<true, true>(it, type_filter, err);
+    return ::_iterate_functions[(int)opt + ::_iterate_functions.size / 2](it, -1, err);
 }
 

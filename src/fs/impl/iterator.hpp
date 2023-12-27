@@ -3,6 +3,7 @@
 
 #include "shl/platform.hpp"
 #include "shl/scratch_buffer.hpp"
+#include "shl/enum_flag.hpp"
 #include "shl/defer.hpp"
 
 #if Linux
@@ -59,43 +60,42 @@ auto init(fs::fs_iterator *it, T pth, fs::fs_error *err = nullptr)
 
 void free(fs::fs_iterator *it);
 
-fs::fs_iterator_item *_iterate(fs::fs_iterator *it, fs::fs_error *err = nullptr);
-fs::fs_iterator_item *_iterate_fullpath(fs::fs_iterator *it, fs::fs_error *err = nullptr);
-fs::fs_iterator_item *_iterate_type(fs::fs_iterator *it, int type_filter, fs::fs_error *err = nullptr);
-fs::fs_iterator_item *_iterate_fullpath_type(fs::fs_iterator *it, int type_filter, fs::fs_error *err = nullptr);
+enum class iterate_option : u8
+{
+    None            = 0b000, // does not follow symlinks and does not stop on errors
+    FollowSymlinks  = 0b001, // TODO: follows directory symlinks
+    StopOnError     = 0b010, // TODO: stop on first error
+    Fullpaths       = 0b100, // yields full paths in item->path. does consume more memory.
+};
+
+enum_flag(iterate_option);
+
+fs::fs_iterator_item *_iterate(fs::fs_iterator *it, fs::iterate_option opt = fs::iterate_option::None, fs::fs_error *err = nullptr);
+fs::fs_iterator_item *_iterate_type(fs::fs_iterator *it, int type_filter, fs::iterate_option opt = fs::iterate_option::None, fs::fs_error *err = nullptr);
 }
 
 // macros
 
 #include "shl/macros.hpp"
 
-#define for_path_Func(Func, Item_Var, Pth, Err, ...)\
+#define for_path_Func(Func, Item_Var, Pth, Opts, Err, ...)\
     if (fs::fs_iterator Item_Var##_it; true)\
     if (defer { fs::free(&Item_Var##_it); }; fs::init(&Item_Var##_it, Pth, (Err)))\
-    for (fs::fs_iterator_item *Item_Var = Func(&Item_Var##_it __VA_OPT__(,) __VA_ARGS__, (Err));\
+    for (fs::fs_iterator_item *Item_Var = Func(&Item_Var##_it __VA_OPT__(,) __VA_ARGS__, (Opts), (Err));\
          Item_Var != nullptr;\
-         Item_Var = Func(&Item_Var##_it __VA_OPT__(,) __VA_ARGS__, (Err)))
+         Item_Var = Func(&Item_Var##_it __VA_OPT__(,) __VA_ARGS__, (Opts), (Err)))
 
-#define for_path_IPE(Item_Var, Pth, Err) for_path_Func(fs::_iterate, Item_Var, Pth, Err)
-#define for_path_IP(Item_Var, Pth)       for_path_Func(fs::_iterate, Item_Var, Pth, nullptr)
+#define for_path_IPOE(Item_Var, Pth, Opt, Err) for_path_Func(fs::_iterate, Item_Var, Pth, Opt, Err)
+#define for_path_IPO(Item_Var, Pth, Opt)       for_path_IPOE(Item_Var, Pth, Opt, nullptr)
+#define for_path_IP(Item_Var, Pth)             for_path_IPO(Item_Var, Pth, fs::iterate_option::None)
 
-#define for_path(...) GET_MACRO2(__VA_ARGS__, for_path_IPE, for_path_IP)(__VA_ARGS__)
+#define for_path(...) GET_MACRO3(__VA_ARGS__, for_path_IPOE, for_path_IPO, for_path_IP)(__VA_ARGS__)
 
-#define for_fullpath_IPE(Item_Var, Pth, Err) for_path_Func(fs::_iterate_fullpath, Item_Var, Pth, Err)
-#define for_fullpath_IP(Item_Var, Pth)       for_path_Func(fs::_iterate_fullpath, Item_Var, Pth, nullptr)
+#define for_path_type_IPOE(Type, Item_Var, Pth, Opt, Err) for_path_Func(fs::_iterate_type, Item_Var, Pth, Opt, Err, (int)Type)
+#define for_path_type_IPO(Type, Item_Var, Pth, Opt)       for_path_type_IPOE(Type, Item_Var, Pth, Opt, nullptr)
+#define for_path_type_IP(Type, Item_Var, Pth)             for_path_type_IPO(Type, Item_Var, Pth, fs::iterate_option::None)
 
-#define for_fullpath(...) GET_MACRO2(__VA_ARGS__, for_fullpath_IPE, for_fullpath_IP)(__VA_ARGS__)
-
-#define for_path_type_IPE(Type, Item_Var, Pth, Err) for_path_Func(fs::_iterate_type, Item_Var, Pth, Err, (int)Type)
-#define for_path_type_IP(Type, Item_Var, Pth)       for_path_Func(fs::_iterate_type, Item_Var, Pth, nullptr, (int)Type)
-
-#define for_path_type(...) GET_MACRO3(__VA_ARGS__, for_path_type_IPE, for_path_type_IP)(__VA_ARGS__)
+#define for_path_type(...) GET_MACRO4(__VA_ARGS__, for_path_type_IPOE, for_path_type_IPO, for_path_type_IP)(__VA_ARGS__)
 #define for_path_files(...)       for_path_type(fs::filesystem_type::File, __VA_ARGS__)
 #define for_path_directories(...) for_path_type(fs::filesystem_type::Directory, __VA_ARGS__)
 
-#define for_fullpath_type_IPE(Type, Item_Var, Pth, Err) for_path_Func(fs::_iterate_fullpath_type, Item_Var, Pth, Err, (int)Type)
-#define for_fullpath_type_IP(Type, Item_Var, Pth)       for_path_Func(fs::_iterate_fullpath_type, Item_Var, Pth, nullptr, (int)Type)
-
-#define for_fullpath_type(...) GET_MACRO3(__VA_ARGS__, for_fullpath_type_IPE, for_fullpath_type_IP)(__VA_ARGS__)
-#define for_fullpath_files(...)       for_fullpath_type(fs::filesystem_type::File, __VA_ARGS__)
-#define for_fullpath_directories(...) for_fullpath_type(fs::filesystem_type::Directory, __VA_ARGS__)

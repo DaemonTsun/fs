@@ -25,6 +25,11 @@
 #define SANDBOX_TEST_SYMLINK_NO_TARGET   SANDBOX_DIR "/symlink2"
 #define SANDBOX_TEST_PIPE       SANDBOX_DIR "/pipe"
 
+#define SANDBOX_TEST_DIR2       SANDBOX_TEST_DIR "/dir2"
+#define SANDBOX_TEST_FILE2      SANDBOX_TEST_DIR2 "/file2"
+#define SANDBOX_TEST_DIR_NO_PERMISSION  SANDBOX_TEST_DIR2 "/dir_noperm"
+#define SANDBOX_TEST_FILE_IN_NOPERM_DIR SANDBOX_TEST_DIR_NO_PERMISSION "/file_noperm"
+
 define_test(set_path_sets_path)
 {
     fs::path pth{};
@@ -1408,21 +1413,21 @@ define_test(iterator_test1)
     for (fs::fs_iterator_item *item = fs::_iterate(&it, &err);
          item != nullptr;
          item = fs::_iterate(&it, &err))
-        printf("%x - %s\n", (u32)item->type, item->name.c_str);
-
-    assert_equal(err.error_code, 0);
-}
-
-define_test(iterator_test2)
-{
-    fs::fs_error err{};
-
-    for_fullpath_directories(item, SANDBOX_DIR, &err)
         printf("%x - %s\n", (u32)item->type, item->path.c_str);
 
     assert_equal(err.error_code, 0);
 }
 */
+
+define_test(iterator_test2)
+{
+    fs::fs_error err{};
+
+    for_path(item, SANDBOX_DIR, fs::iterate_option::None, &err)
+        printf("%x - %s\n", (u32)item->type, item->path.c_str);
+
+    assert_equal(err.error_code, 0);
+}
 
 #if 0
 define_test(get_executable_path_gets_executable_path)
@@ -1452,6 +1457,12 @@ void _setup()
  
     mkfifo(SANDBOX_TEST_PIPE, 0644);
 
+    mkdir(SANDBOX_TEST_DIR2, 0777);
+    f = fopen(SANDBOX_TEST_FILE2, "w"); assert(f != nullptr); fclose(f);
+    mkdir(SANDBOX_TEST_DIR_NO_PERMISSION, 0777);
+    f = fopen(SANDBOX_TEST_FILE_IN_NOPERM_DIR, "w"); assert(f != nullptr); fclose(f);
+    chmod(SANDBOX_TEST_DIR_NO_PERMISSION, 0000);
+
     fs::path _tmp{};
     fs::set_path(&_tmp, SANDBOX_DIR);
     fs::set_current_path(&_tmp);
@@ -1462,6 +1473,7 @@ void _setup()
 
 void _cleanup()
 {
+    chmod(SANDBOX_TEST_DIR_NO_PERMISSION, 0777);
     fs::set_current_path(&old_current_dir);
     std::filesystem::remove_all(SANDBOX_DIR);
 
