@@ -1410,9 +1410,9 @@ define_test(iterator_test1)
 
     if (fs::fs_iterator it; true)
     if (defer { fs::free(&it); }; fs::init(&it, SANDBOX_DIR, &err))
-    for (fs::fs_iterator_item *item = fs::_iterate(&it, &err);
+    for (fs::fs_iterator_item *item = fs::_iterate(&it, fs::iterate_option::None, &err);
          item != nullptr;
-         item = fs::_iterate(&it, &err))
+         item = fs::_iterate(&it, fs::iterate_option::None, &err))
         printf("%x - %s\n", (u32)item->type, item->path.c_str);
 
     assert_equal(err.error_code, 0);
@@ -1428,6 +1428,39 @@ define_test(iterator_test2)
 
     assert_equal(err.error_code, 0);
 }
+
+define_test(iterator_test3)
+{
+    fs::fs_error err{};
+
+    printf("\n recursive test\n");
+    fs::iterate_option opts = fs::iterate_option::None;
+
+    if (fs::fs_recursive_iterator it; true)
+    if (defer { fs::free(&it); }; fs::init(&it, SANDBOX_DIR, opts, &err))
+    for (fs::fs_recursive_iterator_item *item = fs::_iterate(&it, opts, &err);
+         item != nullptr;
+         item = fs::_iterate(&it, opts, &err))
+    {
+        for (int x = 0; x < item->depth; ++x) printf("  ");
+        printf("%x - %s\n", (u32)item->type, item->path.c_str);
+    }
+
+    // even if we continue on error, the last error will be recorded here.
+    // assert_equal(err.error_code, 0);
+}
+
+#if 0
+define_test(iterator_test4)
+{
+    fs::fs_error err{};
+
+    for_path(item, SANDBOX_DIR, fs::iterate_option::None, &err)
+        printf("%x - %s\n", (u32)item->type, item->path.c_str);
+
+    assert_equal(err.error_code, 0);
+}
+#endif
 
 #if 0
 define_test(get_executable_path_gets_executable_path)

@@ -203,6 +203,17 @@ auto are_equivalent(T1 pth1, T2 pth2, bool follow_symlinks = true, fs::fs_error 
 fs::const_fs_string filename(fs::const_fs_string pth);
 fs::const_fs_string filename(const fs::path *pth);
 
+// .
+bool _is_dot(fs::const_fs_string pth);
+// ..
+bool _is_dot_dot(fs::const_fs_string pth);
+// . or ..
+bool _is_dot_or_dot_dot(fs::const_fs_string pth);
+
+template<typename T> auto is_dot(T pth) define_fs_conversion_body(fs::_is_dot, pth)
+template<typename T> auto is_dot_dot(T pth) define_fs_conversion_body(fs::_is_dot_dot, pth)
+template<typename T> auto is_dot_or_dot_dot(T pth) define_fs_conversion_body(fs::_is_dot_or_dot_dot, pth)
+
 // this differs from std::filesystem::path::extension:
 // filenames that have no stem (only an extension) are treated exactly like that:
 // no filename, only extension, and as such file_extension returns the full filename
@@ -216,6 +227,8 @@ fs::const_fs_string parent_path_segment(fs::const_fs_string pth);
 fs::const_fs_string parent_path_segment(const fs::path *pth);
 fs::const_fs_string root(fs::const_fs_string pth);
 fs::const_fs_string root(const fs::path *pth);
+
+void replace_filename(fs::path *out, fs::const_fs_string newname);
 
 void path_segments(fs::const_fs_string pth, array<fs::const_fs_string> *out);
 void path_segments(const fs::path *pth, array<fs::const_fs_string> *out);

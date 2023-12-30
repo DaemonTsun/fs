@@ -515,6 +515,22 @@ fs::const_fs_string fs::filename(const fs::path *pth)
     return fs::filename(to_const_string(pth));
 }
 
+bool fs::_is_dot(fs::const_fs_string pth)
+{
+    return ::_is_dot_filename(fs::filename(pth));
+}
+
+bool fs::_is_dot_dot(fs::const_fs_string pth)
+{
+    return ::_is_dot_dot_filename(fs::filename(pth));
+}
+
+bool fs::_is_dot_or_dot_dot(fs::const_fs_string pth)
+{
+    auto fname = fs::filename(pth);
+    return ::_is_dot_filename(fname) || ::_is_dot_dot_filename(fname);
+}
+
 fs::const_fs_string fs::file_extension(fs::const_fs_string pth)
 {
     auto fname = fs::filename(pth);
@@ -589,6 +605,19 @@ fs::const_fs_string fs::root(const fs::path *pth)
     assert(pth != nullptr);
 
     return fs::root(to_const_string(pth));
+}
+
+void fs::replace_filename(fs::path *out, fs::const_fs_string newname)
+{
+    assert(out != nullptr);
+
+    auto parent_seg = fs::parent_path_segment(out);
+
+    u64 cutoff = parent_seg.size + 1 + newname.size;
+    ::insert_range(as_array_ptr(out), parent_seg.size + 1, newname.c_str, newname.size);
+    ::reserve(as_array_ptr(out), cutoff + 1);
+    out->size = cutoff;
+    out->data[cutoff] = '\0';
 }
 
 void fs::path_segments(fs::const_fs_string pth, array<fs::const_fs_string> *out)

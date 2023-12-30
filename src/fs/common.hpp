@@ -14,7 +14,7 @@
 #define PATH_ALLOC_MAX_SIZE 65535
 
 // used in the buffer of getdents64 on linux
-#define DIRENT_STACK_BUFFER_SIZE 512
+#define DIRENT_STACK_BUFFER_SIZE 256
 #define DIRENT_ALLOC_GROWTH_FACTOR 4
 #define DIRENT_ALLOC_MAX_SIZE 16777215
 
