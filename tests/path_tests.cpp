@@ -1434,7 +1434,7 @@ define_test(iterator_test3)
     fs::fs_error err{};
 
     printf("\n recursive test\n");
-    fs::iterate_option opts = fs::iterate_option::None;
+    fs::iterate_option opts = fs::iterate_option::ChildrenFirst;
 
     if (fs::fs_recursive_iterator it; true)
     if (defer { fs::free(&it); }; fs::init(&it, SANDBOX_DIR, opts, &err))

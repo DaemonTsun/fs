@@ -612,12 +612,21 @@ void fs::replace_filename(fs::path *out, fs::const_fs_string newname)
     assert(out != nullptr);
 
     auto parent_seg = fs::parent_path_segment(out);
+    u64 start = 0;
+    u64 cutoff = newname.size;
 
-    u64 cutoff = parent_seg.size + 1 + newname.size;
-    ::insert_range(as_array_ptr(out), parent_seg.size + 1, newname.c_str, newname.size);
+    if (parent_seg.size != 0)
+    {
+        // +1 for directory separator
+        start = parent_seg.size + 1;
+        cutoff += start;
+    }
+
     ::reserve(as_array_ptr(out), cutoff + 1);
+    ::insert_range(as_array_ptr(out), start, newname.c_str, newname.size);
+
     out->size = cutoff;
-    out->data[cutoff] = '\0';
+    out->data[cutoff] = PC_NUL;
 }
 
 void fs::path_segments(fs::const_fs_string pth, array<fs::const_fs_string> *out)

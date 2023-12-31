@@ -165,6 +165,8 @@ fs::fs_iterator_item *_iterate(fs::fs_iterator *it, int type_filter, fs::iterate
     // The name is null terminated.
     const char *name = ((char*)it->current_item.dirent) + offsetof(dirent64, type) + 1;
 
+    // TODO: ignore dot and dot dot
+
     if constexpr (is_flag_set(BakeOpts, fs::iterate_option::Fullpaths))
     {
         fs::replace_filename(&it->path_it, to_const_string(name));
@@ -204,8 +206,10 @@ bool fs::_init(fs::fs_recursive_iterator *it, fs::const_fs_string pth, fs::itera
 
     it->target_path = pth;
     fs::init(&it->path_it, pth);
+    it->current_item.dirent = nullptr;
     it->current_item.type = fs::filesystem_type::Unknown;
     it->current_item.recurse = false;
+    it->current_item._advance = false;
 
     // we allocate 2, we could allocate more but for shallow directory structures
     // this would be wasteful (an iterator_item is somewhat big), but only
@@ -261,16 +265,30 @@ void fs::free(fs::fs_recursive_iterator *it)
         detail = stack->data + detail_idx;\
         it->path_it.size = fs::parent_path_segment(&it->path_it).size;\
         it->path_it.data[it->path_it.size] = '\0';\
-\
-        if (detail->dirent_offset >= detail->dirent_size)\
-        if (!_get_next_dirents(detail, err))\
+        \
+        if constexpr (is_flag_set(BakeOpts, fs::iterate_option::ChildrenFirst))\
         {\
-            if (is_flag_set(opts, fs::iterate_option::StopOnError))\
-                return nullptr;\
-            else\
+            assert(detail->dirent_offset < detail->dirent_size);\
+            dirent64 *dirent = (dirent64*)(detail->buffer.data + detail->dirent_offset);\
+            it->current_item.dirent = dirent;\
+            it->current_item.type = (fs::filesystem_type)(dirent->type << 12);\
+            it->current_item.path = ::to_const_string(&it->path_it);\
+            it->current_item.depth = detail_idx;\
+            detail->dirent_offset += it->current_item.dirent->record_size;\
+            return &it->current_item;\
+        }\
+        else\
+        {\
+            if (detail->dirent_offset >= detail->dirent_size\
+             && !_get_next_dirents(detail, err))\
             {\
-                detail->dirent_size = 0;\
-                continue;\
+                if (is_flag_set(opts, fs::iterate_option::StopOnError))\
+                    return nullptr;\
+                else\
+                {\
+                    detail->dirent_size = 0;\
+                    continue;\
+                }\
             }\
         }\
     }\
@@ -289,11 +307,8 @@ fs::fs_recursive_iterator_item *_recursive_iterate(fs::fs_recursive_iterator *it
     tprint("iterate, stack size: %\n", it->_detail_stack.size);
     array<fs::fs_iterator_detail> *stack = &it->_detail_stack;
 
-    // if the last item was a directory and recursion is on,
-    // add the subdirectory onto the stack
-    // TODO: iterate_option::ChildrenFirst
-    if (it->current_item.type == fs::filesystem_type::Directory
-     && it->current_item.recurse)
+    // if recursion is on add the subdirectory onto the stack
+    if (it->current_item.recurse)
     {
         tprint("  recursing into %\n", it->current_item.path);
         it->current_item.recurse = false;
@@ -307,7 +322,12 @@ fs::fs_recursive_iterator_item *_recursive_iterate(fs::fs_recursive_iterator *it
             if (is_flag_set(opts, fs::iterate_option::StopOnError))
                 return nullptr;
             else
+            {
                 stack->size -= 1;
+
+                if constexpr (is_flag_set(BakeOpts, fs::iterate_option::ChildrenFirst))
+                    it->current_item._advance = true;
+            }
         }
         else
             fs::append_path(&it->path_it, ".");
@@ -342,17 +362,26 @@ fs::fs_recursive_iterator_item *_recursive_iterate(fs::fs_recursive_iterator *it
 
     tprint("  settled on idx %\n", detail_idx);
 
-    dirent64 *dirent = (dirent64*)(detail->buffer.data + detail->dirent_offset);
-    it->current_item.dirent = dirent;
-    fs::filesystem_type current_type = (fs::filesystem_type)(dirent->type << 12);
+    if constexpr (is_flag_set(BakeOpts, fs::iterate_option::ChildrenFirst))
+    {
+        if (it->current_item._advance)
+        {
+            it->current_item._advance = false;
+            it->current_item.dirent = (dirent64*)(detail->buffer.data + detail->dirent_offset);
+            detail->dirent_offset += it->current_item.dirent->record_size;
+        }
+    }
+
+    dirent64 *dirent = nullptr;
+    fs::filesystem_type current_type;
     fs::filesystem_type target_type  = (fs::filesystem_type)type_filter;
     // just the name of the entry within a subdirectory, not full path
     const char *name = nullptr;
 
     while (true)
     {
-        if (detail->dirent_offset >= detail->dirent_size)
-        if (!_get_next_dirents(detail, err))
+        if (detail->dirent_offset >= detail->dirent_size
+         && !_get_next_dirents(detail, err))
         {
             if (is_flag_set(opts, fs::iterate_option::StopOnError))
                 return nullptr;
@@ -397,13 +426,25 @@ fs::fs_recursive_iterator_item *_recursive_iterate(fs::fs_recursive_iterator *it
 
     it->current_item.depth = detail_idx;
     it->current_item.recurse = false;
+    it->current_item._advance = false;
 
-    // TODO symlinks
-    if (!fs::is_dot_or_dot_dot(it->current_item.path))
-    if (it->current_item.type == fs::filesystem_type::Directory)
-        it->current_item.recurse = true;
+    if (it->current_item.type == fs::filesystem_type::Directory
+     || (it->current_item.type == fs::filesystem_type::Symlink
+        && is_flag_set(opts, fs::iterate_option::FollowSymlinks)
+        && fs::is_directory(it->current_item.path, true)))
+            it->current_item.recurse = true;
 
-    detail->dirent_offset += it->current_item.dirent->record_size;
+    if constexpr (is_flag_set(BakeOpts, fs::iterate_option::ChildrenFirst))
+    {
+        if (it->current_item.recurse)
+            return ::_recursive_iterate<fs::iterate_option::ChildrenFirst>(it, type_filter, opts, err);
+        else
+            it->current_item._advance = true;
+    }
+    else
+    {
+        detail->dirent_offset += it->current_item.dirent->record_size;
+    }
 
     return &it->current_item;
 }

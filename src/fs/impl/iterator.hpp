@@ -73,8 +73,8 @@ void free(fs::fs_iterator *it);
 enum class iterate_option : u8
 {
     None            = 0b0000, // does not follow symlinks and does not stop on errors
-    FollowSymlinks  = 0b0001, // TODO: follows directory symlinks
-    StopOnError     = 0b0010, // TODO: stop on first error
+    FollowSymlinks  = 0b0001, // follows directory symlinks
+    StopOnError     = 0b0010, // stop on first error
     Fullpaths       = 0b0100, // yields full paths in item->path. does consume more memory.
     ChildrenFirst   = 0b1000  // when recursively iterating, iterates all children of a
                               // directory before iterating the directory.
@@ -91,6 +91,7 @@ struct fs_recursive_iterator_item : public fs_iterator_item
 {
     u32 depth;
     bool recurse;
+    bool _advance; // used internally
 };
 
 struct fs_recursive_iterator
