@@ -120,7 +120,7 @@ void fs::free(fs_iterator *it)
 }
 
 template<fs::iterate_option BakeOpts>
-fs::fs_iterator_item *_iterate(fs::fs_iterator *it, int type_filter, fs::iterate_option opts, fs::fs_error *err)
+fs::fs_iterator_item *_iterate(fs::fs_iterator *it, fs::iterate_option opts, fs::fs_error *err)
 {
     if (it->_detail.dirent_size == 0)
         return nullptr;
@@ -136,36 +136,30 @@ fs::fs_iterator_item *_iterate(fs::fs_iterator *it, int type_filter, fs::iterate
 
     it->current_item.dirent = (dirent64*)(it->_detail.buffer.data + it->_detail.dirent_offset);
     fs::filesystem_type current_type = (fs::filesystem_type)(it->current_item.dirent->type << 12);
+    const char *name = ((char*)it->current_item.dirent) + offsetof(dirent64, type) + 1;
 
-    if (type_filter >= 0)
+    while (fs::is_dot_or_dot_dot(name))
     {
-        fs::filesystem_type target_type = (fs::filesystem_type)type_filter;
+        it->_detail.dirent_offset += it->current_item.dirent->record_size;
 
-        while (current_type != target_type)
+        if (it->_detail.dirent_offset >= it->_detail.dirent_size)
         {
-            it->_detail.dirent_offset += it->current_item.dirent->record_size;
-
-            if (it->_detail.dirent_offset >= it->_detail.dirent_size)
-            {
-                if (!_get_next_dirents(&it->_detail, err))
-                    return nullptr;
-            }
-
-            if (it->_detail.dirent_size == 0)
+            if (!_get_next_dirents(&it->_detail, err))
                 return nullptr;
-
-            it->current_item.dirent = (dirent64*)(it->_detail.buffer.data + it->_detail.dirent_offset);
-            current_type = (fs::filesystem_type)(it->current_item.dirent->type << 12);
         }
+
+        if (it->_detail.dirent_size == 0)
+            return nullptr;
+
+        it->current_item.dirent = (dirent64*)(it->_detail.buffer.data + it->_detail.dirent_offset);
+        current_type = (fs::filesystem_type)(it->current_item.dirent->type << 12);
+        name = ((char*)it->current_item.dirent) + offsetof(dirent64, type) + 1;
     }
 
     it->current_item.type = current_type;
 
     // In memory, the name of the entry is directly after the type of a dirent64 struct.
     // The name is null terminated.
-    const char *name = ((char*)it->current_item.dirent) + offsetof(dirent64, type) + 1;
-
-    // TODO: ignore dot and dot dot
 
     if constexpr (is_flag_set(BakeOpts, fs::iterate_option::Fullpaths))
     {
@@ -186,17 +180,9 @@ fs::fs_iterator_item *_iterate(fs::fs_iterator *it, int type_filter, fs::iterate
 fs::fs_iterator_item *fs::_iterate(fs::fs_iterator *it, fs::iterate_option opts, fs::fs_error *err)
 {
     if (is_flag_set(opts, fs::iterate_option::Fullpaths))
-        return ::_iterate<fs::iterate_option::Fullpaths>(it, -1, opts, err);
+        return ::_iterate<fs::iterate_option::Fullpaths>(it, opts, err);
     else
-        return ::_iterate<fs::iterate_option::None>(it, -1, opts, err);
-}
-
-fs::fs_iterator_item *fs::_iterate_type(fs::fs_iterator *it, int type_filter, fs::iterate_option opts, fs::fs_error *err)
-{
-    if (is_flag_set(opts, fs::iterate_option::Fullpaths))
-        return ::_iterate<fs::iterate_option::Fullpaths>(it, type_filter, opts, err);
-    else
-        return ::_iterate<fs::iterate_option::None>(it, type_filter, opts, err);
+        return ::_iterate<fs::iterate_option::None>(it, opts, err);
 }
 
 // recursive iteration
@@ -205,7 +191,7 @@ bool fs::_init(fs::fs_recursive_iterator *it, fs::const_fs_string pth, fs::itera
     assert(it != nullptr);
 
     it->target_path = pth;
-    fs::init(&it->path_it, pth);
+    fs::init(&it->path_it);
     it->current_item.dirent = nullptr;
     it->current_item.type = fs::filesystem_type::Unknown;
     it->current_item.recurse = false;
@@ -229,12 +215,11 @@ bool fs::_init(fs::fs_recursive_iterator *it, fs::const_fs_string pth, fs::itera
 
     if (is_flag_set(opts, fs::iterate_option::Fullpaths))
     {
-        fs::path tmp = fs::canonical_path(&it->path_it);
-        fs::free(&it->path_it);
-        it->path_it = tmp;
+        it->path_it = fs::canonical_path(pth);
     }
+    else
+        fs::set_path(&it->path_it, pth);
 
-    // we do this to replace the filename for each entry
     fs::append_path(&it->path_it, ".");
 
     return true;
@@ -302,7 +287,7 @@ void fs::free(fs::fs_recursive_iterator *it)
 }
 
 template<fs::iterate_option BakeOpts>
-fs::fs_recursive_iterator_item *_recursive_iterate(fs::fs_recursive_iterator *it, int type_filter, fs::iterate_option opts, fs::fs_error *err)
+fs::fs_recursive_iterator_item *_recursive_iterate(fs::fs_recursive_iterator *it, fs::iterate_option opts, fs::fs_error *err)
 {
     tprint("iterate, stack size: %\n", it->_detail_stack.size);
     array<fs::fs_iterator_detail> *stack = &it->_detail_stack;
@@ -374,7 +359,6 @@ fs::fs_recursive_iterator_item *_recursive_iterate(fs::fs_recursive_iterator *it
 
     dirent64 *dirent = nullptr;
     fs::filesystem_type current_type;
-    fs::filesystem_type target_type  = (fs::filesystem_type)type_filter;
     // just the name of the entry within a subdirectory, not full path
     const char *name = nullptr;
 
@@ -409,12 +393,6 @@ fs::fs_recursive_iterator_item *_recursive_iterate(fs::fs_recursive_iterator *it
             continue;
         }
 
-        if (type_filter >= 0 && current_type != target_type)
-        {
-            detail->dirent_offset += dirent->record_size;
-            continue;
-        }
-
         break;
     }
 
@@ -437,7 +415,7 @@ fs::fs_recursive_iterator_item *_recursive_iterate(fs::fs_recursive_iterator *it
     if constexpr (is_flag_set(BakeOpts, fs::iterate_option::ChildrenFirst))
     {
         if (it->current_item.recurse)
-            return ::_recursive_iterate<fs::iterate_option::ChildrenFirst>(it, type_filter, opts, err);
+            return ::_recursive_iterate<fs::iterate_option::ChildrenFirst>(it, opts, err);
         else
             it->current_item._advance = true;
     }
@@ -452,15 +430,7 @@ fs::fs_recursive_iterator_item *_recursive_iterate(fs::fs_recursive_iterator *it
 fs::fs_recursive_iterator_item *fs::_iterate(fs::fs_recursive_iterator *it, fs::iterate_option opts, fs::fs_error *err)
 {
     if (is_flag_set(opts, fs::iterate_option::ChildrenFirst))
-        return ::_recursive_iterate<fs::iterate_option::ChildrenFirst>(it, -1, opts, err);
+        return ::_recursive_iterate<fs::iterate_option::ChildrenFirst>(it, opts, err);
     else
-        return ::_recursive_iterate<fs::iterate_option::None>(it, -1, opts, err);
-}
-
-fs::fs_recursive_iterator_item *fs::_iterate_type(fs::fs_recursive_iterator *it, int type_filter, fs::iterate_option opts, fs::fs_error *err)
-{
-    if (is_flag_set(opts, fs::iterate_option::ChildrenFirst))
-        return ::_recursive_iterate<fs::iterate_option::ChildrenFirst>(it, type_filter, opts, err);
-    else
-        return ::_recursive_iterate<fs::iterate_option::None>(it, type_filter, opts, err);
+        return ::_recursive_iterate<fs::iterate_option::None>(it, opts, err);
 }

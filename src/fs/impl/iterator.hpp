@@ -70,21 +70,7 @@ auto init(fs::fs_iterator *it, T pth, fs::fs_error *err = nullptr)
 
 void free(fs::fs_iterator *it);
 
-enum class iterate_option : u8
-{
-    None            = 0b0000, // does not follow symlinks and does not stop on errors
-    FollowSymlinks  = 0b0001, // follows directory symlinks
-    StopOnError     = 0b0010, // stop on first error
-    Fullpaths       = 0b0100, // yields full paths in item->path. does consume more memory.
-    ChildrenFirst   = 0b1000  // when recursively iterating, iterates all children of a
-                              // directory before iterating the directory.
-                              // does nothing when not iterating recursively.
-};
-
-enum_flag(iterate_option);
-
 fs::fs_iterator_item *_iterate(fs::fs_iterator *it, fs::iterate_option opt = fs::iterate_option::None, fs::fs_error *err = nullptr);
-fs::fs_iterator_item *_iterate_type(fs::fs_iterator *it, int type_filter, fs::iterate_option opt = fs::iterate_option::None, fs::fs_error *err = nullptr);
 
 // recursive
 struct fs_recursive_iterator_item : public fs_iterator_item
@@ -122,7 +108,6 @@ auto init(fs::fs_recursive_iterator *it, T pth, fs::iterate_option opts = fs::it
 void free(fs::fs_recursive_iterator *it);
 
 fs::fs_recursive_iterator_item *_iterate(fs::fs_recursive_iterator *it, fs::iterate_option opt = fs::iterate_option::None, fs::fs_error *err = nullptr);
-fs::fs_recursive_iterator_item *_iterate_type(fs::fs_recursive_iterator *it, int type_filter, fs::iterate_option opt = fs::iterate_option::None, fs::fs_error *err = nullptr);
 }
 
 // macros
@@ -142,11 +127,39 @@ fs::fs_recursive_iterator_item *_iterate_type(fs::fs_recursive_iterator *it, int
 
 #define for_path(...) GET_MACRO3(__VA_ARGS__, for_path_IPOE, for_path_IPO, for_path_IP)(__VA_ARGS__)
 
-#define for_path_type_IPOE(Type, Item_Var, Pth, Opt, Err) for_path_Func(fs::_iterate_type, Item_Var, Pth, Opt, Err, (int)Type)
+#define for_path_type_IPOE(Type, Item_Var, Pth, Opt, Err)\
+    for_path_Func(fs::_iterate, Item_Var, Pth, Opt, Err)\
+    if (Item_Var->type == (Type))
+
 #define for_path_type_IPO(Type, Item_Var, Pth, Opt)       for_path_type_IPOE(Type, Item_Var, Pth, Opt, nullptr)
 #define for_path_type_IP(Type, Item_Var, Pth)             for_path_type_IPO(Type, Item_Var, Pth, fs::iterate_option::None)
 
 #define for_path_type(...) GET_MACRO4(__VA_ARGS__, for_path_type_IPOE, for_path_type_IPO, for_path_type_IP)(__VA_ARGS__)
 #define for_path_files(...)       for_path_type(fs::filesystem_type::File, __VA_ARGS__)
 #define for_path_directories(...) for_path_type(fs::filesystem_type::Directory, __VA_ARGS__)
+
+// recursive macros
+#define for_recursive_path_Func(Func, Item_Var, Pth, Opts, Err, ...)\
+    if (fs::fs_recursive_iterator Item_Var##_it; true)\
+    if (defer { fs::free(&Item_Var##_it); }; fs::init(&Item_Var##_it, Pth, (Opts), (Err)))\
+    for (fs::fs_recursive_iterator_item *Item_Var = Func(&Item_Var##_it __VA_OPT__(,) __VA_ARGS__, (Opts), (Err));\
+         Item_Var != nullptr;\
+         Item_Var = Func(&Item_Var##_it __VA_OPT__(,) __VA_ARGS__, (Opts), (Err)))
+
+#define for_recursive_path_IPOE(Item_Var, Pth, Opt, Err) for_recursive_path_Func(fs::_iterate, Item_Var, Pth, Opt, Err)
+#define for_recursive_path_IPO(Item_Var, Pth, Opt)       for_recursive_path_IPOE(Item_Var, Pth, Opt, nullptr)
+#define for_recursive_path_IP(Item_Var, Pth)             for_recursive_path_IPO(Item_Var, Pth, fs::iterate_option::None)
+
+#define for_recursive_path(...) GET_MACRO3(__VA_ARGS__, for_recursive_path_IPOE, for_recursive_path_IPO, for_recursive_path_IP)(__VA_ARGS__)
+
+#define for_recursive_path_type_IPOE(Type, Item_Var, Pth, Opt, Err)\
+    for_recursive_path_Func(fs::_iterate, Item_Var, Pth, Opt, Err)\
+    if (Item_Var->type == (Type))
+
+#define for_recursive_path_type_IPO(Type, Item_Var, Pth, Opt)       for_recursive_path_type_IPOE(Type, Item_Var, Pth, Opt, nullptr)
+#define for_recursive_path_type_IP(Type, Item_Var, Pth)             for_recursive_path_type_IPO(Type, Item_Var, Pth, fs::iterate_option::None)
+
+#define for_recursive_path_type(...) GET_MACRO4(__VA_ARGS__, for_recursive_path_type_IPOE, for_recursive_path_type_IPO, for_recursive_path_type_IP)(__VA_ARGS__)
+#define for_recursive_path_files(...)       for_recursive_path_type(fs::filesystem_type::File, __VA_ARGS__)
+#define for_recursive_path_directories(...) for_recursive_path_type(fs::filesystem_type::Directory, __VA_ARGS__)
 

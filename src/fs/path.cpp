@@ -1579,8 +1579,7 @@ bool fs::_remove_file(fs::const_fs_string pth, fs::fs_error *err)
     return true;
 }
 
-#if 0
-
+/*
 bool fs::remove(const fs::path *pth)
 {
     return std::filesystem::remove(pth->ptr->data);
@@ -1590,7 +1589,51 @@ bool fs::remove_all(const fs::path *pth)
 {
     return std::filesystem::remove_all(pth->ptr->data);
 }
+*/
 
+s64 fs::_get_children(fs::const_fs_string pth, array<fs::path> *children, fs::iterate_option opts, fs::fs_error *err)
+{
+    assert(children != nullptr);
+
+    s64 count = 0;
+    err->error_code = 0;
+
+    for_path(child, pth, opts, err)
+    {
+        fs::path *cp = ::add_at_end(children);
+        fs::init(cp);
+        fs::set_path(cp, child->path);
+        count += 1;
+    }
+
+    if (err->error_code != 0)
+        return -1;
+
+    return count;
+}
+
+s64 fs::_get_all_descendants(fs::const_fs_string pth, array<fs::path> *descendants, fs::iterate_option opts, fs::fs_error *err)
+{
+    assert(descendants != nullptr);
+
+    s64 count = 0;
+    err->error_code = 0;
+
+    for_recursive_path(desc, pth, opts, err)
+    {
+        fs::path *cp = ::add_at_end(descendants);
+        fs::init(cp);
+        fs::set_path(cp, desc->path);
+        count += 1;
+    }
+
+    if (err->error_code != 0)
+        return -1;
+
+    return count;
+}
+
+#if 0
 void fs::get_executable_path(fs::path *out)
 {
 #if Linux

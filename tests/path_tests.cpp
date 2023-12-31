@@ -11,7 +11,13 @@
 #include "shl/time.hpp" // for sleep
 #include "shl/platform.hpp"
 #include "shl/print.hpp"
+#include "shl/sort.hpp"
 #include "fs/path.hpp"
+
+int path_comparer(const fs::path *a, const fs::path *b)
+{
+    return compare_strings(to_const_string(a), to_const_string(b));
+}
 
 #define assert_equal_str(STR1, STR2)\
     assert_equal(compare_strings(to_const_string(STR1), STR2), 0)
@@ -1403,7 +1409,6 @@ define_test(remove_file_removes_file)
 }
 
 /*
- * these are more for debugging than testing
 define_test(iterator_test1)
 {
     fs::fs_error err{};
@@ -1419,35 +1424,341 @@ define_test(iterator_test1)
 }
 */
 
-define_test(iterator_test2)
+define_test(iterator_test)
 {
     fs::fs_error err{};
+    array<fs::path> descendants{};
 
-    for_path(item, SANDBOX_DIR, fs::iterate_option::None, &err)
-        printf("%x - %s\n", (u32)item->type, item->path.c_str);
+    fs::create_directories(SANDBOX_DIR "/it/dir1");
+    fs::create_directories(SANDBOX_DIR "/it/dir2/dir3");
+    fs::touch(SANDBOX_DIR "/it/file1");
+    fs::touch(SANDBOX_DIR "/it/dir2/file2");
 
-    assert_equal(err.error_code, 0);
-}
-
-define_test(iterator_test3)
-{
-    fs::fs_error err{};
-
-    printf("\n recursive test\n");
-    fs::iterate_option opts = fs::iterate_option::ChildrenFirst;
-
-    if (fs::fs_recursive_iterator it; true)
-    if (defer { fs::free(&it); }; fs::init(&it, SANDBOX_DIR, opts, &err))
-    for (fs::fs_recursive_iterator_item *item = fs::_iterate(&it, opts, &err);
-         item != nullptr;
-         item = fs::_iterate(&it, opts, &err))
+    for_path(item, "it", fs::iterate_option::None, &err)
     {
-        for (int x = 0; x < item->depth; ++x) printf("  ");
-        printf("%x - %s\n", (u32)item->type, item->path.c_str);
+        fs::path *cp = ::add_at_end(&descendants);
+        fs::init(cp);
+        fs::set_path(cp, item->path);
     }
 
-    // even if we continue on error, the last error will be recorded here.
-    // assert_equal(err.error_code, 0);
+    sort(descendants.data, descendants.size, path_comparer);
+
+    assert_equal(descendants.size, 3);
+
+    assert_equal_str(descendants[0], "dir1");
+    assert_equal_str(descendants[1], "dir2");
+    assert_equal_str(descendants[2], "file1");
+
+    assert_equal(err.error_code, 0);
+
+    free<true>(&descendants);
+}
+
+define_test(iterator_type_filter_test)
+{
+    fs::fs_error err{};
+    array<fs::path> descendants{};
+
+    fs::create_directories(SANDBOX_DIR "/it2/dir1");
+    fs::create_directories(SANDBOX_DIR "/it2/dir2/dir3");
+    fs::touch(SANDBOX_DIR "/it2/file1");
+    fs::touch(SANDBOX_DIR "/it2/dir2/file2");
+
+    for_path_files(item, "it2", fs::iterate_option::None, &err)
+    {
+        fs::path *cp = ::add_at_end(&descendants);
+        fs::init(cp);
+        fs::set_path(cp, item->path);
+    }
+
+    sort(descendants.data, descendants.size, path_comparer);
+
+    assert_equal(descendants.size, 1);
+    assert_equal_str(descendants[0], "file1");
+    assert_equal(err.error_code, 0);
+
+    free_values(&descendants);
+    clear(&descendants);
+
+    // directories
+    for_path_type(fs::filesystem_type::Directory, item, "it2", fs::iterate_option::None, &err)
+    {
+        fs::path *cp = ::add_at_end(&descendants);
+        fs::init(cp);
+        fs::set_path(cp, item->path);
+    }
+
+    sort(descendants.data, descendants.size, path_comparer);
+
+    assert_equal(descendants.size, 2);
+    assert_equal_str(descendants[0], "dir1");
+    assert_equal_str(descendants[1], "dir2");
+    assert_equal(err.error_code, 0);
+
+    free<true>(&descendants);
+}
+
+define_test(recursive_iterator_test)
+{
+    fs::fs_error err{};
+    array<fs::path> descendants{};
+
+    fs::create_directories(SANDBOX_DIR "/rit/dir1/dir2/dir3/dir4");
+    fs::touch(SANDBOX_DIR "/rit/dir1/dir2/dir3/dir4/file");
+
+    fs::iterate_option opts = fs::iterate_option::Fullpaths;
+
+    for_recursive_path(item, "rit", opts, &err)
+    {
+        fs::path *cp = ::add_at_end(&descendants);
+        fs::init(cp);
+        fs::set_path(cp, item->path);
+    }
+
+    assert_equal(descendants.size, 5);
+
+    // order here is fixed and the results must look like this.
+    // use ChildrenFirst for reverse order (see next test)
+    assert_equal_str(descendants[0], SANDBOX_DIR "/rit/dir1");
+    assert_equal_str(descendants[1], SANDBOX_DIR "/rit/dir1/dir2");
+    assert_equal_str(descendants[2], SANDBOX_DIR "/rit/dir1/dir2/dir3");
+    assert_equal_str(descendants[3], SANDBOX_DIR "/rit/dir1/dir2/dir3/dir4");
+    assert_equal_str(descendants[4], SANDBOX_DIR "/rit/dir1/dir2/dir3/dir4/file");
+
+    free<true>(&descendants);
+}
+
+define_test(recursive_iterator_children_first_test)
+{
+    fs::fs_error err{};
+
+    fs::create_directories(SANDBOX_DIR "/cf/dir1/dir2/dir3/dir4");
+    fs::touch(SANDBOX_DIR "/cf/dir1/dir2/dir3/dir4/file");
+
+    array<fs::path> descendants{};
+
+    fs::iterate_option opts = fs::iterate_option::Fullpaths | fs::iterate_option::ChildrenFirst;
+
+    for_recursive_path(item, "cf", opts, &err)
+    {
+        fs::path *cp = ::add_at_end(&descendants);
+        fs::init(cp);
+        fs::set_path(cp, item->path);
+    }
+
+    assert_equal(descendants.size, 5);
+
+    // order here is fixed and the results must look like this
+    assert_equal_str(descendants[0], SANDBOX_DIR "/cf/dir1/dir2/dir3/dir4/file");
+    assert_equal_str(descendants[1], SANDBOX_DIR "/cf/dir1/dir2/dir3/dir4");
+    assert_equal_str(descendants[2], SANDBOX_DIR "/cf/dir1/dir2/dir3");
+    assert_equal_str(descendants[3], SANDBOX_DIR "/cf/dir1/dir2");
+    assert_equal_str(descendants[4], SANDBOX_DIR "/cf/dir1");
+
+    free<true>(&descendants);
+}
+
+define_test(recursive_iterator_symlink_test)
+{
+    fs::fs_error err{};
+    array<fs::path> descendants{};
+
+    fs::create_directories(SANDBOX_DIR "/rit_sym/dir1");
+    fs::create_directories(SANDBOX_DIR "/rit_sym/dir2/dir3");
+    fs::create_symlink(SANDBOX_DIR "/rit_sym/dir2", SANDBOX_DIR "/rit_sym/symlink");
+    fs::touch(SANDBOX_DIR "/rit_sym/file1");
+    fs::touch(SANDBOX_DIR "/rit_sym/dir2/file2");
+
+    fs::iterate_option opts = fs::iterate_option::FollowSymlinks;
+
+    for_recursive_path(item, "rit_sym", opts, &err)
+    {
+        fs::path *cp = ::add_at_end(&descendants);
+        fs::init(cp);
+        fs::set_path(cp, item->path);
+    }
+
+    sort(descendants.data, descendants.size, path_comparer);
+    assert_equal(descendants.size, 8);
+
+    assert_equal_str(descendants[0], "rit_sym/dir1");
+    assert_equal_str(descendants[1], "rit_sym/dir2");
+    assert_equal_str(descendants[2], "rit_sym/file1");
+    assert_equal_str(descendants[3], "rit_sym/symlink");
+    assert_equal_str(descendants[4], "rit_sym/dir2/dir3");
+    assert_equal_str(descendants[5], "rit_sym/dir2/file2");
+    assert_equal_str(descendants[6], "rit_sym/symlink/dir3");
+    assert_equal_str(descendants[7], "rit_sym/symlink/file2");
+
+    free<true>(&descendants);
+}
+
+define_test(recursive_iterator_type_filter_test)
+{
+    fs::fs_error err{};
+    array<fs::path> descendants{};
+
+    fs::create_directories(SANDBOX_DIR "/rit_filter/dir1");
+    fs::create_directories(SANDBOX_DIR "/rit_filter/dir2/dir3");
+    fs::touch(SANDBOX_DIR "/rit_filter/file1");
+    fs::touch(SANDBOX_DIR "/rit_filter/dir2/file2");
+
+    for_recursive_path_type(fs::filesystem_type::File, item, "rit_filter", fs::iterate_option::None, &err)
+    {
+        fs::path *cp = ::add_at_end(&descendants);
+        fs::init(cp);
+        fs::set_path(cp, item->path);
+    }
+
+    sort(descendants.data, descendants.size, path_comparer);
+
+    assert_equal(descendants.size, 2);
+
+    assert_equal_str(descendants[0], "rit_filter/file1");
+    assert_equal_str(descendants[1], "rit_filter/dir2/file2");
+
+    free_values(&descendants);
+    clear(&descendants);
+
+    // directories
+    for_recursive_path_directories(item, "rit_filter", fs::iterate_option::None, &err)
+    {
+        fs::path *cp = ::add_at_end(&descendants);
+        fs::init(cp);
+        fs::set_path(cp, item->path);
+    }
+
+    sort(descendants.data, descendants.size, path_comparer);
+
+    assert_equal(descendants.size, 3);
+
+    assert_equal_str(descendants[0], "rit_filter/dir1");
+    assert_equal_str(descendants[1], "rit_filter/dir2");
+    assert_equal_str(descendants[2], "rit_filter/dir2/dir3");
+
+    free<true>(&descendants);
+}
+
+define_test(get_children_names_gets_directory_children_names)
+{
+    fs::fs_error err{};
+    array<fs::path> children{};
+
+    fs::create_directories(SANDBOX_DIR "/get_children/dir1");
+    fs::create_directories(SANDBOX_DIR "/get_children/dir2/dir3");
+    fs::touch(SANDBOX_DIR "/get_children/file1");
+    fs::touch(SANDBOX_DIR "/get_children/dir2/file2");
+
+    s64 count = fs::get_children_names(SANDBOX_DIR "/get_children", &children, &err);
+
+    assert_equal(err.error_code, 0);
+    assert_equal(count, 3);
+    assert_equal(children.size, 3);
+
+    sort(children.data, children.size, path_comparer);
+
+    assert_equal_str(children[0], "dir1");
+    assert_equal_str(children[1], "dir2");
+    assert_equal_str(children[2], "file1");
+
+    free<true>(&children);
+}
+
+define_test(get_children_names_returns_minus_one_on_error)
+{
+    fs::fs_error err{};
+    array<fs::path> children{};
+
+    s64 count = fs::get_children_names(SANDBOX_TEST_DIR_NO_PERMISSION, &children, &err);
+
+    assert_equal(count, -1);
+    assert_equal(children.size, 0);
+
+#if Linux
+    assert_equal(err.error_code, EACCES);
+#endif
+
+    free<true>(&children);
+}
+
+define_test(get_children_fullpaths_gets_directory_children_fullpaths)
+{
+    fs::fs_error err{};
+    array<fs::path> children{};
+
+    fs::create_directories(SANDBOX_DIR "/get_children2/dir1");
+    fs::create_directories(SANDBOX_DIR "/get_children2/dir2/dir3");
+    fs::touch(SANDBOX_DIR "/get_children2/file1");
+    fs::touch(SANDBOX_DIR "/get_children2/dir2/file2");
+
+    s64 count = fs::get_children_fullpaths(SANDBOX_DIR "/get_children2", &children, &err);
+
+    assert_equal(err.error_code, 0);
+    assert_equal(count, 3);
+    assert_equal(children.size, 3);
+
+    sort(children.data, children.size, path_comparer);
+
+    assert_equal_str(children[0], SANDBOX_DIR "/get_children2/dir1");
+    assert_equal_str(children[1], SANDBOX_DIR "/get_children2/dir2");
+    assert_equal_str(children[2], SANDBOX_DIR "/get_children2/file1");
+
+    free<true>(&children);
+}
+
+define_test(get_all_descendants_paths_gets_all_descendants_paths_relative_to_given_directory)
+{
+    fs::fs_error err{};
+    array<fs::path> all_descendants{};
+
+    fs::create_directories(SANDBOX_DIR "/get_all_descendants/dir1");
+    fs::create_directories(SANDBOX_DIR "/get_all_descendants/dir2/dir3");
+    fs::touch(SANDBOX_DIR "/get_all_descendants/file1");
+    fs::touch(SANDBOX_DIR "/get_all_descendants/dir2/file2");
+
+    // not absolute path, so paths are relative to this parameter
+    s64 count = fs::get_all_descendants_paths("get_all_descendants", &all_descendants, &err);
+
+    assert_equal(err.error_code, 0);
+    assert_equal(count, 5);
+    assert_equal(all_descendants.size, 5);
+
+    sort(all_descendants.data, all_descendants.size, path_comparer);
+
+    assert_equal_str(all_descendants[0], "get_all_descendants/dir1");
+    assert_equal_str(all_descendants[1], "get_all_descendants/dir2");
+    assert_equal_str(all_descendants[2], "get_all_descendants/file1");
+    assert_equal_str(all_descendants[3], "get_all_descendants/dir2/dir3");
+    assert_equal_str(all_descendants[4], "get_all_descendants/dir2/file2");
+
+    free<true>(&all_descendants);
+}
+
+define_test(get_all_descendants_fullpaths_gets_all_descendants_paths)
+{
+    fs::fs_error err{};
+    array<fs::path> all_descendants{};
+
+    fs::create_directories(SANDBOX_DIR "/get_all_descendants2/dir1");
+    fs::create_directories(SANDBOX_DIR "/get_all_descendants2/dir2/dir3");
+    fs::touch(SANDBOX_DIR "/get_all_descendants2/file1");
+    fs::touch(SANDBOX_DIR "/get_all_descendants2/dir2/file2");
+
+    s64 count = fs::get_all_descendants_fullpaths("get_all_descendants", &all_descendants, &err);
+
+    assert_equal(err.error_code, 0);
+    assert_equal(count, 5);
+    assert_equal(all_descendants.size, 5);
+
+    sort(all_descendants.data, all_descendants.size, path_comparer);
+
+    assert_equal_str(all_descendants[0], SANDBOX_DIR "/get_all_descendants/dir1");
+    assert_equal_str(all_descendants[1], SANDBOX_DIR "/get_all_descendants/dir2");
+    assert_equal_str(all_descendants[2], SANDBOX_DIR "/get_all_descendants/file1");
+    assert_equal_str(all_descendants[3], SANDBOX_DIR "/get_all_descendants/dir2/dir3");
+    assert_equal_str(all_descendants[4], SANDBOX_DIR "/get_all_descendants/dir2/file2");
+
+    free<true>(&all_descendants);
 }
 
 #if 0

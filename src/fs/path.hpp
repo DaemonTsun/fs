@@ -341,7 +341,27 @@ template<typename T> auto remove_file(T pth, fs::fs_error *err = nullptr) define
 bool remove_directory(const fs::path *pth);
 bool remove(const fs::path *pth);
 
-// TODO: iterators
+*/
+
+// gets the paths to children of one directory, not subdirectories
+s64 _get_children(fs::const_fs_string pth, array<fs::path> *children, fs::iterate_option options, fs::fs_error *err);
+
+template<typename T> auto get_children_names(T pth, array<fs::path> *children, fs::fs_error *err = nullptr)
+    define_fs_conversion_body(fs::_get_children, pth, children, fs::iterate_option::StopOnError, err)
+
+template<typename T> auto get_children_fullpaths(T pth, array<fs::path> *children, fs::fs_error *err = nullptr)
+    define_fs_conversion_body(fs::_get_children, pth, children, fs::iterate_option::Fullpaths | fs::iterate_option::StopOnError, err)
+
+// gets subdirectories too
+s64 _get_all_descendants(fs::const_fs_string pth, array<fs::path> *descendants, fs::iterate_option options, fs::fs_error *err);
+
+template<typename T> auto get_all_descendants_paths(T pth, array<fs::path> *descendants, fs::fs_error *err = nullptr)
+    define_fs_conversion_body(fs::_get_all_descendants, pth, descendants, fs::iterate_option::StopOnError, err)
+
+template<typename T> auto get_all_descendants_fullpaths(T pth, array<fs::path> *descendants, fs::fs_error *err = nullptr)
+    define_fs_conversion_body(fs::_get_all_descendants, pth, descendants, fs::iterate_option::Fullpaths | fs::iterate_option::StopOnError, err)
+
+/*
 
 ////////////////////////
 // getting special paths
