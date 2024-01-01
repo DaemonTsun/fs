@@ -431,6 +431,51 @@ define_test(extension_returns_path_extension)
     fs::free(&p);
 }
 
+define_test(replace_filename_replaces_filename_of_path)
+{
+    fs::path p{};
+
+    // filename is just the last part of a path, could be
+    // a directory too.
+    fs::set_path(&p, "/foo/bar");
+    fs::replace_filename(&p, "xyz"_cs);
+    assert_equal_str(p, "/foo/xyz");
+
+    // shorter
+    fs::set_path(&p, "/foo/bar");
+    fs::replace_filename(&p, "g"_cs);
+    assert_equal_str(p, "/foo/g");
+
+    // longer
+    fs::set_path(&p, "/foo/bar");
+    fs::replace_filename(&p, "hello world. this is a long filename"_cs);
+    assert_equal_str(p, "/foo/hello world. this is a long filename");
+
+    // setting filename
+    fs::set_path(&p, "/foo/");
+    fs::replace_filename(&p, "abc"_cs);
+    assert_equal_str(p, "/foo/abc");
+
+    fs::set_path(&p, "/");
+    fs::replace_filename(&p, "abc"_cs);
+    assert_equal_str(p, "/abc");
+
+    fs::set_path(&p, "abc");
+    fs::replace_filename(&p, "xyz"_cs);
+    assert_equal_str(p, "xyz");
+
+    fs::set_path(&p, ".");
+    fs::replace_filename(&p, "xyz"_cs);
+    assert_equal_str(p, "xyz");
+
+    // empty
+    fs::set_path(&p, "");
+    fs::replace_filename(&p, "abc"_cs);
+    assert_equal_str(p, "abc");
+
+    fs::free(&p);
+}
+
 define_test(parent_path_segment_returns_the_parent_path_segment)
 {
     fs::path p{};

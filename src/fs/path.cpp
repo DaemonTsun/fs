@@ -615,7 +615,12 @@ void fs::replace_filename(fs::path *out, fs::const_fs_string newname)
     u64 start = 0;
     u64 cutoff = newname.size;
 
-    if (parent_seg.size != 0)
+    if (parent_seg == fs::root(out))
+    {
+        start = parent_seg.size;
+        cutoff += start;
+    }
+    else if (parent_seg.size != 0)
     {
         // +1 for directory separator
         start = parent_seg.size + 1;

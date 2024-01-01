@@ -299,11 +299,16 @@ fs::fs_recursive_iterator_item *_recursive_iterate(fs::fs_recursive_iterator *it
         it->current_item.recurse = false;
 
         fs::fs_iterator_detail *subdir = ::add_at_end(stack);
+        subdir->buffer.size = DIRENT_STACK_BUFFER_SIZE;
+
+        // I suppose this is a design flaw, but that's what you
+        // get when you mess with hacky things like scratch buffers.
+        _regenerate_scratch_buffers(stack);
 
         if (!fs::init(subdir, it->current_item.path, err)
          || !_get_next_dirents(subdir, err))
         {
-            tprint("  recursing into % failed\n", it->current_item.path);
+            tprint("  recursing into % failed: %\n", it->current_item.path, err->error_code);
             if (is_flag_set(opts, fs::iterate_option::StopOnError))
                 return nullptr;
             else
@@ -316,10 +321,6 @@ fs::fs_recursive_iterator_item *_recursive_iterate(fs::fs_recursive_iterator *it
         }
         else
             fs::append_path(&it->path_it, ".");
-
-        // I suppose this is a design flaw, but that's what you
-        // get when you mess with hacky things like scratch buffers.
-        _regenerate_scratch_buffers(stack);
     }
 
     tprint("  path_it: %\n", ::to_const_string(it->path_it));
@@ -415,6 +416,7 @@ fs::fs_recursive_iterator_item *_recursive_iterate(fs::fs_recursive_iterator *it
     if constexpr (is_flag_set(BakeOpts, fs::iterate_option::ChildrenFirst))
     {
         if (it->current_item.recurse)
+            // TODO: split this function and remove recursion, this is really bad!!!
             return ::_recursive_iterate<fs::iterate_option::ChildrenFirst>(it, opts, err);
         else
             it->current_item._advance = true;
