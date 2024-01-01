@@ -16,13 +16,13 @@
 
 // some syscalls
 // from sys/sendfile.h
-int sendfile(int out_fd, int in_fd, off_t *offset, size_t count)
+int _sendfile(int out_fd, int in_fd, off_t *offset, size_t count)
 {
     return ::syscall(SYS_sendfile, out_fd, in_fd, offset, count);
 }
 
 // from stdio.h
-int rename(const char *oldpath, const char *newpath)
+int _rename(const char *oldpath, const char *newpath)
 {
     return ::syscall(SYS_rename, oldpath, newpath);
 }
@@ -1435,7 +1435,7 @@ bool fs::_copy_file(fs::const_fs_string from, fs::const_fs_string to, fs::copy_f
     
     defer { ::close(to_fd); };
 
-    if (::sendfile(to_fd, from_fd, nullptr, from_info.stx_size) == -1)
+    if (::_sendfile(to_fd, from_fd, nullptr, from_info.stx_size) == -1)
     {
         set_fs_errno_error(err);
         return false;
@@ -1559,7 +1559,7 @@ bool fs::_move(fs::const_fs_string src, fs::const_fs_string dest, fs::fs_error *
 #if Windows
     // TODO: implement
 #else
-    if (::rename(src.c_str, dest.c_str) == -1)
+    if (::_rename(src.c_str, dest.c_str) == -1)
     {
         set_fs_errno_error(err);
         return false;
@@ -1582,6 +1582,58 @@ bool fs::_remove_file(fs::const_fs_string pth, fs::fs_error *err)
 #endif
 
     return true;
+}
+
+bool fs::_remove_empty_directory(fs::const_fs_string pth, fs::fs_error *err)
+{
+#if Windows
+    // TODO: implement
+#else
+    if (::rmdir(pth.c_str) == -1)
+    {
+        set_fs_errno_error(err);
+        return false;
+    }
+#endif
+
+    return true;
+}
+
+bool fs::_remove_directory(fs::const_fs_string pth, fs::fs_error *err)
+{
+    fs::iterate_option opts = fs::iterate_option::Fullpaths
+                            | fs::iterate_option::StopOnError
+                            | fs::iterate_option::ChildrenFirst;
+
+    for_recursive_path(item, pth, opts, err)
+    {
+        switch (item->type)
+        {
+        case fs::filesystem_type::File:
+        case fs::filesystem_type::Symlink:
+        case fs::filesystem_type::Pipe:
+        {
+            if (!fs::remove_file(item->path, err))
+                return false;
+
+            break;
+        }
+        case fs::filesystem_type::Directory:
+        {
+            if (!fs::remove_empty_directory(item->path, err))
+                return false;
+
+            break;
+        }
+        default:
+            return false;
+        }
+    }
+
+    if (!fs::remove_empty_directory(pth, err))
+        return false;
+
+    return err->error_code == 0;
 }
 
 /*

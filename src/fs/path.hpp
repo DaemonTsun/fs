@@ -336,9 +336,16 @@ template<typename T1, typename T2> auto move(T1 src, T2 dest, fs::fs_error *err 
 
 bool _remove_file(fs::const_fs_string pth, fs::fs_error *err);
 template<typename T> auto remove_file(T pth, fs::fs_error *err = nullptr) define_fs_conversion_body(fs::_remove_file, pth, err)
+
+// removes single empty directory
+bool _remove_empty_directory(fs::const_fs_string pth, fs::fs_error *err);
+template<typename T> auto remove_empty_directory(T pth, fs::fs_error *err = nullptr) define_fs_conversion_body(fs::_remove_empty_directory, pth, err)
+
+// removes all children as well
+bool _remove_directory(fs::const_fs_string pth, fs::fs_error *err);
+template<typename T> auto remove_directory(T pth, fs::fs_error *err = nullptr) define_fs_conversion_body(fs::_remove_directory, pth, err)
 /*
 // TODO: implement
-bool remove_directory(const fs::path *pth);
 bool remove(const fs::path *pth);
 
 */

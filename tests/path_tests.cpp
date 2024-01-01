@@ -1453,6 +1453,94 @@ define_test(remove_file_removes_file)
     fs::free(&p);
 }
 
+define_test(remove_empty_directory_removes_only_empty_directories)
+{
+    fs::fs_error err{};
+
+    const char *dir1 = SANDBOX_DIR "/remove_empty_dir1";
+    const char *dir2 = SANDBOX_DIR "/remove_empty_dir2";
+    const char *file1 = SANDBOX_DIR "/remove_empty_dir_file";
+    const char *file2 = SANDBOX_DIR "/remove_empty_dir2/not_empty";
+
+    fs::create_directory(dir1);
+    fs::create_directory(dir2);
+    fs::touch(file1);
+    fs::touch(file2);
+
+    assert_equal(fs::exists(dir1), true); 
+    assert_equal(fs::remove_empty_directory(dir1, &err), true); 
+    assert_equal(fs::exists(dir1), false); 
+
+    // not empty
+    assert_equal(fs::exists(dir2), true); 
+    assert_equal(fs::remove_empty_directory(dir2, &err), false); 
+    assert_equal(fs::exists(dir2), true); 
+
+#if Linux
+    assert_equal(err.error_code, ENOTEMPTY);
+#endif
+
+    assert_equal(fs::exists(file1), true); 
+    assert_equal(fs::remove_empty_directory(file1, &err), false); 
+    assert_equal(fs::exists(file1), true); 
+
+#if Linux
+    assert_equal(err.error_code, ENOTDIR);
+#endif
+}
+
+define_test(remove_directory_removes_directories)
+{
+    fs::fs_error err{};
+
+    const char *dir1 = SANDBOX_DIR  "/remove_dir1";
+    const char *dir2 = SANDBOX_DIR  "/remove_dir2";
+    const char *dir3 = SANDBOX_DIR  "/remove_dir3";
+    const char *file1 = SANDBOX_DIR "/remove_dir_file";
+
+    fs::create_directory(dir1);
+    fs::create_directory(dir2);
+    fs::create_directory(dir3);
+    fs::touch(file1);
+    fs::touch(SANDBOX_DIR "/remove_dir2/notempty");
+
+    fs::create_directory(SANDBOX_DIR "/remove_dir3/dir4");
+    fs::create_directory(SANDBOX_DIR "/remove_dir3/dir5");
+    fs::touch(SANDBOX_DIR "/remove_dir3/file3");
+    fs::touch(SANDBOX_DIR "/remove_dir3/dir4/file4");
+
+    assert_equal(fs::exists(dir1), true); 
+    assert_equal(fs::remove_directory(dir1, &err), true); 
+    assert_equal(fs::exists(dir1), false); 
+
+    // not empty
+    assert_equal(fs::exists(dir2), true); 
+    assert_equal(fs::remove_directory(dir2, &err), true);
+    assert_equal(fs::exists(dir2), false); 
+
+#if Linux
+    assert_equal(err.error_code, 0);
+#endif
+
+    // not empty with subdirectories and more descendants
+    assert_equal(fs::exists(dir3), true); 
+    assert_equal(fs::remove_directory(dir3, &err), true);
+    assert_equal(fs::exists(dir3), false); 
+
+#if Linux
+    assert_equal(err.error_code, 0);
+#endif
+
+    assert_equal(fs::exists(file1), true); 
+    assert_equal(fs::remove_directory(file1, &err), false); 
+    assert_equal(fs::exists(file1), true); 
+
+#if Linux
+    assert_equal(err.error_code, ENOTDIR);
+#endif
+}
+
+
 /*
 define_test(iterator_test1)
 {
@@ -1858,13 +1946,16 @@ void _setup()
     fs::free(&_tmp);
 }
 
-#include <filesystem> // lol
+// #include <filesystem> // lol
 
 void _cleanup()
 {
     chmod(SANDBOX_TEST_DIR_NO_PERMISSION, 0777);
     fs::set_current_path(&old_current_dir);
-    std::filesystem::remove_all(SANDBOX_DIR);
+    // std::filesystem::remove_all(SANDBOX_DIR);
+    fs::fs_error err{};
+    if (!fs::remove_directory(SANDBOX_DIR, &err))
+        fprintf(stderr, "ERROR: could not remove directory %s. Error code %d:\n%s\n", SANDBOX_DIR, err.error_code, err.what);
 
     fs::free(&old_current_dir);
 }

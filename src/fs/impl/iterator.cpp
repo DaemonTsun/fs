@@ -215,7 +215,8 @@ bool fs::_init(fs::fs_recursive_iterator *it, fs::const_fs_string pth, fs::itera
 
     if (is_flag_set(opts, fs::iterate_option::Fullpaths))
     {
-        it->path_it = fs::canonical_path(pth);
+        if (!fs::canonical_path(pth, &it->path_it, err))
+            return false;
     }
     else
         fs::set_path(&it->path_it, pth);
