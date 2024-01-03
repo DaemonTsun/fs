@@ -321,6 +321,20 @@ fs::filesystem_type get_filesystem_type(const fs::filesystem_info *info)
     return fs::filesystem_type::Unknown;
 }
 
+bool fs::_get_filesystem_type(fs::const_fs_string pth, fs::filesystem_type *out, bool follow_symlinks, fs::fs_error *err)
+{
+    assert(out != nullptr);
+
+    fs::filesystem_info info;
+
+    if (!fs::_get_filesystem_info(pth, &info, follow_symlinks, STATX_TYPE, err))
+        return false;
+
+    *out = (fs::filesystem_type)(info.stx_mode & S_IFMT);
+
+    return true;
+}
+
 bool fs::is_file_info(const fs::filesystem_info *info)
 {
     assert(info != nullptr);
@@ -1633,27 +1647,43 @@ bool fs::_remove_directory(fs::const_fs_string pth, fs::fs_error *err)
     if (!fs::remove_empty_directory(pth, err))
         return false;
 
+    if (err == nullptr)
+        return true;
+
     return err->error_code == 0;
 }
 
-/*
-bool fs::remove(const fs::path *pth)
+bool fs::_remove(fs::const_fs_string pth, fs::fs_error *err)
 {
-    return std::filesystem::remove(pth->ptr->data);
-}
+    fs::filesystem_type fstype;
 
-bool fs::remove_all(const fs::path *pth)
-{
-    return std::filesystem::remove_all(pth->ptr->data);
+    if (!fs::_get_filesystem_type(pth, &fstype, false, err))
+    {
+        if (errno == ENOENT)
+            return true; // don't care about nonexisting things
+
+        return false;
+    }
+
+    switch (fstype)
+    {
+    case fs::filesystem_type::Directory:
+        return fs::remove_directory(pth, err);
+    default:
+        return fs::remove_file(pth, err);
+    }
+
+    return true;
 }
-*/
 
 s64 fs::_get_children(fs::const_fs_string pth, array<fs::path> *children, fs::iterate_option opts, fs::fs_error *err)
 {
     assert(children != nullptr);
 
     s64 count = 0;
-    err->error_code = 0;
+
+    if (err != nullptr)
+        err->error_code = 0;
 
     for_path(child, pth, opts, err)
     {
@@ -1663,7 +1693,7 @@ s64 fs::_get_children(fs::const_fs_string pth, array<fs::path> *children, fs::it
         count += 1;
     }
 
-    if (err->error_code != 0)
+    if (err != nullptr && err->error_code != 0)
         return -1;
 
     return count;
@@ -1674,7 +1704,9 @@ s64 fs::_get_all_descendants(fs::const_fs_string pth, array<fs::path> *descendan
     assert(descendants != nullptr);
 
     s64 count = 0;
-    err->error_code = 0;
+
+    if (err != nullptr)
+        err->error_code = 0;
 
     for_recursive_path(desc, pth, opts, err)
     {
@@ -1684,7 +1716,7 @@ s64 fs::_get_all_descendants(fs::const_fs_string pth, array<fs::path> *descendan
         count += 1;
     }
 
-    if (err->error_code != 0)
+    if (err != nullptr && err->error_code != 0)
         return -1;
 
     return count;

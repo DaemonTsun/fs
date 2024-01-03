@@ -145,6 +145,11 @@ auto get_filesystem_info(T pth, fs::filesystem_info *out, bool follow_symlinks =
 
 fs::filesystem_type get_filesystem_type(const fs::filesystem_info *info);
 
+bool _get_filesystem_type(fs::const_fs_string pth, fs::filesystem_type *out, bool follow_symlinks, fs::fs_error *err);
+template<typename T>
+auto get_filesystem_type(T pth, fs::filesystem_type *out, bool follow_symlinks = true, fs::fs_error *err = nullptr)
+    define_fs_conversion_body(fs::_get_filesystem_type, pth, out, follow_symlinks, err);
+
 // 0 = doesn't exist, 1 = exists, -1 = error
 int _exists(fs::const_fs_string pth, bool follow_symlinks, fs::fs_error *err);
 
@@ -344,11 +349,10 @@ template<typename T> auto remove_empty_directory(T pth, fs::fs_error *err = null
 // removes all children as well
 bool _remove_directory(fs::const_fs_string pth, fs::fs_error *err);
 template<typename T> auto remove_directory(T pth, fs::fs_error *err = nullptr) define_fs_conversion_body(fs::_remove_directory, pth, err)
-/*
-// TODO: implement
-bool remove(const fs::path *pth);
 
-*/
+// removes anything. does not return false when removing non-existent things.
+bool _remove(fs::const_fs_string pth, fs::fs_error *err);
+template<typename T> auto remove(T pth, fs::fs_error *err = nullptr) define_fs_conversion_body(fs::_remove, pth, err)
 
 // gets the paths to children of one directory, not subdirectories
 s64 _get_children(fs::const_fs_string pth, array<fs::path> *children, fs::iterate_option options, fs::fs_error *err);

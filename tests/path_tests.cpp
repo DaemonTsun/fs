@@ -121,6 +121,49 @@ define_test(is_fs_type_tests)
     fs::free(&p);
 }
 
+define_test(get_filesystem_type_test)
+{
+    fs::filesystem_type fstype;
+    fs::fs_error err{};
+
+    // directory
+    const char *p = nullptr;
+
+    p = SANDBOX_TEST_DIR;
+    assert_equal(fs::get_filesystem_type(p, &fstype), true);
+    assert_equal(fstype, fs::filesystem_type::Directory);
+
+    p = SANDBOX_TEST_FILE;
+    assert_equal(fs::get_filesystem_type(p, &fstype), true);
+    assert_equal(fstype, fs::filesystem_type::File);
+
+    p = SANDBOX_TEST_SYMLINK;
+    assert_equal(fs::get_filesystem_type(p, &fstype), true);
+    assert_equal(fstype, fs::filesystem_type::File);
+    assert_equal(fs::get_filesystem_type(p, &fstype, false), true);
+    assert_equal(fstype, fs::filesystem_type::Symlink);
+
+    p = SANDBOX_TEST_SYMLINK_NO_TARGET;
+    assert_equal(fs::get_filesystem_type(p, &fstype, true, &err), false);
+
+#if Linux
+    assert_equal(err.error_code, ENOENT);
+#endif
+
+    assert_equal(fs::get_filesystem_type(p, &fstype, false, &err), true);
+    assert_equal(fstype, fs::filesystem_type::Symlink);
+
+    p = SANDBOX_TEST_PIPE;
+    assert_equal(fs::get_filesystem_type(p, &fstype), true);
+    assert_equal(fstype, fs::filesystem_type::Pipe);
+
+    assert_equal(fs::get_filesystem_type(SANDBOX_DIR "/doesnotexist", &fstype, false, &err), false);
+
+#if Linux
+    assert_equal(err.error_code, ENOENT);
+#endif
+}
+
 define_test(exists_returns_true_if_directory_exists)
 {
     fs::path p{};
@@ -1126,7 +1169,7 @@ define_test(copy_file_copies_file)
     assert_greater(to_info.stx_mtime, from_info.stx_mtime);
 #endif
 
-    sleep_ms(200);
+    sleep_ms(100);
     fs::touch(&from);
 
     assert_equal(fs::get_filesystem_info(&from, &from_info), true);
@@ -1138,7 +1181,7 @@ define_test(copy_file_copies_file)
     assert_greater(from_info.stx_mtime, to_info.stx_mtime);
 #endif
 
-    sleep_ms(200);
+    sleep_ms(100);
     assert_equal(fs::copy_file(&from, &to, fs::copy_file_option::UpdateExisting, &err), true);
 
     assert_equal(fs::get_filesystem_info(&to, &to_info), true);
@@ -1538,6 +1581,50 @@ define_test(remove_directory_removes_directories)
 #if Linux
     assert_equal(err.error_code, ENOTDIR);
 #endif
+}
+
+define_test(remove_removes_anything)
+{
+    fs::fs_error err{};
+
+    const char *dir1 = SANDBOX_DIR  "/remove1";
+    const char *dir2 = SANDBOX_DIR  "/remove2";
+    const char *dir3 = SANDBOX_DIR  "/remove3";
+    const char *file1 = SANDBOX_DIR "/remove_file";
+    const char *doesnotexist = SANDBOX_DIR "/doesnotexist";
+
+    fs::create_directory(dir1);
+    fs::create_directory(dir2);
+    fs::create_directory(dir3);
+    fs::touch(file1);
+    fs::touch(SANDBOX_DIR "/remove/notempty");
+
+    fs::create_directory(SANDBOX_DIR "/remove/dir4");
+    fs::create_directory(SANDBOX_DIR "/remove/dir5");
+    fs::touch(SANDBOX_DIR "/remove/file3");
+    fs::touch(SANDBOX_DIR "/remove/dir4/file4");
+
+    assert_equal(fs::exists(dir1), true); 
+    assert_equal(fs::remove(dir1, &err), true); 
+    assert_equal(fs::exists(dir1), false); 
+
+    // not empty
+    assert_equal(fs::exists(dir2), true); 
+    assert_equal(fs::remove(dir2, &err), true);
+    assert_equal(fs::exists(dir2), false); 
+
+    // not empty with subdirectories and more descendants
+    assert_equal(fs::exists(dir3), true); 
+    assert_equal(fs::remove(dir3, &err), true);
+    assert_equal(fs::exists(dir3), false); 
+
+    assert_equal(fs::exists(file1), true); 
+    assert_equal(fs::remove(file1, &err), true); 
+    assert_equal(fs::exists(file1), false); 
+
+    // does not exist, still returns true
+    assert_equal(fs::exists(doesnotexist), false); 
+    assert_equal(fs::remove(doesnotexist, &err), true); 
 }
 
 
