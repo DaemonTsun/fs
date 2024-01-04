@@ -2029,6 +2029,52 @@ define_test(get_all_descendants_fullpaths_gets_all_descendants_paths)
     free<true>(&all_descendants);
 }
 
+define_test(get_children_count_gets_children_count)
+{
+    fs::fs_error err{};
+
+    fs::create_directories(SANDBOX_DIR "/get_children_count/dir1");
+    fs::create_directories(SANDBOX_DIR "/get_children_count/dir2/dir3");
+    fs::touch(SANDBOX_DIR "/get_children_count/file1");
+    fs::touch(SANDBOX_DIR "/get_children_count/dir2/file2");
+
+    assert_equal(fs::get_children_count(SANDBOX_DIR "/get_children_count", &err), 3);
+    assert_equal(fs::get_children_count(SANDBOX_DIR "/doesnotexist", &err), -1);
+
+#if Linux
+    assert_equal(err.error_code, ENOENT);
+#endif
+
+    assert_equal(fs::get_children_count(SANDBOX_TEST_DIR_NO_PERMISSION, &err), -1);
+
+#if Linux
+    assert_equal(err.error_code, EACCES);
+#endif
+}
+
+define_test(get_descendant_count_gets_children_count)
+{
+    fs::fs_error err{};
+
+    fs::create_directories(SANDBOX_DIR "/get_descendant_count/dir1");
+    fs::create_directories(SANDBOX_DIR "/get_descendant_count/dir2/dir3");
+    fs::touch(SANDBOX_DIR "/get_descendant_count/file1");
+    fs::touch(SANDBOX_DIR "/get_descendant_count/dir2/file2");
+
+    assert_equal(fs::get_descendant_count(SANDBOX_DIR "/get_descendant_count", &err), 5);
+    assert_equal(fs::get_descendant_count(SANDBOX_DIR "/doesnotexist", &err), -1);
+
+#if Linux
+    assert_equal(err.error_code, ENOENT);
+#endif
+
+    assert_equal(fs::get_descendant_count(SANDBOX_TEST_DIR_NO_PERMISSION, &err), -1);
+
+#if Linux
+    assert_equal(err.error_code, EACCES);
+#endif
+}
+
 #if 0
 define_test(iterator_test4)
 {
@@ -2039,9 +2085,7 @@ define_test(iterator_test4)
 
     assert_equal(err.error_code, 0);
 }
-#endif
 
-#if 0
 define_test(get_executable_path_gets_executable_path)
 {
     // fs::path actual("/home/user/dev/git/fs/bin/tests/path_tests");

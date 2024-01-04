@@ -384,8 +384,18 @@ template<typename T> auto get_all_descendants_paths(T pth, array<fs::path> *desc
 template<typename T> auto get_all_descendants_fullpaths(T pth, array<fs::path> *descendants, fs::fs_error *err = nullptr)
     define_fs_conversion_body(fs::_get_all_descendants, pth, descendants, fs::iterate_option::Fullpaths | fs::iterate_option::StopOnError, err)
 
-// TODO: children count, descendant count
-// TODO: follow_symlink
+// direct children, -1 = error
+s64 _get_children_count(fs::const_fs_string pth, fs::iterate_option options, fs::fs_error *err);
+
+template<typename T> auto get_children_count(T pth, fs::fs_error *err = nullptr)
+    define_fs_conversion_body(fs::_get_children_count, pth, fs::iterate_option::StopOnError, err)
+
+s64 _get_descendant_count(fs::const_fs_string pth, fs::iterate_option options, fs::fs_error *err);
+
+template<typename T> auto get_descendant_count(T pth, fs::fs_error *err = nullptr)
+    define_fs_conversion_body(fs::_get_descendant_count, pth, fs::iterate_option::StopOnError, err)
+
+// maybe add something along the lines of get_file_count
 /*
 
 ////////////////////////

@@ -1729,11 +1729,9 @@ s64 fs::_get_children(fs::const_fs_string pth, array<fs::path> *children, fs::it
     assert(children != nullptr);
 
     s64 count = 0;
+    fs::fs_error _err{};
 
-    if (err != nullptr)
-        err->error_code = 0;
-
-    for_path(child, pth, opts, err)
+    for_path(child, pth, opts, &_err)
     {
         fs::path *cp = ::add_at_end(children);
         fs::init(cp);
@@ -1741,8 +1739,13 @@ s64 fs::_get_children(fs::const_fs_string pth, array<fs::path> *children, fs::it
         count += 1;
     }
 
-    if (err != nullptr && err->error_code != 0)
-        return -1;
+    if (_err.error_code != 0)
+    {
+        if (err != nullptr)
+            *err = _err;
+
+        count = -1;
+    }
 
     return count;
 }
@@ -1752,11 +1755,9 @@ s64 fs::_get_all_descendants(fs::const_fs_string pth, array<fs::path> *descendan
     assert(descendants != nullptr);
 
     s64 count = 0;
+    fs::fs_error _err{};
 
-    if (err != nullptr)
-        err->error_code = 0;
-
-    for_recursive_path(desc, pth, opts, err)
+    for_recursive_path(desc, pth, opts, &_err)
     {
         fs::path *cp = ::add_at_end(descendants);
         fs::init(cp);
@@ -1764,8 +1765,51 @@ s64 fs::_get_all_descendants(fs::const_fs_string pth, array<fs::path> *descendan
         count += 1;
     }
 
-    if (err != nullptr && err->error_code != 0)
-        return -1;
+    if (_err.error_code != 0)
+    {
+        if (err != nullptr)
+            *err = _err;
+
+        count = -1;
+    }
+
+    return count;
+}
+
+s64 fs::_get_children_count(fs::const_fs_string pth, fs::iterate_option opts, fs::fs_error *err)
+{
+    s64 count = 0;
+    fs::fs_error _err{};
+
+    for_path(child, pth, opts, &_err)
+        count += 1;
+
+    if (_err.error_code != 0)
+    {
+        if (err != nullptr)
+            *err = _err;
+
+        count = -1;
+    }
+
+    return count;
+}
+
+s64 fs::_get_descendant_count(fs::const_fs_string pth, fs::iterate_option opts, fs::fs_error *err)
+{
+    s64 count = 0;
+    fs::fs_error _err{};
+
+    for_recursive_path(child, pth, opts, &_err)
+        count += 1;
+
+    if (_err.error_code != 0)
+    {
+        if (err != nullptr)
+            *err = _err;
+
+        count = -1;
+    }
 
     return count;
 }
