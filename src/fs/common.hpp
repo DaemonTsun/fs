@@ -116,7 +116,8 @@ enum class permission : u16
     None            = 0000,
     User            = 0700,
     Group           = 0070,
-    Other           = 0007
+    Other           = 0007,
+    All             = 0777
 };
 
 enum_flag(permission);

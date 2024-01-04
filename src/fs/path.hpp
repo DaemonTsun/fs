@@ -150,6 +150,18 @@ template<typename T>
 auto get_filesystem_type(T pth, fs::filesystem_type *out, bool follow_symlinks = true, fs::fs_error *err = nullptr)
     define_fs_conversion_body(fs::_get_filesystem_type, pth, out, follow_symlinks, err);
 
+fs::permission get_permissions(const fs::filesystem_info *info);
+
+bool _get_permissions(fs::const_fs_string pth, fs::permission *out, bool follow_symlinks, fs::fs_error *err);
+template<typename T>
+auto get_permissions(T pth, fs::permission *out, bool follow_symlinks = true, fs::fs_error *err = nullptr)
+    define_fs_conversion_body(fs::_get_permissions, pth, out, follow_symlinks, err);
+
+bool _set_permissions(fs::const_fs_string pth, fs::permission perms, bool follow_symlinks, fs::fs_error *err);
+template<typename T>
+auto set_permissions(T pth, fs::permission perms, bool follow_symlinks = true, fs::fs_error *err = nullptr)
+    define_fs_conversion_body(fs::_set_permissions, pth, perms, follow_symlinks, err);
+
 // 0 = doesn't exist, 1 = exists, -1 = error
 int _exists(fs::const_fs_string pth, bool follow_symlinks, fs::fs_error *err);
 
@@ -372,6 +384,8 @@ template<typename T> auto get_all_descendants_paths(T pth, array<fs::path> *desc
 template<typename T> auto get_all_descendants_fullpaths(T pth, array<fs::path> *descendants, fs::fs_error *err = nullptr)
     define_fs_conversion_body(fs::_get_all_descendants, pth, descendants, fs::iterate_option::Fullpaths | fs::iterate_option::StopOnError, err)
 
+// TODO: children count, descendant count
+// TODO: follow_symlink
 /*
 
 ////////////////////////

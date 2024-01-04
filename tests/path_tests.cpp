@@ -164,6 +164,54 @@ define_test(get_filesystem_type_test)
 #endif
 }
 
+define_test(get_permissions_gets_permissions)
+{
+    fs::permission perms;
+    fs::fs_error err{};
+
+    const char *p = nullptr;
+
+    p = SANDBOX_TEST_DIR;
+    assert_equal(fs::get_permissions(p, &perms), true);
+    assert_equal(perms, fs::permission::All);
+
+    p = SANDBOX_TEST_DIR_NO_PERMISSION;
+    assert_equal(fs::get_permissions(p, &perms), true);
+    assert_equal(perms, fs::permission::None);
+
+    p = SANDBOX_DIR "/doesnotexist";
+    assert_equal(fs::get_permissions(p, &perms, true, &err), false);
+
+#if Linux
+    assert_equal(err.error_code, ENOENT);
+#endif
+}
+
+define_test(set_permissions_sets_permissions)
+{
+    fs::fs_error err{};
+    fs::permission perms;
+
+    const char *p = SANDBOX_DIR "/setperm1";
+
+    fs::create_directory(p);
+
+    assert_equal(fs::set_permissions(p, fs::permission::None), true);
+    fs::get_permissions(p, &perms);
+    assert_equal(perms, fs::permission::None);
+
+    assert_equal(fs::set_permissions(p, fs::permission::User), true);
+    fs::get_permissions(p, &perms);
+    assert_equal(perms, fs::permission::User);
+
+    p = SANDBOX_DIR "/doesnotexist";
+    assert_equal(fs::set_permissions(p, fs::permission::All, true, &err), false);
+
+#if Linux
+    assert_equal(err.error_code, ENOENT);
+#endif
+}
+
 define_test(exists_returns_true_if_directory_exists)
 {
     fs::path p{};
@@ -2011,6 +2059,7 @@ static fs::path old_current_dir;
 void _setup()
 {
     fs::get_current_path(&old_current_dir);
+    umask(0); // if this is not set to 0 mkdir might not set correct permissions
     mkdir(SANDBOX_DIR, 0777);
     mkdir(SANDBOX_TEST_DIR, 0777);
     FILE *f = fopen(SANDBOX_TEST_FILE, "w");

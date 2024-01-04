@@ -335,6 +335,54 @@ bool fs::_get_filesystem_type(fs::const_fs_string pth, fs::filesystem_type *out,
     return true;
 }
 
+fs::permission get_permissions(const fs::filesystem_info *info)
+{
+    assert(info != nullptr);
+
+#if Windows
+    // TODO: implement
+#else
+    return (fs::permission)(info->stx_mode & ~S_IFMT);
+#endif
+
+    return fs::permission::None;
+}
+
+bool fs::_get_permissions(fs::const_fs_string pth, fs::permission *out, bool follow_symlinks, fs::fs_error *err)
+{
+    assert(out != nullptr);
+
+    fs::filesystem_info info;
+
+    if (!fs::_get_filesystem_info(pth, &info, follow_symlinks, STATX_MODE, err))
+        return false;
+
+    *out = (fs::permission)(info.stx_mode & ~S_IFMT);
+
+    return true;
+}
+
+bool fs::_set_permissions(fs::const_fs_string pth, fs::permission perms, bool follow_symlinks, fs::fs_error *err)
+{
+#if Windows
+    // TODO: implement
+    return -1;
+#else
+    int flags = 0;
+
+    if (!follow_symlinks)
+        flags |= AT_SYMLINK_NOFOLLOW;
+
+    if (::fchmodat(AT_FDCWD, pth.c_str, (::mode_t)perms, flags) == -1)
+    {
+        set_fs_errno_error(err);
+        return false;
+    }
+#endif
+
+    return true;
+}
+
 bool fs::is_file_info(const fs::filesystem_info *info)
 {
     assert(info != nullptr);
