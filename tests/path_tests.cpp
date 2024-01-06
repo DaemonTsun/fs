@@ -971,6 +971,32 @@ define_test(weakly_canonical_path_gets_weakly_canonical_path)
     fs::free(&p);
 }
 
+define_test(get_symlink_target_reads_symlink)
+{
+    fs::fs_error err{};
+    fs::path target{};
+
+    assert_equal(fs::get_symlink_target(SANDBOX_TEST_SYMLINK, &target, &err), true);
+    assert_equal_str(target, SANDBOX_TEST_FILE);
+
+    assert_equal(fs::get_symlink_target(SANDBOX_TEST_SYMLINK_NO_TARGET, &target, &err), true);
+    assert_equal_str(target, SANDBOX_DIR "/symlink_dest");
+
+    assert_equal(fs::get_symlink_target(SANDBOX_TEST_FILE, &target, &err), false);
+
+#if Linux
+    assert_equal(err.error_code, EINVAL);
+#endif
+
+    assert_equal(fs::get_symlink_target(SANDBOX_DIR "/doesnotexist", &target, &err), false);
+
+#if Linux
+    assert_equal(err.error_code, ENOENT);
+#endif
+
+    fs::free(&target);
+}
+
 define_test(get_current_path_gets_current_path)
 {
     fs::path p{};
@@ -2211,18 +2237,22 @@ define_test(iterator_test4)
 
     assert_equal(err.error_code, 0);
 }
+#endif
 
 define_test(get_executable_path_gets_executable_path)
 {
-    // fs::path actual("/home/user/dev/git/fs/bin/tests/path_tests");
-    fs::path p;
+    // const char *actual = "/home/user/dev/git/fs/bin/tests/path_tests";
+    fs::path p{};
+    fs::fs_error err{};
 
-    get_executable_path(&p);
+    assert_equal(fs::get_executable_path(&p, &err), true);
+    assert_equal_str(fs::filename(&p), "path_tests");
 
     // obviously this wont work on all systems
     // assert_equal(p, actual);
+
+    fs::free(&p);
 }
-#endif
 
 static fs::path old_current_dir;
 

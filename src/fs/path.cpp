@@ -146,9 +146,19 @@ void fs::init(fs::path *path, const char    *str)
     fs::init(path, ::to_const_string(str));
 }
 
+void fs::init(fs::path *path, const char    *str, u64 size)
+{
+    fs::init(path, ::to_const_string(str, size));
+}
+
 void fs::init(fs::path *path, const wchar_t *str)
 {
     fs::init(path, ::to_const_string(str));
+}
+
+void fs::init(fs::path *path, const wchar_t *str, u64 size)
+{
+    fs::init(path, ::to_const_string(str, size));
 }
 
 void _path_init(fs::path *path, const fs::path_char_t *str, u64 size)
@@ -206,9 +216,19 @@ void fs::set_path(fs::path *pth, const char    *new_path)
     fs::set_path(pth, ::to_const_string(new_path));
 }
 
+void fs::set_path(fs::path *pth, const char    *new_path, u64 size)
+{
+    fs::set_path(pth, ::to_const_string(new_path, size));
+}
+
 void fs::set_path(fs::path *pth, const wchar_t *new_path)
 {
     fs::set_path(pth, ::to_const_string(new_path));
+}
+
+void fs::set_path(fs::path *pth, const wchar_t *new_path, u64 size)
+{
+    fs::set_path(pth, ::to_const_string(new_path, size));
 }
 
 template<typename C>
@@ -1121,6 +1141,53 @@ bool fs::_weakly_canonical_path(fs::const_fs_string pth, fs::path *out, fs::fs_e
     return true;
 }
 
+bool fs::_get_symlink_target(fs::const_fs_string pth, fs::path *out, fs::fs_error *err)
+{
+    assert(out != nullptr);
+
+#if Windows
+    // TODO: implement
+    return false;
+#else
+    scratch_buffer<1024> buf{};
+    ::init(&buf);
+    defer { ::free(&buf); };
+
+    ssize_t retsize = 0;
+
+    // PATH_ALLOC_MAX_SIZE is much bigger than MAX_PATH
+    while (buf.size < PATH_ALLOC_MAX_SIZE)
+    {
+        retsize = ::readlink(pth.c_str, buf.data, buf.size);
+
+        if (retsize < 0)
+        {
+            set_fs_errno_error(err);
+            return false;
+        }
+
+        // disgusting
+        if (retsize == buf.size)
+        {
+            ::grow(&buf);
+            continue;
+        }
+
+        break;
+    }
+
+    if (buf.size >= PATH_ALLOC_MAX_SIZE)
+    {
+        set_fs_error(err, EINVAL, ::strerror(EINVAL));
+        return false;
+    }
+
+    fs::set_path(out, buf.data, retsize);
+
+    return true;
+#endif
+}
+
 bool fs::get_current_path(fs::path *out, fs::fs_error *err)
 {
     assert(out != nullptr);
@@ -1527,9 +1594,7 @@ bool _copy_single_directory(fs::const_fs_string from, fs::const_fs_string to, fs
 
     if (from_type != fs::filesystem_type::Directory)
     {
-        if (err != nullptr)
-            err->error_code = EEXIST;
-
+        set_fs_error(err, EEXIST, ::strerror(EEXIST));
         return false;
     }
 
@@ -1921,25 +1986,22 @@ s64 fs::_get_descendant_count(fs::const_fs_string pth, fs::iterate_option opts, 
     return count;
 }
 
-#if 0
-void fs::get_executable_path(fs::path *out)
+bool fs::get_executable_path(fs::path *out, fs::fs_error *err)
 {
 #if Linux
-    char pth[PATH_MAX] = {0};
-
-    if (readlink("/proc/self/exe", pth, PATH_MAX) < 0)
-        throw_error("could not get executable path: %s", strerror(errno));
+    return fs::get_symlink_target("/proc/self/exe"_cs, out, err);
 
 #elif Windows
     wchar_t pth[MAX_PATH] = {0};
     GetModuleFileNameW(NULL, pth, MAX_PATH);
+
+    fs::set_path(out, pth);
 #else
     #error "unsupported"
 #endif
-
-    fs::set_path(out, pth);
 }
 
+#if 0
 void fs::get_executable_directory_path(fs::path *out)
 {
     fs::get_executable_path(out);

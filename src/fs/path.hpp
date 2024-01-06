@@ -119,7 +119,9 @@ auto get_platform_string(T str)
 
 void init(fs::path *path);
 void init(fs::path *path, const char    *str);
+void init(fs::path *path, const char    *str, u64 size);
 void init(fs::path *path, const wchar_t *str);
+void init(fs::path *path, const wchar_t *str, u64 size);
 void init(fs::path *path, const_string   str);
 void init(fs::path *path, const_wstring  str);
 void init(fs::path *path, const fs::path *other);
@@ -127,7 +129,9 @@ void init(fs::path *path, const fs::path *other);
 void free(fs::path *path);
 
 void set_path(fs::path *pth, const char    *new_path);
+void set_path(fs::path *pth, const char    *new_path, u64 size);
 void set_path(fs::path *pth, const wchar_t *new_path);
+void set_path(fs::path *pth, const wchar_t *new_path, u64 size);
 void set_path(fs::path *pth, const_string   new_path);
 void set_path(fs::path *pth, const_wstring  new_path);
 void set_path(fs::path *pth, const fs::path *new_path);
@@ -277,6 +281,9 @@ bool     _weakly_canonical_path(fs::const_fs_string pth, fs::path *out, fs::fs_e
 template<typename T> auto weakly_canonical_path(T pth, fs::fs_error *err = nullptr) define_fs_conversion_body(fs::_weakly_canonical_path, pth, err);
 template<typename T> auto weakly_canonical_path(T pth, fs::path *out, fs::fs_error *err = nullptr) define_fs_conversion_body(fs::_weakly_canonical_path, pth, out, err);
 
+bool _get_symlink_target(fs::const_fs_string pth, fs::path *out, fs::fs_error *err);
+template<typename T> auto get_symlink_target(T pth, fs::path *out, fs::fs_error *err = nullptr) define_fs_conversion_body(fs::_get_symlink_target, pth, out, err);
+
 bool get_current_path(fs::path *out, fs::fs_error *err = nullptr);
 
 bool _set_current_path(fs::const_fs_string pth, fs::fs_error *err);
@@ -410,14 +417,14 @@ template<typename T> auto get_descendant_count(T pth, fs::fs_error *err = nullpt
     define_fs_conversion_body(fs::_get_descendant_count, pth, fs::iterate_option::StopOnError, err)
 
 // maybe add something along the lines of get_file_count
-/*
 
 ////////////////////////
 // getting special paths
 ////////////////////////
 
 // location of the executable
-void get_executable_path(fs::path *out);
+bool get_executable_path(fs::path *out, fs::fs_error *err);
+/*
 // convenience, basically parent_path of get_executable_path
 void get_executable_directory_path(fs::path *out); 
 
