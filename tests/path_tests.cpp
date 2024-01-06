@@ -1135,6 +1135,7 @@ define_test(relative_path_gets_the_relative_path_to_another)
     assert_rel_path("/a/b/c",  "/a/d",   "../../d");
     assert_rel_path("/a/d",    "/a/b/c", "../b/c");
     assert_rel_path("a",       "a/b/c",  "b/c");
+    assert_rel_path("a",       "b",  "../b");
     // roots differ
     assert_rel_path("a",       "/a/b/c", "");
     assert_rel_path("/a/b/c",  "a",      "");
@@ -1245,8 +1246,119 @@ define_test(copy_file_copies_file)
     fs::free(&to);
 }
 
+define_test(copy_directory_copies_directory)
+{
+    fs::fs_error err{};
+
+    const char *dir_from = SANDBOX_DIR "/copy_dir";
+    const char *dir_to = SANDBOX_DIR "/copy_dir_to";
+
+    fs::create_directory(dir_from);
+    fs::create_directories(SANDBOX_DIR "/copy_dir/dir1/dir2");
+    fs::create_directory(SANDBOX_DIR "/copy_dir/dir3");
+    fs::touch(SANDBOX_DIR "/copy_dir/file1");
+    fs::touch(SANDBOX_DIR "/copy_dir/dir1/file2");
+    fs::touch(SANDBOX_DIR "/copy_dir/dir1/dir2/file3");
+
+    assert_equal(fs::exists(dir_from), 1);
+    assert_equal(fs::exists(dir_to), 0);
+    assert_equal(fs::copy_directory(dir_from, dir_to, -1, fs::copy_file_option::None, &err), true);
+    assert_equal(fs::exists(dir_from), 1);
+    assert_equal(fs::exists(dir_to), 1);
+    assert_equal(fs::exists(SANDBOX_DIR "/copy_dir_to/file1"), 1);
+    assert_equal(fs::exists(SANDBOX_DIR "/copy_dir_to/dir3"), 1);
+    assert_equal(fs::exists(SANDBOX_DIR "/copy_dir_to/dir1/file2"), 1);
+    assert_equal(fs::exists(SANDBOX_DIR "/copy_dir_to/dir1/dir2"), 1);
+    assert_equal(fs::exists(SANDBOX_DIR "/copy_dir_to/dir1/dir2/file3"), 1);
+
+    fs::remove(dir_to);
+
+    // up to depth 0 only
+    assert_equal(fs::exists(dir_from), 1);
+    assert_equal(fs::exists(dir_to), 0);
+    assert_equal(fs::copy_directory(dir_from, dir_to, 0, fs::copy_file_option::None, &err), true);
+    assert_equal(fs::exists(dir_from), 1);
+    assert_equal(fs::exists(dir_to), 1);
+    assert_equal(fs::exists(SANDBOX_DIR "/copy_dir_to/file1"), 1);
+    assert_equal(fs::exists(SANDBOX_DIR "/copy_dir_to/dir3"), 1);
+    assert_equal(fs::exists(SANDBOX_DIR "/copy_dir_to/dir1/file2"), 0);
+    assert_equal(fs::exists(SANDBOX_DIR "/copy_dir_to/dir1/dir2"), 0);
+    assert_equal(fs::exists(SANDBOX_DIR "/copy_dir_to/dir1/dir2/file3"), 0);
+
+    fs::remove(dir_to);
+
+    // up to depth 1
+    assert_equal(fs::exists(dir_from), 1);
+    assert_equal(fs::exists(dir_to), 0);
+    assert_equal(fs::copy_directory(dir_from, dir_to, 1, fs::copy_file_option::None, &err), true);
+    assert_equal(fs::exists(dir_from), 1);
+    assert_equal(fs::exists(dir_to), 1);
+    assert_equal(fs::exists(SANDBOX_DIR "/copy_dir_to/file1"), 1);
+    assert_equal(fs::exists(SANDBOX_DIR "/copy_dir_to/dir3"), 1);
+    assert_equal(fs::exists(SANDBOX_DIR "/copy_dir_to/dir1/file2"), 1);
+    assert_equal(fs::exists(SANDBOX_DIR "/copy_dir_to/dir1/dir2"), 1);
+    assert_equal(fs::exists(SANDBOX_DIR "/copy_dir_to/dir1/dir2/file3"), 0);
+
+    fs::remove(dir_to);
+
+    // target directory exists
+    fs::create_directory(dir_to);
+    assert_equal(fs::exists(dir_from), 1);
+    assert_equal(fs::exists(dir_to), 1);
+    assert_equal(fs::copy_directory(dir_from, dir_to, -1, fs::copy_file_option::None, &err), false);
+    assert_equal(fs::exists(dir_from), 1);
+    assert_equal(fs::exists(dir_to), 1);
+    assert_equal(fs::exists(SANDBOX_DIR "/copy_dir_to/file1"), 0);
+    assert_equal(fs::exists(SANDBOX_DIR "/copy_dir_to/dir3"), 0);
+    assert_equal(fs::exists(SANDBOX_DIR "/copy_dir_to/dir1/file2"), 0);
+    assert_equal(fs::exists(SANDBOX_DIR "/copy_dir_to/dir1/dir2"), 0);
+    assert_equal(fs::exists(SANDBOX_DIR "/copy_dir_to/dir1/dir2/file3"), 0);
+
+#if Linux
+    assert_equal(err.error_code, EEXIST);
+#endif
+
+    // target directory exists but we overwrite
+    assert_equal(fs::exists(dir_from), 1);
+    assert_equal(fs::exists(dir_to), 1);
+    assert_equal(fs::copy_directory(dir_from, dir_to, -1, fs::copy_file_option::OverwriteExisting, &err), true);
+    assert_equal(fs::exists(dir_from), 1);
+    assert_equal(fs::exists(dir_to), 1);
+    assert_equal(fs::exists(SANDBOX_DIR "/copy_dir_to/file1"), 1);
+    assert_equal(fs::exists(SANDBOX_DIR "/copy_dir_to/dir3"), 1);
+    assert_equal(fs::exists(SANDBOX_DIR "/copy_dir_to/dir1/file2"), 1);
+    assert_equal(fs::exists(SANDBOX_DIR "/copy_dir_to/dir1/dir2"), 1);
+    assert_equal(fs::exists(SANDBOX_DIR "/copy_dir_to/dir1/dir2/file3"), 1);
+
+    fs::remove(dir_to);
+}
+
+define_test(copy_copies_files_and_directories)
+{
+    const char *dir_from = SANDBOX_DIR "/copy1_dir";
+    const char *dir_to = SANDBOX_DIR "/copy1_dir_to";
+    fs::create_directory(dir_from);
+
+    assert_equal(fs::exists(dir_from), 1);
+    assert_equal(fs::exists(dir_to), 0);
+    assert_equal(fs::copy(dir_from, dir_to), true);
+    assert_equal(fs::exists(dir_from), 1);
+    assert_equal(fs::exists(dir_to), 1);
+
+    const char *file_from = SANDBOX_DIR "/copy1_file";
+    const char *file_to = SANDBOX_DIR "/copy1_file_to";
+    fs::touch(file_from);
+
+    assert_equal(fs::exists(file_from), 1);
+    assert_equal(fs::exists(file_to), 0);
+    assert_equal(fs::copy(file_from, file_to), true);
+    assert_equal(fs::exists(file_from), 1);
+    assert_equal(fs::exists(file_to), 1);
+}
+
 define_test(create_directory_creates_directory)
 {
+    fs::fs_error err{};
     fs::path p{};
 
     fs::set_path(&p, SANDBOX_TEST_DIR "/_create_dir1");
@@ -1255,9 +1367,23 @@ define_test(create_directory_creates_directory)
     assert_equal(fs::create_directory(&p), true); 
     assert_equal(fs::exists(&p), true); 
 
-    // creating a directory that already exists does not yield an error
-    assert_equal(fs::create_directory(&p), true); 
+    // creating a directory that already exists returns true (but also yields error code)
+    assert_equal(fs::create_directory(&p, fs::permission::User, &err), true); 
     assert_equal(fs::exists(&p), true); 
+
+#if Linux
+    assert_equal(err.error_code, EEXIST);
+#endif
+
+    // creating a directory on a path thats not a directory DOES yield an error
+    fs::set_path(&p, SANDBOX_TEST_FILE);
+    assert_equal(fs::exists(&p), true); 
+    assert_equal(fs::create_directory(&p, fs::permission::User, &err), false);
+    assert_equal(fs::exists(&p), true); 
+
+#if Linux
+    assert_equal(err.error_code, EEXIST);
+#endif
 
     // relative path (in sandbox)
     fs::set_path(&p, "_create_dir2");
@@ -1272,8 +1398,6 @@ define_test(create_directory_creates_directory)
     assert_equal(fs::create_directory(&p), true); 
     assert_equal(fs::exists(&p), true); 
 
-    fs::fs_error err{};
-
     // no permission
     fs::set_path(&p, "/root/_create_dir3");
     assert_equal(fs::create_directory(&p, fs::permission::User, &err), false); 
@@ -1287,6 +1411,8 @@ define_test(create_directory_creates_directory)
 #else
     assert_equal(err.error_code, ENOENT);
 #endif
+
+    // TODO: create directory on top of file
 
     fs::free(&p);
 }
@@ -1774,9 +1900,9 @@ define_test(recursive_iterator_test)
     fs::create_directories(SANDBOX_DIR "/rit/dir1/dir2/dir3/dir4");
     fs::touch(SANDBOX_DIR "/rit/dir1/dir2/dir3/dir4/file");
 
-    fs::iterate_option opts = fs::iterate_option::Fullpaths;
+    fs::iterate_option opts = fs::iterate_option::None;//Fullpaths;
 
-    for_recursive_path(item, "rit", opts, &err)
+    for_recursive_path(item, SANDBOX_DIR "/rit", opts, &err)
     {
         fs::path *cp = ::add_at_end(&descendants);
         fs::init(cp);

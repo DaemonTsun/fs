@@ -316,6 +316,7 @@ enum class copy_file_option
                         // but does not report an error in either case.
                         // looks at MODIFICATION date.
     SkipExisting        // skips any existing destination files.
+    // UpdateOnly? might be useful
 };
 
 bool _copy_file(fs::const_fs_string from, fs::const_fs_string to, fs::copy_file_option opt, fs::fs_error *err);
@@ -324,9 +325,22 @@ template<typename T1, typename T2>
 auto copy_file(T1 from, T2 to, fs::copy_file_option opt = fs::copy_file_option::OverwriteExisting, fs::fs_error *err = nullptr)
     define_fs_conversion_body2(fs::_copy_file, from, to, opt, err)
 
-// TODO: add copy_directory
-// TODO: add copy
-// bool copy_directory(const fs::path *from, const fs::path *to, fs::copy_file_option opt = fs::copy_file_option::OverwriteExisting, fs::fs_error *err = nullptr);
+bool _copy_directory(fs::const_fs_string from, fs::const_fs_string to, int max_depth, fs::copy_file_option opt, fs::fs_error *err);
+
+// -1 max depth = everything
+// 0 = only current directory
+// 1 = current directory and 1st level subdirectories
+// 2 = ...
+template<typename T1, typename T2>
+auto copy_directory(T1 from, T2 to, int max_depth = -1, fs::copy_file_option opt = fs::copy_file_option::OverwriteExisting, fs::fs_error *err = nullptr)
+    define_fs_conversion_body2(fs::_copy_directory, from, to, max_depth, opt, err)
+
+// copies files and directories, doesn't matter what you give it
+bool _copy(fs::const_fs_string from, fs::const_fs_string to, int max_depth, fs::copy_file_option opt, fs::fs_error *err);
+
+template<typename T1, typename T2>
+auto copy(T1 from, T2 to, int max_depth = -1, fs::copy_file_option opt = fs::copy_file_option::OverwriteExisting, fs::fs_error *err = nullptr)
+    define_fs_conversion_body2(fs::_copy, from, to, max_depth, opt, err)
 
 // does not create parents
 bool _create_directory(fs::const_fs_string pth, fs::permission perms, fs::fs_error *err);

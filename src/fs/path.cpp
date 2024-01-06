@@ -308,7 +308,7 @@ int fs::_exists(fs::const_fs_string pth, bool follow_symlinks, fs::fs_error *err
     return -1;
 }
 
-fs::filesystem_type get_filesystem_type(const fs::filesystem_info *info)
+fs::filesystem_type fs::get_filesystem_type(const fs::filesystem_info *info)
 {
     assert(info != nullptr);
 
@@ -335,7 +335,7 @@ bool fs::_get_filesystem_type(fs::const_fs_string pth, fs::filesystem_type *out,
     return true;
 }
 
-fs::permission get_permissions(const fs::filesystem_info *info)
+fs::permission fs::get_permissions(const fs::filesystem_info *info)
 {
     assert(info != nullptr);
 
@@ -1420,6 +1420,7 @@ bool fs::_copy_file(fs::const_fs_string from, fs::const_fs_string to, fs::copy_f
 {
 #if Windows
     // TODO: implement
+    return false;
 #else
     int from_fd = 0;
     int to_fd = 0;
@@ -1429,7 +1430,7 @@ bool fs::_copy_file(fs::const_fs_string from, fs::const_fs_string to, fs::copy_f
     unsigned int open_to_flags = O_CREAT | O_WRONLY | O_TRUNC;
 
     if (opt != fs::copy_file_option::OverwriteExisting)
-        open_to_flags |= O_EXCL;
+        open_to_flags |= O_EXCL; // O_EXCL to ensure creating, or error when already exists
 
     if (opt == fs::copy_file_option::UpdateExisting)
         statx_mask |= STATX_MTIME;
@@ -1507,7 +1508,118 @@ bool fs::_copy_file(fs::const_fs_string from, fs::const_fs_string to, fs::copy_f
     return true;
 }
 
-// TODO: implement copy_directory
+// only the directory, not children
+bool _copy_single_directory(fs::const_fs_string from, fs::const_fs_string to, fs::copy_file_option opt, fs::fs_error *err)
+{
+    unsigned int flags = 0;
+
+#if Linux
+    flags = STATX_MODE | STATX_TYPE;
+#endif
+
+    fs::filesystem_info from_info;
+
+    // TODO: symlinks?
+    if (!fs::get_filesystem_info(from, &from_info, true, flags, err))
+        return false;
+
+    fs::filesystem_type from_type = fs::get_filesystem_type(&from_info);
+
+    if (from_type != fs::filesystem_type::Directory)
+    {
+        if (err != nullptr)
+            err->error_code = EEXIST;
+
+        return false;
+    }
+
+    fs::fs_error _err{};
+    bool ok = fs::create_directory(to, fs::get_permissions(&from_info), &_err);
+
+    if (err != nullptr)
+        *err = _err;
+
+    if (!ok)
+        return false;
+
+    // create_directory returns true even if target exists as directory,
+    // so we check again.
+    if (_err.error_code == EEXIST && opt == fs::copy_file_option::None)
+        return false;
+
+    return true;
+}
+
+template<bool CheckDepth>
+bool _copy_directory(fs::const_fs_string from, fs::const_fs_string to, int max_depth, fs::copy_file_option opt, fs::fs_error *err)
+{
+    if (!::_copy_single_directory(from, to, opt, err))
+        return false;
+
+    fs::path from_abs = fs::_canonical_path(from, nullptr);
+    fs::path path_it{};
+    fs::const_fs_string attachment;
+    fs::_relative_path(fs::parent_path_segment(&from_abs), to, &path_it);
+
+    fs::free(&from_abs);
+
+    u64 base_length = path_it.size;
+    u64 attachment_length = from.size + 1;
+
+    defer { fs::free(&path_it); };
+
+    // TODO: iterate options in parameters?
+    for_recursive_path(item, from, fs::iterate_option::StopOnError, err)
+    {
+        path_it.size = base_length;
+        path_it.data[path_it.size] = PC_NUL;
+        attachment = item->path;
+        assert(attachment.size >= attachment_length);
+        attachment.size -= attachment_length;
+        attachment.c_str += attachment_length;
+        fs::append_path(&path_it, attachment);
+
+        if constexpr (CheckDepth)
+        {
+            if (item->depth == max_depth)
+                item->recurse = false;
+        }
+
+        if (item->type == fs::filesystem_type::Directory)
+        {
+            if (!::_copy_single_directory(item->path, ::to_const_string(path_it), opt, err))
+                return false;
+        }
+        else
+        {
+            if (!fs::_copy_file(item->path, ::to_const_string(path_it), opt, err))
+                return false;
+        }
+    }
+
+    return true;
+}
+
+bool fs::_copy_directory(fs::const_fs_string from, fs::const_fs_string to, int max_depth, fs::copy_file_option opt, fs::fs_error *err)
+{
+    if (max_depth < 0)
+        return ::_copy_directory<false>(from, to, max_depth, opt, err);
+    else
+        return ::_copy_directory<true>(from, to, max_depth, opt, err);
+}
+
+bool fs::_copy(fs::const_fs_string from, fs::const_fs_string to, int max_depth, fs::copy_file_option opt, fs::fs_error *err)
+{
+    fs::filesystem_type from_type;
+
+    if (!fs::get_filesystem_type(from, &from_type, true, err))
+        return false;
+
+    if (from_type == fs::filesystem_type::Directory)
+        return fs::_copy_directory(from, to, max_depth, opt, err);
+    else
+        return fs::_copy_file(from, to, opt, err);
+}
 
 bool fs::_create_directory(fs::const_fs_string pth, fs::permission perms, fs::fs_error *err)
 {
@@ -1522,12 +1634,10 @@ bool fs::_create_directory(fs::const_fs_string pth, fs::permission perms, fs::fs
     // then we return true (failed successfully), but if it exists and is not a
     // directory then we yield the correct error and return false.
     int _errcode = errno;
+    set_fs_error(err, _errcode, ::strerror(_errcode));
 
     if (_errcode != EEXIST)
-    {
-        set_fs_error(err, _errcode, ::strerror(_errcode));
         return false;
-    }
 
     fs::filesystem_info info;
 
@@ -1535,10 +1645,7 @@ bool fs::_create_directory(fs::const_fs_string pth, fs::permission perms, fs::fs
         return false;
 
     if (!S_ISDIR(info.stx_mode))
-    {
-        set_fs_error(err, _errcode, ::strerror(_errcode));
         return false;
-    }
 #endif
 
     return true;
