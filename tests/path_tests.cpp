@@ -2249,9 +2249,42 @@ define_test(get_executable_path_gets_executable_path)
     assert_equal_str(fs::filename(&p), "path_tests");
 
     // obviously this wont work on all systems
-    // assert_equal(p, actual);
+    // assert_equal_str(p, actual);
 
     fs::free(&p);
+}
+
+define_test(get_preference_path_gets_preference_path)
+{
+    fs::path pref_path{};
+    fs::fs_error err{};
+
+    assert_equal(fs::get_preference_path(&pref_path, nullptr, nullptr, &err), true);
+
+    // assert_equal_str(pref_path, "/home/user/.local/share");
+
+    assert_equal(fs::get_preference_path(&pref_path, "path_tests", nullptr, &err), true);
+    // assert_equal_str(pref_path, "/home/user/.local/share/path_tests");
+
+    assert_equal(fs::get_preference_path(&pref_path, "path_tests", "org", &err), true);
+    // assert_equal_str(pref_path, "/home/user/.local/share/org/path_tests");
+
+    fs::free(&pref_path);
+}
+
+define_test(get_temporary_path_gets_temporary_path)
+{
+    fs::path tmp_path{};
+    fs::fs_error err{};
+
+    assert_equal(fs::get_temporary_path(&tmp_path, &err), true);
+
+#if Linux
+    // could still be different if variables are defined
+    assert_equal_str(tmp_path, "/tmp");
+#endif
+
+    fs::free(&tmp_path);
 }
 
 static fs::path old_current_dir;

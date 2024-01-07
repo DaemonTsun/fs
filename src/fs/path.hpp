@@ -424,16 +424,15 @@ template<typename T> auto get_descendant_count(T pth, fs::fs_error *err = nullpt
 
 // location of the executable
 bool get_executable_path(fs::path *out, fs::fs_error *err);
-/*
 // convenience, basically parent_path of get_executable_path
-void get_executable_directory_path(fs::path *out); 
+bool get_executable_directory_path(fs::path *out, fs::fs_error *err);
 
 // AppData, .local/share, etc
-void get_preference_path(fs::path *out, const char *app = nullptr, const char *org = nullptr);
+// will also create the folder if it doesn't exist. 
+bool get_preference_path(fs::path *out, const char *app = nullptr, const char *org = nullptr, fs::fs_error *err = nullptr);
 
 // /tmp
-void get_temporary_path(fs::path *out);
-*/
+bool get_temporary_path(fs::path *out, fs::fs_error *err);
 }
 
 // these allocate memory

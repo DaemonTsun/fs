@@ -1988,6 +1988,7 @@ s64 fs::_get_descendant_count(fs::const_fs_string pth, fs::iterate_option opts, 
 
 bool fs::get_executable_path(fs::path *out, fs::fs_error *err)
 {
+    assert(out != nullptr);
 #if Linux
     return fs::get_symlink_target("/proc/self/exe"_cs, out, err);
 
@@ -2001,11 +2002,16 @@ bool fs::get_executable_path(fs::path *out, fs::fs_error *err)
 #endif
 }
 
-#if 0
-void fs::get_executable_directory_path(fs::path *out)
+bool fs::get_executable_directory_path(fs::path *out, fs::fs_error *err)
 {
-    fs::get_executable_path(out);
-    fs::parent_path(out);
+    assert(out != nullptr);
+
+    if (!fs::get_executable_path(out, err))
+        return false;
+
+    auto seg = fs::parent_path_segment(out);
+    out->size = seg.size;
+    return true;
 }
 
 /* SDL zlib license
@@ -2027,15 +2033,13 @@ freely, subject to the following restrictions:
    misrepresented as being the original software.
 3. This notice may not be removed or altered from any source distribution.
 */
-void fs::get_preference_path(fs::path *out, const char *app, const char *org)
+bool fs::get_preference_path(fs::path *out, const char *app, const char *org, fs::fs_error *err)
 {
     // THIS IS ALTERED.
-    char *retval = nullptr;
-
 #if Linux
-    char buf[PATH_MAX] = {0};
+    out->size = 0;
 
-    const char *envr = getenv("XDG_DATA_HOME");
+    const char *envr = ::getenv("XDG_DATA_HOME");
     const char *append;
 
     if (app == nullptr)
@@ -2044,53 +2048,47 @@ void fs::get_preference_path(fs::path *out, const char *app, const char *org)
     if (org == nullptr)
         org = "";
 
-    if (envr == NULL)
+    if (envr == nullptr)
     {
         // You end up with "$HOME/.local/share/Name"
         envr = getenv("HOME");
 
-        if (envr == NULL)
-            throw_error("neither XDG_DATA_HOME nor HOME environment variables are defined");
+        if (envr == nullptr)
+        {
+            set_fs_error(err, 0, "neither XDG_DATA_HOME nor HOME environment variables are defined");
+            return false;
+        }
 
-        append = "/.local/share/";
+        append = "/.local/share";
     }
     else
         append = "/";
 
-    size_t len = strlen(envr);
+    u64 len = ::string_length(envr);
 
+    assert(len > 0);
     if (envr[len - 1] == fs::path_separator)
         append += 1;
 
-    len += strlen(append) + strlen(org) + strlen(app) + 3;
+    len += string_length(append) + string_length(org) + string_length(app) + 3;
 
-    if (*org)
-        snprintf(buf, len, "%s%s%s/%s/", envr, append, org, app);
-    else
-        snprintf(buf, len, "%s%s%s/", envr, append, app);
+    fs::concat_path(out, envr);
+    fs::concat_path(out, append);
 
-    // recursively create the directories
-    for (char *ptr = buf + 1; *ptr; ptr++)
-    {
-        if (*ptr == fs::path_separator)
-        {
-            *ptr = '\0';
+    if (*org != '\0')
+        fs::append_path(out, org);
 
-            if (mkdir(buf, 0700) != 0 && errno != EEXIST)
-                throw_error("couldn't create directory '%s': '%s'", buf, strerror(errno));
+    fs::append_path(out, app);
 
-            *ptr = fs::path_separator;
-        }
-    }
+    if (!fs::create_directories(out, fs::permission::User, err))
+        return false;
 
-    if (mkdir(retval, 0700) != 0 && errno != EEXIST)
-        throw_error("couldn't create directory '%s': '%s'", buf, strerror(errno));
-
-    retval = buf;
-
+    return true;
 #elif Windows
 
 #if 0
+    char *retval = nullptr;
+
     WCHAR path[MAX_PATH];
     WCHAR *worg = NULL;
     WCHAR *wapp = NULL;
@@ -2174,19 +2172,28 @@ void fs::get_preference_path(fs::path *out, const char *app, const char *org)
 #else
 #error "unsupported platform"
 #endif
-    
-    if (retval == nullptr)
-        throw_error("could not get preference path");
-
-    fs::set_path(out, retval);
 }
 
-void fs::get_temporary_path(fs::path *out)
+bool fs::get_temporary_path(fs::path *out, fs::fs_error *err)
 {
-    out->ptr->data = std::filesystem::temp_directory_path();
-}
+    assert(out != nullptr);
 
+#if Linux
+    const char *envr = ::getenv("TMPDIR");
+    if (envr == nullptr) envr = ::getenv("TMP");
+    if (envr == nullptr) envr = ::getenv("TEMP");
+    if (envr == nullptr) envr = ::getenv("TEMPDIR");
+
+    if (envr == nullptr)
+        fs::set_path(out, "/tmp");
+    else
+        fs::set_path(out, envr);
+
+    return true;
+#else
 #endif
+    return false;
+}
 
 fs::path operator ""_path(const char    *pth, u64 size)
 {
