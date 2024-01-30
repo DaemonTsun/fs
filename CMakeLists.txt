@@ -20,7 +20,7 @@ add_lib(fs STATIC
         @Linux pthread
 
     EXT
-        LIB shl 0.8.4 "${ROOT}/ext/shl" INCLUDE LINK GIT_SUBMODULE
+        LIB shl 0.9.1 "${ROOT}/ext/shl" INCLUDE LINK GIT_SUBMODULE
 
     TESTS "${TEST_SOURCE_DIR}"
     )
