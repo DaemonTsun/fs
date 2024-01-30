@@ -638,7 +638,9 @@ fs::const_fs_string fs::file_extension(fs::const_fs_string pth)
     if (found == -1)
         return empty_fs_string;
 
-    return fs::const_fs_string{fname.c_str + found, pth.size - (u64)found};
+    fname.c_str += found;
+    fname.size -= found;
+    return fname;
 }
 
 fs::const_fs_string fs::file_extension(const fs::path *pth)
