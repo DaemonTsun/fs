@@ -1,8 +1,12 @@
 
-#include <assert.h>
+#include "shl/platform.hpp"
+
+#if Linux
 #include <sys/syscall.h>
 #include <unistd.h>
 #include <fcntl.h>
+
+#include <assert.h>
 #include <string.h>
 #include <errno.h>
 #include <stddef.h> // offsetof
@@ -19,7 +23,7 @@ ssize_t getdents64(int fd, void *buf, size_t buf_size)
     return syscall(SYS_getdents64, fd, buf, buf_size);
 }
 
-bool _get_next_dirents(fs::fs_iterator_detail *detail, fs::fs_error *err)
+bool _get_next_dirents(fs::fs_iterator_detail *detail, error *err)
 {
     int errcode = 0;
 
@@ -40,13 +44,13 @@ bool _get_next_dirents(fs::fs_iterator_detail *detail, fs::fs_error *err)
 
     if (detail->dirent_size < 0)
     {
-        set_fs_error(err, errcode, ::strerror(errcode));
+        set_error(err, errcode, ::strerror(errcode));
         return false;
     }
 
     if (detail->buffer.size >= DIRENT_ALLOC_MAX_SIZE)
     {
-        set_fs_error(err, EINVAL, "not enough memory in dirent buffer");
+        set_error(err, EINVAL, "not enough memory in dirent buffer");
         return false;
     }
 
@@ -55,24 +59,22 @@ bool _get_next_dirents(fs::fs_iterator_detail *detail, fs::fs_error *err)
     return true;
 }
 
-bool fs::init(fs::fs_iterator_detail *detail, fs::const_fs_string pth, fs::fs_error *err)
+bool fs::init(fs::fs_iterator_detail *detail, fs::const_fs_string pth, error *err)
 {
     assert(detail != nullptr);
 
-#if Linux
     ::init(&detail->buffer);
 
     detail->fd = ::open(pth.c_str, O_RDONLY | O_DIRECTORY);
 
     if (detail->fd == -1)
     {
-        set_fs_errno_error(err);
+        set_errno_error(err);
         return false;
     }
 
     detail->dirent_size = 0;
     detail->dirent_offset = 0;
-#endif
 
     return true;
 }
@@ -89,7 +91,7 @@ void fs::free(fs::fs_iterator_detail *detail)
     detail->fd = -1;
 }
 
-bool fs::_init(fs::fs_iterator *it, fs::const_fs_string pth, fs::fs_error *err)
+bool fs::_init(fs::fs_iterator *it, fs::const_fs_string pth, error *err)
 {
     assert(it != nullptr);
 
@@ -120,7 +122,7 @@ void fs::free(fs_iterator *it)
 }
 
 template<fs::iterate_option BakeOpts>
-fs::fs_iterator_item *_iterate(fs::fs_iterator *it, fs::iterate_option opts, fs::fs_error *err)
+fs::fs_iterator_item *_iterate(fs::fs_iterator *it, fs::iterate_option opts, error *err)
 {
     if (it->_detail.dirent_size == 0)
         return nullptr;
@@ -177,7 +179,7 @@ fs::fs_iterator_item *_iterate(fs::fs_iterator *it, fs::iterate_option opts, fs:
     return &it->current_item;
 }
 
-fs::fs_iterator_item *fs::_iterate(fs::fs_iterator *it, fs::iterate_option opts, fs::fs_error *err)
+fs::fs_iterator_item *fs::_iterate(fs::fs_iterator *it, fs::iterate_option opts, error *err)
 {
     if (is_flag_set(opts, fs::iterate_option::Fullpaths))
         return ::_iterate<fs::iterate_option::Fullpaths>(it, opts, err);
@@ -186,7 +188,7 @@ fs::fs_iterator_item *fs::_iterate(fs::fs_iterator *it, fs::iterate_option opts,
 }
 
 // recursive iteration
-bool fs::_init(fs::fs_recursive_iterator *it, fs::const_fs_string pth, fs::iterate_option opts, fs::fs_error *err)
+bool fs::_init(fs::fs_recursive_iterator *it, fs::const_fs_string pth, fs::iterate_option opts, error *err)
 {
     assert(it != nullptr);
 
@@ -288,7 +290,7 @@ void fs::free(fs::fs_recursive_iterator *it)
 }
 
 template<fs::iterate_option BakeOpts>
-fs::fs_recursive_iterator_item *_recursive_iterate(fs::fs_recursive_iterator *it, fs::iterate_option opts, fs::fs_error *err)
+fs::fs_recursive_iterator_item *_recursive_iterate(fs::fs_recursive_iterator *it, fs::iterate_option opts, error *err)
 {
     tprint("iterate, stack size: %\n", it->_detail_stack.size);
     array<fs::fs_iterator_detail> *stack = &it->_detail_stack;
@@ -430,10 +432,11 @@ fs::fs_recursive_iterator_item *_recursive_iterate(fs::fs_recursive_iterator *it
     return &it->current_item;
 }
 
-fs::fs_recursive_iterator_item *fs::_iterate(fs::fs_recursive_iterator *it, fs::iterate_option opts, fs::fs_error *err)
+fs::fs_recursive_iterator_item *fs::_iterate(fs::fs_recursive_iterator *it, fs::iterate_option opts, error *err)
 {
     if (is_flag_set(opts, fs::iterate_option::ChildrenFirst))
         return ::_recursive_iterate<fs::iterate_option::ChildrenFirst>(it, opts, err);
     else
         return ::_recursive_iterate<fs::iterate_option::None>(it, opts, err);
 }
+#endif // if Linux

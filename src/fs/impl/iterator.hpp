@@ -41,7 +41,7 @@ struct fs_iterator_detail
 #endif
 };
 
-bool init(fs::fs_iterator_detail *detail, fs::const_fs_string pth, fs::fs_error *err = nullptr);
+bool init(fs::fs_iterator_detail *detail, fs::const_fs_string pth, error *err = nullptr);
 void free(fs::fs_iterator_detail *detail);
 
 struct fs_iterator
@@ -53,10 +53,10 @@ struct fs_iterator
     fs::fs_iterator_detail _detail;
 };
 
-bool _init(fs::fs_iterator *it, fs::const_fs_string pth, fs::fs_error *err);
+bool _init(fs::fs_iterator *it, fs::const_fs_string pth, error *err);
 
 template<typename T>
-auto init(fs::fs_iterator *it, T pth, fs::fs_error *err = nullptr)
+auto init(fs::fs_iterator *it, T pth, error *err = nullptr)
     -> decltype(fs::_init(it, ::to_const_string(fs::get_platform_string(pth)), err))
 {
     auto pth_str = fs::get_platform_string(pth);
@@ -70,7 +70,7 @@ auto init(fs::fs_iterator *it, T pth, fs::fs_error *err = nullptr)
 
 void free(fs::fs_iterator *it);
 
-fs::fs_iterator_item *_iterate(fs::fs_iterator *it, fs::iterate_option opt = fs::iterate_option::None, fs::fs_error *err = nullptr);
+fs::fs_iterator_item *_iterate(fs::fs_iterator *it, fs::iterate_option opt = fs::iterate_option::None, error *err = nullptr);
 
 // recursive
 struct fs_recursive_iterator_item : public fs_iterator_item
@@ -90,10 +90,10 @@ struct fs_recursive_iterator
     array<fs::fs_iterator_detail> _detail_stack;
 };
 
-bool _init(fs::fs_recursive_iterator *it, fs::const_fs_string pth, fs::iterate_option opts, fs::fs_error *err);
+bool _init(fs::fs_recursive_iterator *it, fs::const_fs_string pth, fs::iterate_option opts, error *err);
 
 template<typename T>
-auto init(fs::fs_recursive_iterator *it, T pth, fs::iterate_option opts = fs::iterate_option::None, fs::fs_error *err = nullptr)
+auto init(fs::fs_recursive_iterator *it, T pth, fs::iterate_option opts = fs::iterate_option::None, error *err = nullptr)
     -> decltype(fs::_init(it, ::to_const_string(fs::get_platform_string(pth)), opts, err))
 {
     auto pth_str = fs::get_platform_string(pth);
@@ -107,7 +107,7 @@ auto init(fs::fs_recursive_iterator *it, T pth, fs::iterate_option opts = fs::it
 
 void free(fs::fs_recursive_iterator *it);
 
-fs::fs_recursive_iterator_item *_iterate(fs::fs_recursive_iterator *it, fs::iterate_option opt = fs::iterate_option::None, fs::fs_error *err = nullptr);
+fs::fs_recursive_iterator_item *_iterate(fs::fs_recursive_iterator *it, fs::iterate_option opt = fs::iterate_option::None, error *err = nullptr);
 }
 
 // macros

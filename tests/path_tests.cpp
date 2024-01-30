@@ -1,15 +1,15 @@
 
 #include <t1/t1.hpp>
+#include "shl/platform.hpp"
 
 #if Windows
 #else
 #include <sys/stat.h>
-#endif
 #include <unistd.h>
+#endif
 
 #include "shl/string.hpp"
 #include "shl/time.hpp" // for sleep
-#include "shl/platform.hpp"
 #include "shl/print.hpp"
 #include "shl/sort.hpp"
 #include "fs/path.hpp"
@@ -22,7 +22,20 @@ int path_comparer(const fs::path *a, const fs::path *b)
 #define assert_equal_str(STR1, STR2)\
     assert_equal(compare_strings(to_const_string(STR1), STR2), 0)
 
-// TODO: windows tests...
+#if Windows
+#define SANDBOX_DIR             L"C:\\Temp\\sandbox"
+#define SANDBOX_TEST_DIR        SANDBOX_DIR L"\\dir"
+#define SANDBOX_TEST_FILE       SANDBOX_DIR L"\\file"
+#define SANDBOX_TEST_SYMLINK    SANDBOX_DIR L"\\symlink"
+#define SANDBOX_TEST_SYMLINK_NO_TARGET   SANDBOX_DIR L"\\symlink2"
+#define SANDBOX_TEST_PIPE       SANDBOX_DIR L"\\pipe"
+
+#define SANDBOX_TEST_DIR2       SANDBOX_TEST_DIR  L"\\dir2"
+#define SANDBOX_TEST_FILE2      SANDBOX_TEST_DIR2 L"\\file2"
+#define SANDBOX_TEST_DIR_NO_PERMISSION  SANDBOX_TEST_DIR2 L"\\dir_noperm"
+#define SANDBOX_TEST_FILE_IN_NOPERM_DIR SANDBOX_TEST_DIR_NO_PERMISSION L"\\file_noperm"
+
+#else // linux sandbox dirs
 
 #define SANDBOX_DIR             "/tmp/sandbox"
 #define SANDBOX_TEST_DIR        SANDBOX_DIR "/dir"
@@ -35,24 +48,27 @@ int path_comparer(const fs::path *a, const fs::path *b)
 #define SANDBOX_TEST_FILE2      SANDBOX_TEST_DIR2 "/file2"
 #define SANDBOX_TEST_DIR_NO_PERMISSION  SANDBOX_TEST_DIR2 "/dir_noperm"
 #define SANDBOX_TEST_FILE_IN_NOPERM_DIR SANDBOX_TEST_DIR_NO_PERMISSION "/file_noperm"
+#endif
+
 
 define_test(set_path_sets_path)
 {
     fs::path pth{};
     
-    fs::set_path(&pth, "/abc"); assert_equal_str(pth.data, "/abc");
-    fs::set_path(&pth, "/abc/def"); assert_equal_str(pth.data, "/abc/def");
-    fs::set_path(&pth, L"/abc///:def"); assert_equal_str(pth.data, "/abc///:def");
-    fs::set_path(&pth, L"C:/abc///:def"); assert_equal_str(pth.data, "C:/abc///:def");
+    fs::set_path(&pth, "/abc"); assert_equal_str(pth.data, SYS_CHAR("/abc"));
+    fs::set_path(&pth, "/abc/def"); assert_equal_str(pth.data, SYS_CHAR("/abc/def"));
+    fs::set_path(&pth, L"/abc///:def"); assert_equal_str(pth.data, SYS_CHAR("/abc///:def"));
+    fs::set_path(&pth, L"C:/abc///:def"); assert_equal_str(pth.data, SYS_CHAR("C:/abc///:def"));
 
     fs::free(&pth);
 }
 
+#if Linux
 define_test(literal_path_sets_path)
 {
     fs::path pth = "/abc/def"_path;
     
-    assert_equal_str(pth.data, "/abc/def");
+    assert_equal_str(pth.data, SYS_CHAR("/abc/def"));
 
     fs::free(&pth);
 }
@@ -124,7 +140,7 @@ define_test(is_fs_type_tests)
 define_test(get_filesystem_type_test)
 {
     fs::filesystem_type fstype;
-    fs::fs_error err{};
+    error err{};
 
     // directory
     const char *p = nullptr;
@@ -167,7 +183,7 @@ define_test(get_filesystem_type_test)
 define_test(get_permissions_gets_permissions)
 {
     fs::permission perms;
-    fs::fs_error err{};
+    error err{};
 
     const char *p = nullptr;
 
@@ -189,7 +205,7 @@ define_test(get_permissions_gets_permissions)
 
 define_test(set_permissions_sets_permissions)
 {
-    fs::fs_error err{};
+    error err{};
     fs::permission perms;
 
     const char *p = SANDBOX_DIR "/setperm1";
@@ -253,7 +269,7 @@ define_test(exists_checks_if_symlink_exists)
 define_test(exists_returns_false_when_not_exists)
 {
     fs::path p{};
-    fs::fs_error err;
+    error err;
     fs::set_path(&p, SANDBOX_TEST_DIR "/abc");
 
     assert_equal(fs::exists(&p, true, &err), 0);
@@ -264,7 +280,7 @@ define_test(exists_returns_false_when_not_exists)
 define_test(exists_yields_error_when_unauthorized)
 {
     fs::path p{};
-    fs::fs_error err;
+    error err;
     fs::set_path(&p, "/root/abc");
 
     assert_equal(fs::exists(&p, true, &err), -1);
@@ -406,11 +422,11 @@ define_test(filename_returns_the_filename)
     fs::path p{};
 
     fs::set_path(&p, "/foo/bar.txt");
-    assert_equal_str(fs::filename(&p), "bar.txt");
+    assert_equal_str(fs::filename(&p), SYS_CHAR("bar.txt"));
 
     fs::set_path(&p, R"(C:\foo\bar.txt)");
 #if Windows
-    assert_equal_str(fs::filename(&p), "bar.txt");
+    assert_equal_str(fs::filename(&p), SYS_CHAR("bar.txt"));
 #else
     // https://theboostcpplibraries.com/boost.filesystem-paths#ex.filesystem_05
     // not that we try to imitate boost or std::filesystem (which would be bad),
@@ -420,63 +436,63 @@ define_test(filename_returns_the_filename)
 #endif
 
     fs::set_path(&p, "/foo/.bar");
-    assert_equal_str(fs::filename(&p), ".bar");
+    assert_equal_str(fs::filename(&p), SYS_CHAR(".bar"));
 
     fs::set_path(&p, R"(C:\foo\.bar)");
 #if Windows
-    assert_equal_str(fs::filename(&p), ".bar");
+    assert_equal_str(fs::filename(&p), SYS_CHAR(".bar"));
 #else
     assert_equal_str(fs::filename(&p), R"(C:\foo\.bar)");
 #endif
 
     fs::set_path(&p, "/foo/bar/");
-    assert_equal_str(fs::filename(&p), "");
+    assert_equal_str(fs::filename(&p), SYS_CHAR(""));
 
     fs::set_path(&p, R"(C:\foo\bar\)");
 #if Windows
-    assert_equal_str(fs::filename(&p), "");
+    assert_equal_str(fs::filename(&p), SYS_CHAR(""));
 #else
     assert_equal_str(fs::filename(&p), R"(C:\foo\bar\)");
 #endif
 
     fs::set_path(&p, "/foo/.");
-    assert_equal_str(fs::filename(&p), ".");
+    assert_equal_str(fs::filename(&p), SYS_CHAR("."));
 
     fs::set_path(&p, R"(C:\foo\.)");
 #if Windows
-    assert_equal_str(fs::filename(&p), ".");
+    assert_equal_str(fs::filename(&p), SYS_CHAR("."));
 #else
     assert_equal_str(fs::filename(&p), R"(C:\foo\.)");
 #endif
 
     fs::set_path(&p, "/foo/..");
-    assert_equal_str(fs::filename(&p), "..");
+    assert_equal_str(fs::filename(&p), SYS_CHAR(".."));
 
     fs::set_path(&p, R"(C:\foo\..)");
 #if Windows
-    assert_equal_str(fs::filename(&p), "..");
+    assert_equal_str(fs::filename(&p), SYS_CHAR(".."));
 #else
     assert_equal_str(fs::filename(&p), R"(C:\foo\..)");
 #endif
 
     fs::set_path(&p, ".");
-    assert_equal_str(fs::filename(&p), ".");
+    assert_equal_str(fs::filename(&p), SYS_CHAR("."));
 
     fs::set_path(&p, "..");
-    assert_equal_str(fs::filename(&p), "..");
+    assert_equal_str(fs::filename(&p), SYS_CHAR(".."));
 
     fs::set_path(&p, "/");
-    assert_equal_str(fs::filename(&p), "");
+    assert_equal_str(fs::filename(&p), SYS_CHAR(""));
 
     fs::set_path(&p, R"(C:\)");
 #if Windows
-    assert_equal_str(fs::filename(&p), "");
+    assert_equal_str(fs::filename(&p), SYS_CHAR(""));
 #else
     assert_equal_str(fs::filename(&p), R"(C:\)");
 #endif
 
     fs::set_path(&p, "//host");
-    assert_equal_str(fs::filename(&p), "host");
+    assert_equal_str(fs::filename(&p), SYS_CHAR("host"));
 
     fs::free(&p);
 }
@@ -486,38 +502,38 @@ define_test(extension_returns_path_extension)
     fs::path p{};
 
     fs::set_path(&p, "/foo/bar.txt");
-    assert_equal_str(fs::file_extension(&p), ".txt");
+    assert_equal_str(fs::file_extension(&p), SYS_CHAR(".txt"));
 
     fs::set_path(&p, R"(C:\foo\bar.txt)");
-    assert_equal_str(fs::file_extension(&p), ".txt");
+    assert_equal_str(fs::file_extension(&p), SYS_CHAR(".txt"));
 
     fs::set_path(&p, "/foo/bar.");
-    assert_equal_str(fs::file_extension(&p), ".");
+    assert_equal_str(fs::file_extension(&p), SYS_CHAR("."));
 
     fs::set_path(&p, "/foo/bar");
-    assert_equal_str(fs::file_extension(&p), "");
+    assert_equal_str(fs::file_extension(&p), SYS_CHAR(""));
 
     fs::set_path(&p, "/foo/bar.txt/bar.cc");
-    assert_equal_str(fs::file_extension(&p), ".cc");
+    assert_equal_str(fs::file_extension(&p), SYS_CHAR(".cc"));
 
     fs::set_path(&p, "/foo/bar.txt/bar.");
-    assert_equal_str(fs::file_extension(&p), ".");
+    assert_equal_str(fs::file_extension(&p), SYS_CHAR("."));
 
     fs::set_path(&p, "/foo/bar.txt/bar");
-    assert_equal_str(fs::file_extension(&p), "");
+    assert_equal_str(fs::file_extension(&p), SYS_CHAR(""));
 
     fs::set_path(&p, "/foo/.");
-    assert_equal_str(fs::file_extension(&p), "");
+    assert_equal_str(fs::file_extension(&p), SYS_CHAR(""));
 
     fs::set_path(&p, "/foo/..");
-    assert_equal_str(fs::file_extension(&p), "");
+    assert_equal_str(fs::file_extension(&p), SYS_CHAR(""));
 
     fs::set_path(&p, "/foo/.hidden");
     // this differs from std::filesystem
-    assert_equal_str(fs::file_extension(&p), ".hidden");
+    assert_equal_str(fs::file_extension(&p), SYS_CHAR(".hidden"));
 
     fs::set_path(&p, "/foo/..bar");
-    assert_equal_str(fs::file_extension(&p), ".bar");
+    assert_equal_str(fs::file_extension(&p), SYS_CHAR(".bar"));
 
     fs::free(&p);
 }
@@ -530,39 +546,39 @@ define_test(replace_filename_replaces_filename_of_path)
     // a directory too.
     fs::set_path(&p, "/foo/bar");
     fs::replace_filename(&p, "xyz"_cs);
-    assert_equal_str(p, "/foo/xyz");
+    assert_equal_str(p, SYS_CHAR("/foo/xyz"));
 
     // shorter
     fs::set_path(&p, "/foo/bar");
     fs::replace_filename(&p, "g"_cs);
-    assert_equal_str(p, "/foo/g");
+    assert_equal_str(p, SYS_CHAR("/foo/g"));
 
     // longer
     fs::set_path(&p, "/foo/bar");
     fs::replace_filename(&p, "hello world. this is a long filename"_cs);
-    assert_equal_str(p, "/foo/hello world. this is a long filename");
+    assert_equal_str(p, SYS_CHAR("/foo/hello world. this is a long filename"));
 
     // setting filename
     fs::set_path(&p, "/foo/");
     fs::replace_filename(&p, "abc"_cs);
-    assert_equal_str(p, "/foo/abc");
+    assert_equal_str(p, SYS_CHAR("/foo/abc"));
 
     fs::set_path(&p, "/");
     fs::replace_filename(&p, "abc"_cs);
-    assert_equal_str(p, "/abc");
+    assert_equal_str(p, SYS_CHAR("/abc"));
 
     fs::set_path(&p, "abc");
     fs::replace_filename(&p, "xyz"_cs);
-    assert_equal_str(p, "xyz");
+    assert_equal_str(p, SYS_CHAR("xyz"));
 
     fs::set_path(&p, ".");
     fs::replace_filename(&p, "xyz"_cs);
-    assert_equal_str(p, "xyz");
+    assert_equal_str(p, SYS_CHAR("xyz"));
 
     // empty
     fs::set_path(&p, "");
     fs::replace_filename(&p, "abc"_cs);
-    assert_equal_str(p, "abc");
+    assert_equal_str(p, SYS_CHAR("abc"));
 
     fs::free(&p);
 }
@@ -572,19 +588,19 @@ define_test(parent_path_segment_returns_the_parent_path_segment)
     fs::path p{};
 
     fs::set_path(&p, "/foo/bar");
-    assert_equal_str(fs::parent_path_segment(&p), "/foo");
+    assert_equal_str(fs::parent_path_segment(&p), SYS_CHAR("/foo"));
 
     fs::set_path(&p, "/foo");
-    assert_equal_str(fs::parent_path_segment(&p), "/");
+    assert_equal_str(fs::parent_path_segment(&p), SYS_CHAR("/"));
 
     fs::set_path(&p, "/");
-    assert_equal_str(fs::parent_path_segment(&p), "/");
+    assert_equal_str(fs::parent_path_segment(&p), SYS_CHAR("/"));
 
     fs::set_path(&p, "/bar/");
-    assert_equal_str(fs::parent_path_segment(&p), "/bar");
+    assert_equal_str(fs::parent_path_segment(&p), SYS_CHAR("/bar"));
 
     fs::set_path(&p, ".");
-    assert_equal_str(fs::parent_path_segment(&p), "");
+    assert_equal_str(fs::parent_path_segment(&p), SYS_CHAR(""));
 
     fs::free(&p);
 }
@@ -601,47 +617,47 @@ define_test(path_segments_gets_the_segments_of_a_path)
     fs::path_segments(&p, &segs);
 
     assert_equal(segs.size, 3);
-    assert_equal_str(segs[0], "/");
-    assert_equal_str(segs[1], "foo");
-    assert_equal_str(segs[2], "bar");
+    assert_equal_str(segs[0], SYS_CHAR("/"));
+    assert_equal_str(segs[1], SYS_CHAR("foo"));
+    assert_equal_str(segs[2], SYS_CHAR("bar"));
 
     // trailing slash is irrelevant
     fs::set_path(&p, "/foo/bar/");
     fs::path_segments(&p, &segs);
     assert_equal(segs.size, 3);
-    assert_equal_str(segs[0], "/");
-    assert_equal_str(segs[1], "foo");
-    assert_equal_str(segs[2], "bar");
+    assert_equal_str(segs[0], SYS_CHAR("/"));
+    assert_equal_str(segs[1], SYS_CHAR("foo"));
+    assert_equal_str(segs[2], SYS_CHAR("bar"));
 
     fs::set_path(&p, "/foo/file.txt");
     fs::path_segments(&p, &segs);
     assert_equal(segs.size, 3);
-    assert_equal_str(segs[0], "/");
-    assert_equal_str(segs[1], "foo");
-    assert_equal_str(segs[2], "file.txt");
+    assert_equal_str(segs[0], SYS_CHAR("/"));
+    assert_equal_str(segs[1], SYS_CHAR("foo"));
+    assert_equal_str(segs[2], SYS_CHAR("file.txt"));
 
     fs::set_path(&p, "/");
     fs::path_segments(&p, &segs);
     assert_equal(segs.size, 1);
-    assert_equal_str(segs[0], "/");
+    assert_equal_str(segs[0], SYS_CHAR("/"));
 
     fs::set_path(&p, "a/b/c");
     fs::path_segments(&p, &segs);
     assert_equal(segs.size, 3);
-    assert_equal_str(segs[0], "a");
-    assert_equal_str(segs[1], "b");
-    assert_equal_str(segs[2], "c");
+    assert_equal_str(segs[0], SYS_CHAR("a"));
+    assert_equal_str(segs[1], SYS_CHAR("b"));
+    assert_equal_str(segs[2], SYS_CHAR("c"));
 
     fs::set_path(&p, ".");
     fs::path_segments(&p, &segs);
     assert_equal(segs.size, 1);
-    assert_equal_str(segs[0], ".");
+    assert_equal_str(segs[0], SYS_CHAR("."));
 
     fs::set_path(&p, "./../");
     fs::path_segments(&p, &segs);
     assert_equal(segs.size, 2);
-    assert_equal_str(segs[0], ".");
-    assert_equal_str(segs[1], "..");
+    assert_equal_str(segs[0], SYS_CHAR("."));
+    assert_equal_str(segs[1], SYS_CHAR(".."));
 
     fs::set_path(&p, "");
     fs::path_segments(&p, &segs);
@@ -660,22 +676,22 @@ define_test(root_returns_the_path_root)
     // TODO: implement
 #else
     fs::set_path(&p, "/foo/bar");
-    assert_equal_str(fs::root(&p), "/");
+    assert_equal_str(fs::root(&p), SYS_CHAR("/"));
 
     fs::set_path(&p, "/foo");
-    assert_equal_str(fs::root(&p), "/");
+    assert_equal_str(fs::root(&p), SYS_CHAR("/"));
 
     fs::set_path(&p, "/");
-    assert_equal_str(fs::root(&p), "/");
+    assert_equal_str(fs::root(&p), SYS_CHAR("/"));
 
     fs::set_path(&p, "bar");
-    assert_equal_str(fs::root(&p), "");
+    assert_equal_str(fs::root(&p), SYS_CHAR(""));
 
     fs::set_path(&p, ".");
-    assert_equal_str(fs::root(&p), "");
+    assert_equal_str(fs::root(&p), SYS_CHAR(""));
 
     fs::set_path(&p, "");
-    assert_equal_str(fs::root(&p), "");
+    assert_equal_str(fs::root(&p), SYS_CHAR(""));
 
 #endif
 
@@ -691,114 +707,114 @@ define_test(normalize_normalizes_path)
 #else
     fs::set_path(&p, "");
     fs::normalize(&p);
-    assert_equal_str(p, "");
+    assert_equal_str(p, SYS_CHAR(""));
 
     fs::set_path(&p, "/");
     fs::normalize(&p);
-    assert_equal_str(p, "/");
+    assert_equal_str(p, SYS_CHAR("/"));
 
     fs::set_path(&p, "///");
     fs::normalize(&p);
-    assert_equal_str(p, "/");
+    assert_equal_str(p, SYS_CHAR("/"));
 
     fs::set_path(&p, "/a");
     fs::normalize(&p);
-    assert_equal_str(p, "/a");
+    assert_equal_str(p, SYS_CHAR("/a"));
 
     fs::set_path(&p, "/a/////b");
     fs::normalize(&p);
-    assert_equal_str(p, "/a/b");
+    assert_equal_str(p, SYS_CHAR("/a/b"));
 
     fs::set_path(&p, "/.");
     fs::normalize(&p);
-    assert_equal_str(p, "/");
+    assert_equal_str(p, SYS_CHAR("/"));
 
     fs::set_path(&p, "/..");
     fs::normalize(&p);
-    assert_equal_str(p, "/");
+    assert_equal_str(p, SYS_CHAR("/"));
 
     fs::set_path(&p, "/abc/./def");
     fs::normalize(&p);
-    assert_equal_str(p, "/abc/def");
+    assert_equal_str(p, SYS_CHAR("/abc/def"));
 
     fs::set_path(&p, "/abc/../def");
     fs::normalize(&p);
-    assert_equal_str(p, "/def");
+    assert_equal_str(p, SYS_CHAR("/def"));
 
     fs::set_path(&p, "/abc/def/xyz/../../uvw");
     fs::normalize(&p);
-    assert_equal_str(p, "/abc/uvw");
+    assert_equal_str(p, SYS_CHAR("/abc/uvw"));
 
     fs::set_path(&p, "/abc/../def/./");
     fs::normalize(&p);
-    assert_equal_str(p, "/def");
+    assert_equal_str(p, SYS_CHAR("/def"));
 
     fs::set_path(&p, "/abc/../def/../../../../");
     fs::normalize(&p);
-    assert_equal_str(p, "/");
+    assert_equal_str(p, SYS_CHAR("/"));
 
     fs::set_path(&p, "/abc/def/./.././");
     fs::normalize(&p);
-    assert_equal_str(p, "/abc");
+    assert_equal_str(p, SYS_CHAR("/abc"));
 
     // make sure other dots don't get changed
     fs::set_path(&p, "/abc/def./");
     fs::normalize(&p);
-    assert_equal_str(p, "/abc/def.");
+    assert_equal_str(p, SYS_CHAR("/abc/def."));
 
     fs::set_path(&p, "/abc/.def/");
     fs::normalize(&p);
-    assert_equal_str(p, "/abc/.def");
+    assert_equal_str(p, SYS_CHAR("/abc/.def"));
 
     fs::set_path(&p, "/abc/def../");
     fs::normalize(&p);
-    assert_equal_str(p, "/abc/def..");
+    assert_equal_str(p, SYS_CHAR("/abc/def.."));
 
     fs::set_path(&p, "/abc/..def/");
     fs::normalize(&p);
-    assert_equal_str(p, "/abc/..def");
+    assert_equal_str(p, SYS_CHAR("/abc/..def"));
 
     fs::set_path(&p, "/abc/def.../");
     fs::normalize(&p);
-    assert_equal_str(p, "/abc/def...");
+    assert_equal_str(p, SYS_CHAR("/abc/def..."));
 
     fs::set_path(&p, "/abc/...def/");
     fs::normalize(&p);
-    assert_equal_str(p, "/abc/...def");
+    assert_equal_str(p, SYS_CHAR("/abc/...def"));
 
     // yes this is a valid filename
     fs::set_path(&p, "/abc/.../");
     fs::normalize(&p);
-    assert_equal_str(p, "/abc/...");
+    assert_equal_str(p, SYS_CHAR("/abc/..."));
 
     fs::set_path(&p, "/abc/..../");
     fs::normalize(&p);
-    assert_equal_str(p, "/abc/....");
+    assert_equal_str(p, SYS_CHAR("/abc/...."));
 
     // relative paths
     fs::set_path(&p, "..");
     fs::normalize(&p);
-    assert_equal_str(p, "..");
+    assert_equal_str(p, SYS_CHAR(".."));
 
     fs::set_path(&p, "../");
     fs::normalize(&p);
-    assert_equal_str(p, "..");
+    assert_equal_str(p, SYS_CHAR(".."));
 
     fs::set_path(&p, ".");
     fs::normalize(&p);
-    assert_equal_str(p, ".");
+    assert_equal_str(p, SYS_CHAR("."));
 
     fs::set_path(&p, "./");
     fs::normalize(&p);
-    assert_equal_str(p, ".");
+    assert_equal_str(p, SYS_CHAR("."));
 
     fs::set_path(&p, "...");
     fs::normalize(&p);
-    assert_equal_str(p, "...");
+    assert_equal_str(p, SYS_CHAR("..."));
 
     fs::set_path(&p, "....");
     fs::normalize(&p);
-    assert_equal_str(p, "....");
+    assert_equal_str(p, SYS_CHAR("...."));
 #endif
 
     fs::free(&p);
@@ -814,7 +830,7 @@ define_test(longest_existing_path_returns_longest_existing_path)
 #else
     fs::set_path(&p, "/foo/bar");
     fs::longest_existing_path(&p, &longest);
-    assert_equal_str(longest, "/");
+    assert_equal_str(longest, SYS_CHAR("/"));
 
     fs::set_path(&p, SANDBOX_DIR);
     fs::longest_existing_path(&p, &longest);
@@ -826,12 +842,12 @@ define_test(longest_existing_path_returns_longest_existing_path)
 
     fs::set_path(&p, "/tmp");
     fs::longest_existing_path(&p, &longest);
-    assert_equal_str(longest, "/tmp");
+    assert_equal_str(longest, SYS_CHAR("/tmp"));
 
     // let's hope abcxyz doesn't exist
     fs::set_path(&p, "/tmp/abcxyz");
     fs::longest_existing_path(&p, &longest);
-    assert_equal_str(longest, "/tmp");
+    assert_equal_str(longest, SYS_CHAR("/tmp"));
 #endif
 
     fs::free(&p);
@@ -850,7 +866,7 @@ define_test(absolute_path_gets_the_absolute_path)
 #else
     fs::set_path(&p, "/foo/bar");
     fs::absolute_path(&p, &absp);
-    assert_equal_str(absp, "/foo/bar");
+    assert_equal_str(absp, SYS_CHAR("/foo/bar"));
 
     fs::set_path(&p, "foo/bar");
     fs::absolute_path(&p, &absp);
@@ -861,7 +877,7 @@ define_test(absolute_path_gets_the_absolute_path)
     // or resolve the path and symlinks with canonical_path(&p, &canon).
     fs::set_path(&p, "/foo/bar/./abc/../def");
     fs::absolute_path(&p, &absp);
-    assert_equal_str(absp, "/foo/bar/./abc/../def");
+    assert_equal_str(absp, SYS_CHAR("/foo/bar/./abc/../def"));
 
     fs::set_path(&p, "foo/bar/./abc/../def");
     fs::absolute_path(&p, &absp);
@@ -959,11 +975,11 @@ define_test(weakly_canonical_path_gets_weakly_canonical_path)
     // does not fail on paths that don't exist (assuming /tmp/abc does not exist)
     fs::set_path(&p, "/tmp/abc/../def");
     assert_equal(fs::weakly_canonical_path(&p, &canonp), true);
-    assert_equal_str(canonp, "/tmp/def");
+    assert_equal_str(canonp, SYS_CHAR("/tmp/def"));
 
     fs::set_path(&p, "/tmp/././abc/../def/abc");
     assert_equal(fs::weakly_canonical_path(&p, &canonp), true);
-    assert_equal_str(canonp, "/tmp/def/abc");
+    assert_equal_str(canonp, SYS_CHAR("/tmp/def/abc"));
     
 #endif
 
@@ -973,7 +989,7 @@ define_test(weakly_canonical_path_gets_weakly_canonical_path)
 
 define_test(get_symlink_target_reads_symlink)
 {
-    fs::fs_error err{};
+    error err{};
     fs::path target{};
 
     assert_equal(fs::get_symlink_target(SANDBOX_TEST_SYMLINK, &target, &err), true);
@@ -1045,52 +1061,52 @@ define_test(append_appends_to_path)
 #else
     fs::set_path(&p, "/etc");
     fs::append_path(&p, "passwd");
-    assert_equal_str(p.c_str(), "/etc/passwd");
+    assert_equal_str(p.c_str(), SYS_CHAR("/etc/passwd"));
 
     // with trailing separator, same result
     fs::set_path(&p, "/etc/");
     fs::append_path(&p, "passwd");
-    assert_equal_str(p.c_str(), "/etc/passwd");
+    assert_equal_str(p.c_str(), SYS_CHAR("/etc/passwd"));
 
     // replaces when appending absolute path
     fs::set_path(&p, "/etc");
     fs::append_path(&p, "/passwd");
-    assert_equal_str(p.c_str(), "/passwd");
+    assert_equal_str(p.c_str(), SYS_CHAR("/passwd"));
 
     fs::set_path(&p, "//xyz");
     fs::append_path(&p, "abc");
-    assert_equal_str(p.c_str(), "//xyz/abc");
+    assert_equal_str(p.c_str(), SYS_CHAR("//xyz/abc"));
 
     fs::set_path(&p, "//xyz/");
     fs::append_path(&p, "abc");
-    assert_equal_str(p.c_str(), "//xyz/abc");
+    assert_equal_str(p.c_str(), SYS_CHAR("//xyz/abc"));
 
     fs::set_path(&p, "//xyz/dir");
     fs::append_path(&p, "/abc");
-    assert_equal_str(p.c_str(), "/abc");
+    assert_equal_str(p.c_str(), SYS_CHAR("/abc"));
 
     fs::set_path(&p, "//xyz/dir");
     fs::append_path(&p, "//xyz/abc");
-    assert_equal_str(p.c_str(), "//xyz/abc");
+    assert_equal_str(p.c_str(), SYS_CHAR("//xyz/abc"));
 
     // path alone doesnt check whether what it's pointing to is a directory or not
     // so this will just append at the end.
     fs::set_path(&p, "/etc/test.txt");
     fs::append_path(&p, "passwd");
-    assert_equal_str(p.c_str(), "/etc/test.txt/passwd");
+    assert_equal_str(p.c_str(), SYS_CHAR("/etc/test.txt/passwd"));
 
     fs::set_path(&p, "/etc/test.txt");
     fs::append_path(&p, "passwd/test2.txt");
-    assert_equal_str(p.c_str(), "/etc/test.txt/passwd/test2.txt");
+    assert_equal_str(p.c_str(), SYS_CHAR("/etc/test.txt/passwd/test2.txt"));
 
     // relative
     fs::set_path(&p, "abc");
     fs::append_path(&p, "xyz");
-    assert_equal_str(p.c_str(), "abc/xyz");
+    assert_equal_str(p.c_str(), SYS_CHAR("abc/xyz"));
 
     fs::set_path(&p, "");
     fs::append_path(&p, "xyz");
-    assert_equal_str(p.c_str(), "xyz");
+    assert_equal_str(p.c_str(), SYS_CHAR("xyz"));
 
 #endif
 
@@ -1104,33 +1120,33 @@ define_test(concat_concats_to_path)
     fs::set_path(&p, "");
     fs::concat_path(&p, "");
     assert_equal(p.size, 0);
-    assert_equal_str(p, "");
+    assert_equal_str(p, SYS_CHAR(""));
 
     fs::set_path(&p, "/");
     fs::concat_path(&p, "");
     assert_equal(p.size, 1);
-    assert_equal_str(p, "/");
+    assert_equal_str(p, SYS_CHAR("/"));
 
     fs::set_path(&p, "");
     fs::concat_path(&p, "/");
     assert_equal(p.size, 1);
-    assert_equal_str(p, "/");
+    assert_equal_str(p, SYS_CHAR("/"));
 
     fs::set_path(&p, "abc");
     fs::concat_path(&p, "def");
     assert_equal(p.size, 6);
-    assert_equal_str(p, "abcdef");
+    assert_equal_str(p, SYS_CHAR("abcdef"));
 
     fs::set_path(&p, "/etc");
     fs::concat_path(&p, "passwd");
     assert_equal(p.size, 10);
-    assert_equal_str(p, "/etcpasswd");
+    assert_equal_str(p, SYS_CHAR("/etcpasswd"));
 
     // wide paths will get converted
     fs::set_path(&p, "/etc");
     fs::concat_path(&p, L"passwd");
     assert_equal(p.size, 10);
-    assert_equal_str(p, "/etcpasswd");
+    assert_equal_str(p, SYS_CHAR("/etcpasswd"));
 
     fs::free(&p);
 }
@@ -1212,7 +1228,7 @@ define_test(copy_file_copies_file)
     fs::set_path(&from, SANDBOX_TEST_FILE);
     fs::set_path(&to, SANDBOX_TEST_FILE "_copy1");
 
-    fs::fs_error err{};
+    error err{};
 
     assert_equal(fs::copy_file(&from, &to, fs::copy_file_option::None, &err), true);
 
@@ -1274,7 +1290,7 @@ define_test(copy_file_copies_file)
 
 define_test(copy_directory_copies_directory)
 {
-    fs::fs_error err{};
+    error err{};
 
     const char *dir_from = SANDBOX_DIR "/copy_dir";
     const char *dir_to = SANDBOX_DIR "/copy_dir_to";
@@ -1384,7 +1400,7 @@ define_test(copy_copies_files_and_directories)
 
 define_test(create_directory_creates_directory)
 {
-    fs::fs_error err{};
+    error err{};
     fs::path p{};
 
     fs::set_path(&p, SANDBOX_TEST_DIR "/_create_dir1");
@@ -1482,7 +1498,7 @@ define_test(create_directories_creates_directories_and_parents)
     assert_equal(fs::create_directories(&p), true); 
     assert_equal(fs::exists(&p), true); 
 
-    fs::fs_error err{};
+    error err{};
 
     // no permission
     fs::set_path(&p, "/root/_create_dirs3");
@@ -1498,7 +1514,7 @@ define_test(create_hard_link_creates_hard_link)
 {
     fs::path target{};
     fs::path link{};
-    fs::fs_error err{};
+    error err{};
 
     fs::set_path(&target, SANDBOX_TEST_FILE);
     fs::set_path(&link,   SANDBOX_DIR "/_hardlink1");
@@ -1553,7 +1569,7 @@ define_test(create_symlink_creates_symlink)
 {
     fs::path target{};
     fs::path link{};
-    fs::fs_error err{};
+    error err{};
 
     fs::set_path(&target, SANDBOX_TEST_FILE);
     fs::set_path(&link,   SANDBOX_DIR "/_symlink1");
@@ -1601,7 +1617,7 @@ define_test(move_moves_files_and_directories)
 {
     fs::path src{};
     fs::path dst{};
-    fs::fs_error err{};
+    error err{};
 
     fs::set_path(&src, SANDBOX_DIR "/_move1");
     fs::set_path(&dst, SANDBOX_DIR "/_move2");
@@ -1670,7 +1686,7 @@ define_test(move_moves_files_and_directories)
 define_test(remove_file_removes_file)
 {
     fs::path p{};
-    fs::fs_error err{};
+    error err{};
 
     fs::set_path(&p, SANDBOX_DIR "/_remove_file1");
     fs::copy_file(SANDBOX_TEST_FILE, &p);
@@ -1698,7 +1714,7 @@ define_test(remove_file_removes_file)
 
 define_test(remove_empty_directory_removes_only_empty_directories)
 {
-    fs::fs_error err{};
+    error err{};
 
     const char *dir1 = SANDBOX_DIR "/remove_empty_dir1";
     const char *dir2 = SANDBOX_DIR "/remove_empty_dir2";
@@ -1734,7 +1750,7 @@ define_test(remove_empty_directory_removes_only_empty_directories)
 
 define_test(remove_directory_removes_directories)
 {
-    fs::fs_error err{};
+    error err{};
 
     const char *dir1 = SANDBOX_DIR  "/remove_dir1";
     const char *dir2 = SANDBOX_DIR  "/remove_dir2";
@@ -1785,7 +1801,7 @@ define_test(remove_directory_removes_directories)
 
 define_test(remove_removes_anything)
 {
-    fs::fs_error err{};
+    error err{};
 
     const char *dir1 = SANDBOX_DIR  "/remove1";
     const char *dir2 = SANDBOX_DIR  "/remove2";
@@ -1831,7 +1847,7 @@ define_test(remove_removes_anything)
 /*
 define_test(iterator_test1)
 {
-    fs::fs_error err{};
+    error err{};
 
     if (fs::fs_iterator it; true)
     if (defer { fs::free(&it); }; fs::init(&it, SANDBOX_DIR, &err))
@@ -1846,7 +1862,7 @@ define_test(iterator_test1)
 
 define_test(iterator_test)
 {
-    fs::fs_error err{};
+    error err{};
     array<fs::path> descendants{};
 
     fs::create_directories(SANDBOX_DIR "/it/dir1");
@@ -1865,9 +1881,9 @@ define_test(iterator_test)
 
     assert_equal(descendants.size, 3);
 
-    assert_equal_str(descendants[0], "dir1");
-    assert_equal_str(descendants[1], "dir2");
-    assert_equal_str(descendants[2], "file1");
+    assert_equal_str(descendants[0], SYS_CHAR("dir1"));
+    assert_equal_str(descendants[1], SYS_CHAR("dir2"));
+    assert_equal_str(descendants[2], SYS_CHAR("file1"));
 
     assert_equal(err.error_code, 0);
 
@@ -1876,7 +1892,7 @@ define_test(iterator_test)
 
 define_test(iterator_type_filter_test)
 {
-    fs::fs_error err{};
+    error err{};
     array<fs::path> descendants{};
 
     fs::create_directories(SANDBOX_DIR "/it2/dir1");
@@ -1894,7 +1910,7 @@ define_test(iterator_type_filter_test)
     sort(descendants.data, descendants.size, path_comparer);
 
     assert_equal(descendants.size, 1);
-    assert_equal_str(descendants[0], "file1");
+    assert_equal_str(descendants[0], SYS_CHAR("file1"));
     assert_equal(err.error_code, 0);
 
     free_values(&descendants);
@@ -1911,8 +1927,8 @@ define_test(iterator_type_filter_test)
     sort(descendants.data, descendants.size, path_comparer);
 
     assert_equal(descendants.size, 2);
-    assert_equal_str(descendants[0], "dir1");
-    assert_equal_str(descendants[1], "dir2");
+    assert_equal_str(descendants[0], SYS_CHAR("dir1"));
+    assert_equal_str(descendants[1], SYS_CHAR("dir2"));
     assert_equal(err.error_code, 0);
 
     free<true>(&descendants);
@@ -1920,7 +1936,7 @@ define_test(iterator_type_filter_test)
 
 define_test(recursive_iterator_test)
 {
-    fs::fs_error err{};
+    error err{};
     array<fs::path> descendants{};
 
     fs::create_directories(SANDBOX_DIR "/rit/dir1/dir2/dir3/dir4");
@@ -1950,7 +1966,7 @@ define_test(recursive_iterator_test)
 
 define_test(recursive_iterator_children_first_test)
 {
-    fs::fs_error err{};
+    error err{};
 
     fs::create_directories(SANDBOX_DIR "/cf/dir1/dir2/dir3/dir4");
     fs::touch(SANDBOX_DIR "/cf/dir1/dir2/dir3/dir4/file");
@@ -1980,7 +1996,7 @@ define_test(recursive_iterator_children_first_test)
 
 define_test(recursive_iterator_symlink_test)
 {
-    fs::fs_error err{};
+    error err{};
     array<fs::path> descendants{};
 
     fs::create_directories(SANDBOX_DIR "/rit_sym/dir1");
@@ -2001,21 +2017,21 @@ define_test(recursive_iterator_symlink_test)
     sort(descendants.data, descendants.size, path_comparer);
     assert_equal(descendants.size, 8);
 
-    assert_equal_str(descendants[0], "rit_sym/dir1");
-    assert_equal_str(descendants[1], "rit_sym/dir2");
-    assert_equal_str(descendants[2], "rit_sym/file1");
-    assert_equal_str(descendants[3], "rit_sym/symlink");
-    assert_equal_str(descendants[4], "rit_sym/dir2/dir3");
-    assert_equal_str(descendants[5], "rit_sym/dir2/file2");
-    assert_equal_str(descendants[6], "rit_sym/symlink/dir3");
-    assert_equal_str(descendants[7], "rit_sym/symlink/file2");
+    assert_equal_str(descendants[0], SYS_CHAR("rit_sym/dir1"));
+    assert_equal_str(descendants[1], SYS_CHAR("rit_sym/dir2"));
+    assert_equal_str(descendants[2], SYS_CHAR("rit_sym/file1"));
+    assert_equal_str(descendants[3], SYS_CHAR("rit_sym/symlink"));
+    assert_equal_str(descendants[4], SYS_CHAR("rit_sym/dir2/dir3"));
+    assert_equal_str(descendants[5], SYS_CHAR("rit_sym/dir2/file2"));
+    assert_equal_str(descendants[6], SYS_CHAR("rit_sym/symlink/dir3"));
+    assert_equal_str(descendants[7], SYS_CHAR("rit_sym/symlink/file2"));
 
     free<true>(&descendants);
 }
 
 define_test(recursive_iterator_type_filter_test)
 {
-    fs::fs_error err{};
+    error err{};
     array<fs::path> descendants{};
 
     fs::create_directories(SANDBOX_DIR "/rit_filter/dir1");
@@ -2034,8 +2050,8 @@ define_test(recursive_iterator_type_filter_test)
 
     assert_equal(descendants.size, 2);
 
-    assert_equal_str(descendants[0], "rit_filter/file1");
-    assert_equal_str(descendants[1], "rit_filter/dir2/file2");
+    assert_equal_str(descendants[0], SYS_CHAR("rit_filter/file1"));
+    assert_equal_str(descendants[1], SYS_CHAR("rit_filter/dir2/file2"));
 
     free_values(&descendants);
     clear(&descendants);
@@ -2052,16 +2068,16 @@ define_test(recursive_iterator_type_filter_test)
 
     assert_equal(descendants.size, 3);
 
-    assert_equal_str(descendants[0], "rit_filter/dir1");
-    assert_equal_str(descendants[1], "rit_filter/dir2");
-    assert_equal_str(descendants[2], "rit_filter/dir2/dir3");
+    assert_equal_str(descendants[0], SYS_CHAR("rit_filter/dir1"));
+    assert_equal_str(descendants[1], SYS_CHAR("rit_filter/dir2"));
+    assert_equal_str(descendants[2], SYS_CHAR("rit_filter/dir2/dir3"));
 
     free<true>(&descendants);
 }
 
 define_test(get_children_names_gets_directory_children_names)
 {
-    fs::fs_error err{};
+    error err{};
     array<fs::path> children{};
 
     fs::create_directories(SANDBOX_DIR "/get_children/dir1");
@@ -2077,16 +2093,16 @@ define_test(get_children_names_gets_directory_children_names)
 
     sort(children.data, children.size, path_comparer);
 
-    assert_equal_str(children[0], "dir1");
-    assert_equal_str(children[1], "dir2");
-    assert_equal_str(children[2], "file1");
+    assert_equal_str(children[0], SYS_CHAR("dir1"));
+    assert_equal_str(children[1], SYS_CHAR("dir2"));
+    assert_equal_str(children[2], SYS_CHAR("file1"));
 
     free<true>(&children);
 }
 
 define_test(get_children_names_returns_minus_one_on_error)
 {
-    fs::fs_error err{};
+    error err{};
     array<fs::path> children{};
 
     s64 count = fs::get_children_names(SANDBOX_TEST_DIR_NO_PERMISSION, &children, &err);
@@ -2103,7 +2119,7 @@ define_test(get_children_names_returns_minus_one_on_error)
 
 define_test(get_children_fullpaths_gets_directory_children_fullpaths)
 {
-    fs::fs_error err{};
+    error err{};
     array<fs::path> children{};
 
     fs::create_directories(SANDBOX_DIR "/get_children2/dir1");
@@ -2128,7 +2144,7 @@ define_test(get_children_fullpaths_gets_directory_children_fullpaths)
 
 define_test(get_all_descendants_paths_gets_all_descendants_paths_relative_to_given_directory)
 {
-    fs::fs_error err{};
+    error err{};
     array<fs::path> all_descendants{};
 
     fs::create_directories(SANDBOX_DIR "/get_all_descendants/dir1");
@@ -2145,18 +2161,18 @@ define_test(get_all_descendants_paths_gets_all_descendants_paths_relative_to_giv
 
     sort(all_descendants.data, all_descendants.size, path_comparer);
 
-    assert_equal_str(all_descendants[0], "get_all_descendants/dir1");
-    assert_equal_str(all_descendants[1], "get_all_descendants/dir2");
-    assert_equal_str(all_descendants[2], "get_all_descendants/file1");
-    assert_equal_str(all_descendants[3], "get_all_descendants/dir2/dir3");
-    assert_equal_str(all_descendants[4], "get_all_descendants/dir2/file2");
+    assert_equal_str(all_descendants[0], SYS_CHAR("get_all_descendants/dir1"));
+    assert_equal_str(all_descendants[1], SYS_CHAR("get_all_descendants/dir2"));
+    assert_equal_str(all_descendants[2], SYS_CHAR("get_all_descendants/file1"));
+    assert_equal_str(all_descendants[3], SYS_CHAR("get_all_descendants/dir2/dir3"));
+    assert_equal_str(all_descendants[4], SYS_CHAR("get_all_descendants/dir2/file2"));
 
     free<true>(&all_descendants);
 }
 
 define_test(get_all_descendants_fullpaths_gets_all_descendants_paths)
 {
-    fs::fs_error err{};
+    error err{};
     array<fs::path> all_descendants{};
 
     fs::create_directories(SANDBOX_DIR "/get_all_descendants2/dir1");
@@ -2183,7 +2199,7 @@ define_test(get_all_descendants_fullpaths_gets_all_descendants_paths)
 
 define_test(get_children_count_gets_children_count)
 {
-    fs::fs_error err{};
+    error err{};
 
     fs::create_directories(SANDBOX_DIR "/get_children_count/dir1");
     fs::create_directories(SANDBOX_DIR "/get_children_count/dir2/dir3");
@@ -2206,7 +2222,7 @@ define_test(get_children_count_gets_children_count)
 
 define_test(get_descendant_count_gets_children_count)
 {
-    fs::fs_error err{};
+    error err{};
 
     fs::create_directories(SANDBOX_DIR "/get_descendant_count/dir1");
     fs::create_directories(SANDBOX_DIR "/get_descendant_count/dir2/dir3");
@@ -2227,26 +2243,14 @@ define_test(get_descendant_count_gets_children_count)
 #endif
 }
 
-#if 0
-define_test(iterator_test4)
-{
-    fs::fs_error err{};
-
-    for_path(item, SANDBOX_DIR, fs::iterate_option::None, &err)
-        printf("%x - %s\n", (u32)item->type, item->path.c_str);
-
-    assert_equal(err.error_code, 0);
-}
-#endif
-
 define_test(get_executable_path_gets_executable_path)
 {
     // const char *actual = "/home/user/dev/git/fs/bin/tests/path_tests";
     fs::path p{};
-    fs::fs_error err{};
+    error err{};
 
     assert_equal(fs::get_executable_path(&p, &err), true);
-    assert_equal_str(fs::filename(&p), "path_tests");
+    assert_equal_str(fs::filename(&p), SYS_CHAR("path_tests"));
 
     // obviously this wont work on all systems
     // assert_equal_str(p, actual);
@@ -2257,17 +2261,17 @@ define_test(get_executable_path_gets_executable_path)
 define_test(get_preference_path_gets_preference_path)
 {
     fs::path pref_path{};
-    fs::fs_error err{};
+    error err{};
 
     assert_equal(fs::get_preference_path(&pref_path, nullptr, nullptr, &err), true);
 
-    // assert_equal_str(pref_path, "/home/user/.local/share");
+    // assert_equal_str(pref_path, SYS_CHAR("/home/user/.local/share"));
 
     assert_equal(fs::get_preference_path(&pref_path, "path_tests", nullptr, &err), true);
-    // assert_equal_str(pref_path, "/home/user/.local/share/path_tests");
+    // assert_equal_str(pref_path, SYS_CHAR("/home/user/.local/share/path_tests"));
 
     assert_equal(fs::get_preference_path(&pref_path, "path_tests", "org", &err), true);
-    // assert_equal_str(pref_path, "/home/user/.local/share/org/path_tests");
+    // assert_equal_str(pref_path, SYS_CHAR("/home/user/.local/share/org/path_tests"));
 
     fs::free(&pref_path);
 }
@@ -2275,23 +2279,27 @@ define_test(get_preference_path_gets_preference_path)
 define_test(get_temporary_path_gets_temporary_path)
 {
     fs::path tmp_path{};
-    fs::fs_error err{};
+    error err{};
 
     assert_equal(fs::get_temporary_path(&tmp_path, &err), true);
 
 #if Linux
     // could still be different if variables are defined
-    assert_equal_str(tmp_path, "/tmp");
+    assert_equal_str(tmp_path, SYS_CHAR("/tmp"));
 #endif
 
     fs::free(&tmp_path);
 }
+#endif // if Linux
 
 static fs::path old_current_dir;
 
 void _setup()
 {
     fs::get_current_path(&old_current_dir);
+#if Windows
+    // TODO: implement sandbox
+#else
     umask(0); // if this is not set to 0 mkdir might not set correct permissions
     mkdir(SANDBOX_DIR, 0777);
     mkdir(SANDBOX_TEST_DIR, 0777);
@@ -2313,20 +2321,30 @@ void _setup()
     fs::set_path(&_tmp, SANDBOX_DIR);
     fs::set_current_path(&_tmp);
     fs::free(&_tmp);
+#endif
 }
 
-// #include <filesystem> // lol
+#if Windows
+#include <filesystem> // lol
+#endif
 
 void _cleanup()
 {
+#if Windows
+    // _chmod(SANDBOX_TEST_DIR_NO_PERMISSION, _S_IWRITE | S_IREAD);
+    fs::set_current_path(&old_current_dir);
+    std::filesystem::remove_all(SANDBOX_DIR);
+
+    fs::free(&old_current_dir);
+#else
     chmod(SANDBOX_TEST_DIR_NO_PERMISSION, 0777);
     fs::set_current_path(&old_current_dir);
-    // std::filesystem::remove_all(SANDBOX_DIR);
-    fs::fs_error err{};
+    error err{};
     if (!fs::remove_directory(SANDBOX_DIR, &err))
         fprintf(stderr, "ERROR: could not remove directory %s. Error code %d:\n%s\n", SANDBOX_DIR, err.error_code, err.what);
 
     fs::free(&old_current_dir);
+#endif
 }
 
 define_test_main(_setup(), _cleanup());

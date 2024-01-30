@@ -6,6 +6,10 @@
 #include "shl/enum_flag.hpp"
 #include "shl/number_types.hpp"
 
+#if Windows
+#include <windows.h>
+#endif
+
 // constants
 
 // These sizes are used as the default when querying paths with e.g. getcwd.
@@ -22,8 +26,8 @@ namespace fs
 {
 #if Windows
 
-typedef wchar_t path_char_t;
-constexpr const path_char_t path_separator = L'\\';
+typedef sys_char path_char_t;
+constexpr const path_char_t path_separator = SYS_CHAR('\\');
 
 struct filesystem_info {}; // TODO: define
 #define FS_QUERY_DEFAULT_FLAGS 0
@@ -31,18 +35,18 @@ struct filesystem_info {}; // TODO: define
 
 enum class filesystem_type
 {
-    Unknown = 0,
-    File /* = ??? */,
-    Directory,
-    Symlink,
-    // ??
+    Unknown     = FILE_TYPE_UNKNOWN,
+    File        = FILE_TYPE_DISK, // pretty sure this is right
+    Directory   = 6,
+    Symlink     = 7,
+    Pipe        = FILE_TYPE_PIPE
 };
 
 #else
 // Linux and others
 
-typedef char path_char_t;
-constexpr const path_char_t path_separator = '/';
+typedef sys_char path_char_t;
+constexpr const path_char_t path_separator = SYS_CHAR('/');
 
 struct filesystem_timestamp
 {

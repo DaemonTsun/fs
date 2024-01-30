@@ -13,11 +13,11 @@ fs::path.
 
 #include "shl/hash.hpp"
 #include "shl/platform.hpp"
+#include "shl/error.hpp"
 #include "shl/type_functions.hpp"
 
 #include "fs/common.hpp"
 #include "fs/convert.hpp"
-#include "fs/fs_error.hpp"
 
 namespace fs
 {
@@ -140,38 +140,38 @@ bool operator==(const fs::path &lhs, const fs::path &rhs);
 
 hash_t hash(const fs::path *pth);
 
-bool _get_filesystem_info(fs::const_fs_string pth, fs::filesystem_info *out, bool follow_symlinks, int flags, fs::fs_error *err);
+bool _get_filesystem_info(fs::const_fs_string pth, fs::filesystem_info *out, bool follow_symlinks, int flags, error *err);
 
 // type T is anything that can be converted to fs::const_fs_string
 template<typename T>
-auto get_filesystem_info(T pth, fs::filesystem_info *out, bool follow_symlinks = true, int flags = FS_QUERY_DEFAULT_FLAGS, fs::fs_error *err = nullptr)
+auto get_filesystem_info(T pth, fs::filesystem_info *out, bool follow_symlinks = true, int flags = FS_QUERY_DEFAULT_FLAGS, error *err = nullptr)
     define_fs_conversion_body(fs::_get_filesystem_info, pth, out, follow_symlinks, flags, err)
 
 fs::filesystem_type get_filesystem_type(const fs::filesystem_info *info);
 
-bool _get_filesystem_type(fs::const_fs_string pth, fs::filesystem_type *out, bool follow_symlinks, fs::fs_error *err);
+bool _get_filesystem_type(fs::const_fs_string pth, fs::filesystem_type *out, bool follow_symlinks, error *err);
 template<typename T>
-auto get_filesystem_type(T pth, fs::filesystem_type *out, bool follow_symlinks = true, fs::fs_error *err = nullptr)
+auto get_filesystem_type(T pth, fs::filesystem_type *out, bool follow_symlinks = true, error *err = nullptr)
     define_fs_conversion_body(fs::_get_filesystem_type, pth, out, follow_symlinks, err);
 
 fs::permission get_permissions(const fs::filesystem_info *info);
 
-bool _get_permissions(fs::const_fs_string pth, fs::permission *out, bool follow_symlinks, fs::fs_error *err);
+bool _get_permissions(fs::const_fs_string pth, fs::permission *out, bool follow_symlinks, error *err);
 template<typename T>
-auto get_permissions(T pth, fs::permission *out, bool follow_symlinks = true, fs::fs_error *err = nullptr)
+auto get_permissions(T pth, fs::permission *out, bool follow_symlinks = true, error *err = nullptr)
     define_fs_conversion_body(fs::_get_permissions, pth, out, follow_symlinks, err);
 
-bool _set_permissions(fs::const_fs_string pth, fs::permission perms, bool follow_symlinks, fs::fs_error *err);
+bool _set_permissions(fs::const_fs_string pth, fs::permission perms, bool follow_symlinks, error *err);
 template<typename T>
-auto set_permissions(T pth, fs::permission perms, bool follow_symlinks = true, fs::fs_error *err = nullptr)
+auto set_permissions(T pth, fs::permission perms, bool follow_symlinks = true, error *err = nullptr)
     define_fs_conversion_body(fs::_set_permissions, pth, perms, follow_symlinks, err);
 
 // 0 = doesn't exist, 1 = exists, -1 = error
-int _exists(fs::const_fs_string pth, bool follow_symlinks, fs::fs_error *err);
+int _exists(fs::const_fs_string pth, bool follow_symlinks, error *err);
 
 // type T is anything that can be converted to fs::const_fs_string
 template<typename T>
-auto exists(T pth, bool follow_symlinks = true, fs::fs_error *err = nullptr)
+auto exists(T pth, bool follow_symlinks = true, error *err = nullptr)
     define_fs_conversion_body(fs::_exists, pth, follow_symlinks, err)
 
 bool is_file_info(const fs::filesystem_info *info);
@@ -195,30 +195,30 @@ bool is_other_info(const fs::filesystem_info *info);
 }
 
 // T is anything that can be passed to get_filesystem_info, i.e. strings and paths
-template<typename T> auto is_file(T pth, bool follow_symlinks = true, fs::fs_error *err = nullptr) define_path_is_type_body(fs::is_file_info, pth)
-template<typename T> auto is_pipe(T pth, bool follow_symlinks = true, fs::fs_error *err = nullptr) define_path_is_type_body(fs::is_pipe_info, pth)
-template<typename T> auto is_block_device(T pth, bool follow_symlinks = true, fs::fs_error *err = nullptr) define_path_is_type_body(fs::is_block_device_info, pth)
-template<typename T> auto is_special_character_file(T pth, bool follow_symlinks = true, fs::fs_error *err = nullptr) define_path_is_type_body(fs::is_special_character_file_info, pth)
-template<typename T> auto is_socket(T pth, bool follow_symlinks = true, fs::fs_error *err = nullptr) define_path_is_type_body(fs::is_socket_info, pth)
+template<typename T> auto is_file(T pth, bool follow_symlinks = true, error *err = nullptr) define_path_is_type_body(fs::is_file_info, pth)
+template<typename T> auto is_pipe(T pth, bool follow_symlinks = true, error *err = nullptr) define_path_is_type_body(fs::is_pipe_info, pth)
+template<typename T> auto is_block_device(T pth, bool follow_symlinks = true, error *err = nullptr) define_path_is_type_body(fs::is_block_device_info, pth)
+template<typename T> auto is_special_character_file(T pth, bool follow_symlinks = true, error *err = nullptr) define_path_is_type_body(fs::is_special_character_file_info, pth)
+template<typename T> auto is_socket(T pth, bool follow_symlinks = true, error *err = nullptr) define_path_is_type_body(fs::is_socket_info, pth)
 // is_symlink has follow_symlinks = false for obvious reasons
-template<typename T> auto is_symlink(T pth, bool follow_symlinks = false, fs::fs_error *err = nullptr) define_path_is_type_body(fs::is_symlink_info, pth)
-template<typename T> auto is_directory(T pth, bool follow_symlinks = true, fs::fs_error *err = nullptr) define_path_is_type_body(fs::is_directory_info, pth)
-template<typename T> auto is_other(T pth, bool follow_symlinks = true, fs::fs_error *err = nullptr) define_path_is_type_body(fs::is_other_info, pth)
+template<typename T> auto is_symlink(T pth, bool follow_symlinks = false, error *err = nullptr) define_path_is_type_body(fs::is_symlink_info, pth)
+template<typename T> auto is_directory(T pth, bool follow_symlinks = true, error *err = nullptr) define_path_is_type_body(fs::is_directory_info, pth)
+template<typename T> auto is_other(T pth, bool follow_symlinks = true, error *err = nullptr) define_path_is_type_body(fs::is_other_info, pth)
 
-bool _is_absolute(fs::const_fs_string pth, fs::fs_error *err);
-bool _is_relative(fs::const_fs_string pth, fs::fs_error *err);
+bool _is_absolute(fs::const_fs_string pth, error *err);
+bool _is_relative(fs::const_fs_string pth, error *err);
 
-template<typename T> auto is_absolute(T pth, fs::fs_error *err = nullptr) define_fs_conversion_body(fs::_is_absolute, pth, err)
-template<typename T> auto is_relative(T pth, fs::fs_error *err = nullptr) define_fs_conversion_body(fs::_is_relative, pth, err)
+template<typename T> auto is_absolute(T pth, error *err = nullptr) define_fs_conversion_body(fs::_is_absolute, pth, err)
+template<typename T> auto is_relative(T pth, error *err = nullptr) define_fs_conversion_body(fs::_is_relative, pth, err)
 
 bool are_equivalent_infos(const fs::filesystem_info *info1, const fs::filesystem_info *info2);
 
-bool _are_equivalent(fs::const_fs_string pth1, fs::const_fs_string pth2, bool follow_symlinks = true, fs::fs_error *err = nullptr);
+bool _are_equivalent(fs::const_fs_string pth1, fs::const_fs_string pth2, bool follow_symlinks = true, error *err = nullptr);
 
 // type T1 and T2 are anything that can be converted to fs::const_fs_string,
 // but do not have to be the same type.
 template<typename T1, typename T2>
-auto are_equivalent(T1 pth1, T2 pth2, bool follow_symlinks = true, fs::fs_error *err = nullptr)
+auto are_equivalent(T1 pth1, T2 pth2, bool follow_symlinks = true, error *err = nullptr)
     define_fs_conversion_body2(fs::_are_equivalent, pth1, pth2, follow_symlinks, err)
 
 fs::const_fs_string filename(fs::const_fs_string pth);
@@ -266,28 +266,28 @@ template<typename T> auto longest_existing_path(T pth, fs::path *out) define_fs_
 
 void normalize(fs::path *pth);
 
-fs::path _absolute_path(fs::const_fs_string pth, fs::fs_error *err);
-bool     _absolute_path(fs::const_fs_string pth, fs::path *out, fs::fs_error *err);
-template<typename T> auto absolute_path(T pth, fs::fs_error *err = nullptr) define_fs_conversion_body(fs::_absolute_path, pth, err);
-template<typename T> auto absolute_path(T pth, fs::path *out, fs::fs_error *err = nullptr) define_fs_conversion_body(fs::_absolute_path, pth, out, err);
+fs::path _absolute_path(fs::const_fs_string pth, error *err);
+bool     _absolute_path(fs::const_fs_string pth, fs::path *out, error *err);
+template<typename T> auto absolute_path(T pth, error *err = nullptr) define_fs_conversion_body(fs::_absolute_path, pth, err);
+template<typename T> auto absolute_path(T pth, fs::path *out, error *err = nullptr) define_fs_conversion_body(fs::_absolute_path, pth, out, err);
 
-fs::path _canonical_path(fs::const_fs_string pth, fs::fs_error *err);
-bool     _canonical_path(fs::const_fs_string pth, fs::path *out, fs::fs_error *err);
-template<typename T> auto canonical_path(T pth, fs::fs_error *err = nullptr) define_fs_conversion_body(fs::_canonical_path, pth, err);
-template<typename T> auto canonical_path(T pth, fs::path *out, fs::fs_error *err = nullptr) define_fs_conversion_body(fs::_canonical_path, pth, out, err);
+fs::path _canonical_path(fs::const_fs_string pth, error *err);
+bool     _canonical_path(fs::const_fs_string pth, fs::path *out, error *err);
+template<typename T> auto canonical_path(T pth, error *err = nullptr) define_fs_conversion_body(fs::_canonical_path, pth, err);
+template<typename T> auto canonical_path(T pth, fs::path *out, error *err = nullptr) define_fs_conversion_body(fs::_canonical_path, pth, out, err);
 
-fs::path _weakly_canonical_path(fs::const_fs_string pth, fs::fs_error *err);
-bool     _weakly_canonical_path(fs::const_fs_string pth, fs::path *out, fs::fs_error *err);
-template<typename T> auto weakly_canonical_path(T pth, fs::fs_error *err = nullptr) define_fs_conversion_body(fs::_weakly_canonical_path, pth, err);
-template<typename T> auto weakly_canonical_path(T pth, fs::path *out, fs::fs_error *err = nullptr) define_fs_conversion_body(fs::_weakly_canonical_path, pth, out, err);
+fs::path _weakly_canonical_path(fs::const_fs_string pth, error *err);
+bool     _weakly_canonical_path(fs::const_fs_string pth, fs::path *out, error *err);
+template<typename T> auto weakly_canonical_path(T pth, error *err = nullptr) define_fs_conversion_body(fs::_weakly_canonical_path, pth, err);
+template<typename T> auto weakly_canonical_path(T pth, fs::path *out, error *err = nullptr) define_fs_conversion_body(fs::_weakly_canonical_path, pth, out, err);
 
-bool _get_symlink_target(fs::const_fs_string pth, fs::path *out, fs::fs_error *err);
-template<typename T> auto get_symlink_target(T pth, fs::path *out, fs::fs_error *err = nullptr) define_fs_conversion_body(fs::_get_symlink_target, pth, out, err);
+bool _get_symlink_target(fs::const_fs_string pth, fs::path *out, error *err);
+template<typename T> auto get_symlink_target(T pth, fs::path *out, error *err = nullptr) define_fs_conversion_body(fs::_get_symlink_target, pth, out, err);
 
-bool get_current_path(fs::path *out, fs::fs_error *err = nullptr);
+bool get_current_path(fs::path *out, error *err = nullptr);
 
-bool _set_current_path(fs::const_fs_string pth, fs::fs_error *err);
-template<typename T> auto set_current_path(T pth, fs::fs_error *err = nullptr) define_fs_conversion_body(fs::_set_current_path, pth, err)
+bool _set_current_path(fs::const_fs_string pth, error *err);
+template<typename T> auto set_current_path(T pth, error *err = nullptr) define_fs_conversion_body(fs::_set_current_path, pth, err)
 
 // out = pth / seg
 void append_path(fs::path *out, const char    *seg);
@@ -312,8 +312,8 @@ auto relative_path(T1 from_path, T2 to_path, fs::path *out)
 
 // modification operations
 
-bool _touch(fs::const_fs_string pth, fs::permission perms, fs::fs_error *err);
-template<typename T> auto touch(T pth, fs::permission perms = fs::permission::User, fs::fs_error *err = nullptr) define_fs_conversion_body(fs::_touch, pth, perms, err)
+bool _touch(fs::const_fs_string pth, fs::permission perms, error *err);
+template<typename T> auto touch(T pth, fs::permission perms = fs::permission::User, error *err = nullptr) define_fs_conversion_body(fs::_touch, pth, perms, err)
 
 enum class copy_file_option
 {
@@ -326,94 +326,94 @@ enum class copy_file_option
     // UpdateOnly? might be useful
 };
 
-bool _copy_file(fs::const_fs_string from, fs::const_fs_string to, fs::copy_file_option opt, fs::fs_error *err);
+bool _copy_file(fs::const_fs_string from, fs::const_fs_string to, fs::copy_file_option opt, error *err);
 
 template<typename T1, typename T2>
-auto copy_file(T1 from, T2 to, fs::copy_file_option opt = fs::copy_file_option::OverwriteExisting, fs::fs_error *err = nullptr)
+auto copy_file(T1 from, T2 to, fs::copy_file_option opt = fs::copy_file_option::OverwriteExisting, error *err = nullptr)
     define_fs_conversion_body2(fs::_copy_file, from, to, opt, err)
 
-bool _copy_directory(fs::const_fs_string from, fs::const_fs_string to, int max_depth, fs::copy_file_option opt, fs::fs_error *err);
+bool _copy_directory(fs::const_fs_string from, fs::const_fs_string to, int max_depth, fs::copy_file_option opt, error *err);
 
 // -1 max depth = everything
 // 0 = only current directory
 // 1 = current directory and 1st level subdirectories
 // 2 = ...
 template<typename T1, typename T2>
-auto copy_directory(T1 from, T2 to, int max_depth = -1, fs::copy_file_option opt = fs::copy_file_option::OverwriteExisting, fs::fs_error *err = nullptr)
+auto copy_directory(T1 from, T2 to, int max_depth = -1, fs::copy_file_option opt = fs::copy_file_option::OverwriteExisting, error *err = nullptr)
     define_fs_conversion_body2(fs::_copy_directory, from, to, max_depth, opt, err)
 
 // copies files and directories, doesn't matter what you give it
-bool _copy(fs::const_fs_string from, fs::const_fs_string to, int max_depth, fs::copy_file_option opt, fs::fs_error *err);
+bool _copy(fs::const_fs_string from, fs::const_fs_string to, int max_depth, fs::copy_file_option opt, error *err);
 
 template<typename T1, typename T2>
-auto copy(T1 from, T2 to, int max_depth = -1, fs::copy_file_option opt = fs::copy_file_option::OverwriteExisting, fs::fs_error *err = nullptr)
+auto copy(T1 from, T2 to, int max_depth = -1, fs::copy_file_option opt = fs::copy_file_option::OverwriteExisting, error *err = nullptr)
     define_fs_conversion_body2(fs::_copy, from, to, max_depth, opt, err)
 
 // does not create parents
-bool _create_directory(fs::const_fs_string pth, fs::permission perms, fs::fs_error *err);
+bool _create_directory(fs::const_fs_string pth, fs::permission perms, error *err);
 
 template<typename T>
-auto create_directory(T pth, fs::permission perms = fs::permission::User, fs::fs_error *err = nullptr)
+auto create_directory(T pth, fs::permission perms = fs::permission::User, error *err = nullptr)
     define_fs_conversion_body(fs::_create_directory, pth, perms, err)
 
 // creates parents as well
-bool _create_directories(fs::const_fs_string pth, fs::permission perms, fs::fs_error *err);
+bool _create_directories(fs::const_fs_string pth, fs::permission perms, error *err);
 
 template<typename T>
-auto create_directories(T pth, fs::permission perms = fs::permission::User, fs::fs_error *err = nullptr)
+auto create_directories(T pth, fs::permission perms = fs::permission::User, error *err = nullptr)
     define_fs_conversion_body(fs::_create_directories, pth, perms, err)
 
-bool _create_hard_link(fs::const_fs_string target, fs::const_fs_string link, fs::fs_error *err);
-template<typename T1, typename T2> auto create_hard_link(T1 target, T2 link, fs::fs_error *err = nullptr) define_fs_conversion_body2(fs::_create_hard_link, target, link, err)
+bool _create_hard_link(fs::const_fs_string target, fs::const_fs_string link, error *err);
+template<typename T1, typename T2> auto create_hard_link(T1 target, T2 link, error *err = nullptr) define_fs_conversion_body2(fs::_create_hard_link, target, link, err)
 
-bool _create_symlink(fs::const_fs_string target, fs::const_fs_string link, fs::fs_error *err);
-template<typename T1, typename T2> auto create_symlink(T1 target, T2 link, fs::fs_error *err = nullptr) define_fs_conversion_body2(fs::_create_symlink, target, link, err)
+bool _create_symlink(fs::const_fs_string target, fs::const_fs_string link, error *err);
+template<typename T1, typename T2> auto create_symlink(T1 target, T2 link, error *err = nullptr) define_fs_conversion_body2(fs::_create_symlink, target, link, err)
 
-bool _move(fs::const_fs_string src, fs::const_fs_string dest, fs::fs_error *err = nullptr);
-template<typename T1, typename T2> auto move(T1 src, T2 dest, fs::fs_error *err = nullptr) define_fs_conversion_body2(fs::_move, src, dest, err)
+bool _move(fs::const_fs_string src, fs::const_fs_string dest, error *err = nullptr);
+template<typename T1, typename T2> auto move(T1 src, T2 dest, error *err = nullptr) define_fs_conversion_body2(fs::_move, src, dest, err)
 
-bool _remove_file(fs::const_fs_string pth, fs::fs_error *err);
-template<typename T> auto remove_file(T pth, fs::fs_error *err = nullptr) define_fs_conversion_body(fs::_remove_file, pth, err)
+bool _remove_file(fs::const_fs_string pth, error *err);
+template<typename T> auto remove_file(T pth, error *err = nullptr) define_fs_conversion_body(fs::_remove_file, pth, err)
 
 // removes single empty directory
-bool _remove_empty_directory(fs::const_fs_string pth, fs::fs_error *err);
-template<typename T> auto remove_empty_directory(T pth, fs::fs_error *err = nullptr) define_fs_conversion_body(fs::_remove_empty_directory, pth, err)
+bool _remove_empty_directory(fs::const_fs_string pth, error *err);
+template<typename T> auto remove_empty_directory(T pth, error *err = nullptr) define_fs_conversion_body(fs::_remove_empty_directory, pth, err)
 
 // removes all children as well
-bool _remove_directory(fs::const_fs_string pth, fs::fs_error *err);
-template<typename T> auto remove_directory(T pth, fs::fs_error *err = nullptr) define_fs_conversion_body(fs::_remove_directory, pth, err)
+bool _remove_directory(fs::const_fs_string pth, error *err);
+template<typename T> auto remove_directory(T pth, error *err = nullptr) define_fs_conversion_body(fs::_remove_directory, pth, err)
 
 // removes anything. does not return false when removing non-existent things.
-bool _remove(fs::const_fs_string pth, fs::fs_error *err);
-template<typename T> auto remove(T pth, fs::fs_error *err = nullptr) define_fs_conversion_body(fs::_remove, pth, err)
+bool _remove(fs::const_fs_string pth, error *err);
+template<typename T> auto remove(T pth, error *err = nullptr) define_fs_conversion_body(fs::_remove, pth, err)
 
 // gets the paths to children of one directory, not subdirectories
-s64 _get_children(fs::const_fs_string pth, array<fs::path> *children, fs::iterate_option options, fs::fs_error *err);
+s64 _get_children(fs::const_fs_string pth, array<fs::path> *children, fs::iterate_option options, error *err);
 
-template<typename T> auto get_children_names(T pth, array<fs::path> *children, fs::fs_error *err = nullptr)
+template<typename T> auto get_children_names(T pth, array<fs::path> *children, error *err = nullptr)
     define_fs_conversion_body(fs::_get_children, pth, children, fs::iterate_option::StopOnError, err)
 
-template<typename T> auto get_children_fullpaths(T pth, array<fs::path> *children, fs::fs_error *err = nullptr)
+template<typename T> auto get_children_fullpaths(T pth, array<fs::path> *children, error *err = nullptr)
     define_fs_conversion_body(fs::_get_children, pth, children, fs::iterate_option::Fullpaths | fs::iterate_option::StopOnError, err)
 
 // gets subdirectories too
-s64 _get_all_descendants(fs::const_fs_string pth, array<fs::path> *descendants, fs::iterate_option options, fs::fs_error *err);
+s64 _get_all_descendants(fs::const_fs_string pth, array<fs::path> *descendants, fs::iterate_option options, error *err);
 
-template<typename T> auto get_all_descendants_paths(T pth, array<fs::path> *descendants, fs::fs_error *err = nullptr)
+template<typename T> auto get_all_descendants_paths(T pth, array<fs::path> *descendants, error *err = nullptr)
     define_fs_conversion_body(fs::_get_all_descendants, pth, descendants, fs::iterate_option::StopOnError, err)
 
-template<typename T> auto get_all_descendants_fullpaths(T pth, array<fs::path> *descendants, fs::fs_error *err = nullptr)
+template<typename T> auto get_all_descendants_fullpaths(T pth, array<fs::path> *descendants, error *err = nullptr)
     define_fs_conversion_body(fs::_get_all_descendants, pth, descendants, fs::iterate_option::Fullpaths | fs::iterate_option::StopOnError, err)
 
 // direct children, -1 = error
-s64 _get_children_count(fs::const_fs_string pth, fs::iterate_option options, fs::fs_error *err);
+s64 _get_children_count(fs::const_fs_string pth, fs::iterate_option options, error *err);
 
-template<typename T> auto get_children_count(T pth, fs::fs_error *err = nullptr)
+template<typename T> auto get_children_count(T pth, error *err = nullptr)
     define_fs_conversion_body(fs::_get_children_count, pth, fs::iterate_option::StopOnError, err)
 
-s64 _get_descendant_count(fs::const_fs_string pth, fs::iterate_option options, fs::fs_error *err);
+s64 _get_descendant_count(fs::const_fs_string pth, fs::iterate_option options, error *err);
 
-template<typename T> auto get_descendant_count(T pth, fs::fs_error *err = nullptr)
+template<typename T> auto get_descendant_count(T pth, error *err = nullptr)
     define_fs_conversion_body(fs::_get_descendant_count, pth, fs::iterate_option::StopOnError, err)
 
 // maybe add something along the lines of get_file_count
@@ -423,16 +423,16 @@ template<typename T> auto get_descendant_count(T pth, fs::fs_error *err = nullpt
 ////////////////////////
 
 // location of the executable
-bool get_executable_path(fs::path *out, fs::fs_error *err);
+bool get_executable_path(fs::path *out, error *err);
 // convenience, basically parent_path of get_executable_path
-bool get_executable_directory_path(fs::path *out, fs::fs_error *err);
+bool get_executable_directory_path(fs::path *out, error *err);
 
 // AppData, .local/share, etc
 // will also create the folder if it doesn't exist. 
-bool get_preference_path(fs::path *out, const char *app = nullptr, const char *org = nullptr, fs::fs_error *err = nullptr);
+bool get_preference_path(fs::path *out, const char *app = nullptr, const char *org = nullptr, error *err = nullptr);
 
 // /tmp
-bool get_temporary_path(fs::path *out, fs::fs_error *err);
+bool get_temporary_path(fs::path *out, error *err);
 }
 
 // these allocate memory
