@@ -11,6 +11,7 @@ fs::path.
 
 #pragma once
 
+#include "shl/io.hpp"
 #include "shl/hash.hpp"
 #include "shl/platform.hpp"
 #include "shl/error.hpp"
@@ -140,6 +141,7 @@ bool operator==(const fs::path &lhs, const fs::path &rhs);
 
 hash_t hash(const fs::path *pth);
 
+bool get_filesystem_info(io_handle h, fs::filesystem_info *out, int flags, error *err = nullptr);
 bool _get_filesystem_info(fs::const_fs_string pth, fs::filesystem_info *out, bool follow_symlinks, int flags, error *err);
 
 // type T is anything that can be converted to fs::const_fs_string
@@ -149,6 +151,7 @@ auto get_filesystem_info(T pth, fs::filesystem_info *out, bool follow_symlinks =
 
 fs::filesystem_type get_filesystem_type(const fs::filesystem_info *info);
 
+bool get_filesystem_type(io_handle h, fs::filesystem_type *out, error *err = nullptr);
 bool _get_filesystem_type(fs::const_fs_string pth, fs::filesystem_type *out, bool follow_symlinks, error *err);
 template<typename T>
 auto get_filesystem_type(T pth, fs::filesystem_type *out, bool follow_symlinks = true, error *err = nullptr)
@@ -156,11 +159,13 @@ auto get_filesystem_type(T pth, fs::filesystem_type *out, bool follow_symlinks =
 
 fs::permission get_permissions(const fs::filesystem_info *info);
 
+bool get_permissions(io_handle h, fs::permission *out, error *err = nullptr);
 bool _get_permissions(fs::const_fs_string pth, fs::permission *out, bool follow_symlinks, error *err);
 template<typename T>
 auto get_permissions(T pth, fs::permission *out, bool follow_symlinks = true, error *err = nullptr)
     define_fs_conversion_body(fs::_get_permissions, pth, out, follow_symlinks, err);
 
+bool set_permissions(io_handle h, fs::permission perms, error *err = nullptr);
 bool _set_permissions(fs::const_fs_string pth, fs::permission perms, bool follow_symlinks, error *err);
 template<typename T>
 auto set_permissions(T pth, fs::permission perms, bool follow_symlinks = true, error *err = nullptr)
@@ -204,6 +209,15 @@ template<typename T> auto is_socket(T pth, bool follow_symlinks = true, error *e
 template<typename T> auto is_symlink(T pth, bool follow_symlinks = false, error *err = nullptr) define_path_is_type_body(fs::is_symlink_info, pth)
 template<typename T> auto is_directory(T pth, bool follow_symlinks = true, error *err = nullptr) define_path_is_type_body(fs::is_directory_info, pth)
 template<typename T> auto is_other(T pth, bool follow_symlinks = true, error *err = nullptr) define_path_is_type_body(fs::is_other_info, pth)
+
+bool is_file(io_handle h, error *err = nullptr);
+bool is_pipe(io_handle h, error *err = nullptr);
+bool is_block_device(io_handle h, error *err = nullptr);
+bool is_special_character_file(io_handle h, error *err = nullptr);
+bool is_socket(io_handle h, error *err = nullptr);
+bool is_symlink(io_handle h, error *err = nullptr);
+bool is_directory(io_handle h, error *err = nullptr);
+bool is_other(io_handle h, error *err = nullptr);
 
 bool _is_absolute(fs::const_fs_string pth, error *err);
 bool _is_relative(fs::const_fs_string pth, error *err);

@@ -280,6 +280,22 @@ hash_t fs::hash(const fs::path *pth)
     return hash_data(pth->data, pth->size * sizeof(fs::path_char_t));
 }
 
+bool fs::get_filesystem_info(io_handle h, fs::filesystem_info *out, int flags, error *err)
+{
+#if Windows
+    // TODO: implement
+    return false;
+#else
+    if (::statx(h, "", AT_EMPTY_PATH, flags /* mask */, (struct statx*)out) != 0)
+    {
+        set_errno_error(err);
+        return false;
+    }
+    
+    return true;
+#endif
+}
+
 bool fs::_get_filesystem_info(fs::const_fs_string pth, fs::filesystem_info *out, bool follow_symlinks, int flags, error *err)
 {
     assert(out != nullptr);
@@ -339,6 +355,25 @@ fs::filesystem_type fs::get_filesystem_type(const fs::filesystem_info *info)
     return fs::filesystem_type::Unknown;
 }
 
+bool fs::get_filesystem_type(io_handle h, fs::filesystem_type *out, error *err)
+{
+    assert(out != nullptr);
+
+#if Windows
+    // TODO: implement
+    return false;
+#else
+    fs::filesystem_info info;
+
+    if (!fs::get_filesystem_info(h, &info, STATX_TYPE, err))
+        return false;
+
+    *out = (fs::filesystem_type)(info.stx_mode & S_IFMT);
+
+    return true;
+#endif
+}
+
 bool fs::_get_filesystem_type(fs::const_fs_string pth, fs::filesystem_type *out, bool follow_symlinks, error *err)
 {
     assert(out != nullptr);
@@ -371,6 +406,23 @@ fs::permission fs::get_permissions(const fs::filesystem_info *info)
     return fs::permission::None;
 }
 
+bool fs::get_permissions(io_handle h, fs::permission *out, error *err)
+{
+#if Windows
+    // TODO: implement
+    return false;
+#else
+    fs::filesystem_info info;
+
+    if (!fs::get_filesystem_info(h, &info, STATX_MODE, err))
+        return false;
+
+    *out = (fs::permission)(info.stx_mode & ~S_IFMT);
+
+    return true;
+#endif
+}
+
 bool fs::_get_permissions(fs::const_fs_string pth, fs::permission *out, bool follow_symlinks, error *err)
 {
     assert(out != nullptr);
@@ -385,6 +437,22 @@ bool fs::_get_permissions(fs::const_fs_string pth, fs::permission *out, bool fol
         return false;
 
     *out = (fs::permission)(info.stx_mode & ~S_IFMT);
+
+    return true;
+#endif
+}
+
+bool fs::set_permissions(io_handle h, fs::permission perms, error *err)
+{
+#if Windows
+    // TODO: implement
+    return false;
+#else
+    if (::fchmod(h, (::mode_t)perms) == -1)
+    {
+        set_errno_error(err);
+        return false;
+    }
 
     return true;
 #endif
@@ -512,6 +580,98 @@ bool fs::is_other_info(const fs::filesystem_info *info)
 #endif
 }
 
+bool fs::is_file(io_handle h, error *err)
+{
+    fs::filesystem_type typ;
+
+    if (!fs::get_filesystem_type(h, &typ, err))
+        return false;
+
+    return typ == fs::filesystem_type::File;
+}
+
+bool fs::is_pipe(io_handle h, error *err)
+{
+    fs::filesystem_type typ;
+
+    if (!fs::get_filesystem_type(h, &typ, err))
+        return false;
+
+    return typ == fs::filesystem_type::Pipe;
+}
+
+bool fs::is_block_device(io_handle h, error *err)
+{
+#if Windows
+    return false;
+#else
+    fs::filesystem_type typ;
+
+    if (!fs::get_filesystem_type(h, &typ, err))
+        return false;
+
+    return typ == fs::filesystem_type::BlockDevice;
+#endif
+}
+
+bool fs::is_special_character_file(io_handle h, error *err)
+{
+#if Windows
+    return false;
+#else
+    fs::filesystem_type typ;
+
+    if (!fs::get_filesystem_type(h, &typ, err))
+        return false;
+
+    return typ == fs::filesystem_type::CharacterFile;
+#endif
+}
+
+bool fs::is_socket(io_handle h, error *err)
+{
+#if Windows
+    return false;
+#else
+    fs::filesystem_type typ;
+
+    if (!fs::get_filesystem_type(h, &typ, err))
+        return false;
+
+    return typ == fs::filesystem_type::Socket;
+#endif
+}
+
+bool fs::is_symlink(io_handle h, error *err)
+{
+    fs::filesystem_type typ;
+
+    if (!fs::get_filesystem_type(h, &typ, err))
+        return false;
+
+    return typ == fs::filesystem_type::Symlink;
+}
+
+bool fs::is_directory(io_handle h, error *err)
+{
+    fs::filesystem_type typ;
+
+    if (!fs::get_filesystem_type(h, &typ, err))
+        return false;
+
+    return typ == fs::filesystem_type::Directory;
+}
+
+bool fs::is_other(io_handle h, error *err)
+{
+    fs::filesystem_type typ;
+
+    if (!fs::get_filesystem_type(h, &typ, err))
+        return false;
+
+    return typ == fs::filesystem_type::Unknown;
+}
+
 bool fs::_is_absolute(fs::const_fs_string pth, error *err)
 {
     // for relative or invalid paths, root is empty string
@@ -550,35 +710,14 @@ bool fs::_are_equivalent(fs::const_fs_string pth1, fs::const_fs_string pth2, boo
 
     fs::filesystem_info info1;
     fs::filesystem_info info2;
-    error err1;
-    error err2;
 
-    int info_flags = 0;
+    int info_flags = FS_QUERY_ID;
 
-#if Windows
-#else
-    info_flags = STATX_INO;
-#endif
-
-    bool ok1 = fs::get_filesystem_info(pth1, &info1, follow_symlinks, info_flags, &err1);
-
-    if (!ok1)
-    {
-        if (err != nullptr)
-            *err = err1;
-
+    if (!fs::get_filesystem_info(pth1, &info1, follow_symlinks, info_flags, err))
         return false;
-    }
 
-    bool ok2 = fs::get_filesystem_info(pth2, &info2, follow_symlinks, info_flags, &err2);
-
-    if (!ok2)
-    {
-        if (err != nullptr)
-            *err = err2;
-
+    if (!fs::get_filesystem_info(pth2, &info2, follow_symlinks, info_flags, err))
         return false;
-    }
 
     return fs::are_equivalent_infos(&info1, &info2);
 }
@@ -1534,7 +1673,7 @@ bool fs::_copy_file(fs::const_fs_string from, fs::const_fs_string to, fs::copy_f
 #else
     int from_fd = 0;
     int to_fd = 0;
-    struct statx from_info{};
+    fs::filesystem_info from_info{};
     unsigned int statx_mask = STATX_SIZE | STATX_MODE;
     unsigned int open_from_flags = O_RDONLY;
     unsigned int open_to_flags = O_CREAT | O_WRONLY | O_TRUNC;
@@ -1555,11 +1694,8 @@ bool fs::_copy_file(fs::const_fs_string from, fs::const_fs_string to, fs::copy_f
 
     defer { ::close(from_fd); };
 
-    if (::statx(from_fd, "", AT_EMPTY_PATH, statx_mask, &from_info) != 0)
-    {
-        set_errno_error(err);
+    if (!fs::get_filesystem_info(from_fd, &from_info, statx_mask, err))
         return false;
-    }
 
     to_fd = ::open(to.c_str, open_to_flags, from_info.stx_mode);
 
@@ -1577,7 +1713,7 @@ bool fs::_copy_file(fs::const_fs_string from, fs::const_fs_string to, fs::copy_f
 
         // check change time
         int tmp_fd = ::open(to.c_str, O_RDONLY);
-        struct statx tmp_info;
+        fs::filesystem_info tmp_info{};
 
         if (tmp_fd == -1)
         {
@@ -1587,11 +1723,8 @@ bool fs::_copy_file(fs::const_fs_string from, fs::const_fs_string to, fs::copy_f
 
         defer { ::close(tmp_fd); };
 
-        if (::statx(tmp_fd, "", AT_EMPTY_PATH, STATX_MTIME, &tmp_info) != 0)
-        {
-            set_errno_error(err);
+        if (!fs::get_filesystem_info(tmp_fd, &tmp_info, STATX_MTIME, err))
             return false;
-        }
 
         if (tmp_info.stx_mtime >= from_info.stx_mtime)
             return true;

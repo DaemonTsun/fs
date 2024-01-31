@@ -4,11 +4,15 @@
 
 #if Windows
 #else
+#define pipe __original_pipe
 #include <sys/stat.h>
 #include <unistd.h>
+#undef pipe
 #endif
 
 #include "shl/string.hpp"
+#include "shl/file_stream.hpp"
+#include "shl/pipe.hpp"
 #include "shl/time.hpp" // for sleep
 #include "shl/print.hpp"
 #include "shl/sort.hpp"
@@ -136,6 +140,31 @@ define_test(is_fs_type_tests)
 #endif
 
     fs::free(&p);
+}
+
+define_test(is_fs_type_tests_on_handles)
+{
+    file_stream strm;
+
+    init(&strm, SANDBOX_TEST_FILE);
+
+    assert_equal(fs::is_file(strm.handle), true);
+    assert_equal(fs::is_symlink(strm.handle), false);
+    assert_equal(fs::is_pipe(strm.handle), false);
+
+    free(&strm);
+
+    pipe p;
+    init(&p);
+
+    assert_equal(fs::is_file(p.read), false);
+    assert_equal(fs::is_file(p.write), false);
+    assert_equal(fs::is_symlink(p.read), false);
+    assert_equal(fs::is_symlink(p.write), false);
+    assert_equal(fs::is_pipe(p.read), true);
+    assert_equal(fs::is_pipe(p.write), true);
+
+    free(&p);
 }
 
 #if Linux
