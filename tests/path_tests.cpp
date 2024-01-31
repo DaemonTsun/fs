@@ -63,7 +63,6 @@ define_test(set_path_sets_path)
     fs::free(&pth);
 }
 
-#if Linux
 define_test(literal_path_sets_path)
 {
     fs::path pth = "/abc/def"_path;
@@ -126,6 +125,7 @@ define_test(is_fs_type_tests)
     assert_equal(fs::is_directory(&p),    false);
 
     // block device
+#if Linux
     fs::set_path(&p, "/dev/sda");
     assert_equal(fs::is_file(&p),         false);
     assert_equal(fs::is_block_device(&p), true);
@@ -133,10 +133,12 @@ define_test(is_fs_type_tests)
     assert_equal(fs::is_pipe(&p),         false);
     assert_equal(fs::is_socket(&p),       false);
     assert_equal(fs::is_directory(&p),    false);
+#endif
 
     fs::free(&p);
 }
 
+#if Linux
 define_test(get_filesystem_type_test)
 {
     fs::filesystem_type fstype;
