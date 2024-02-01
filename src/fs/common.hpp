@@ -29,20 +29,31 @@ namespace fs
 typedef sys_char path_char_t;
 constexpr const path_char_t path_separator = SYS_CHAR('\\');
 
-struct filesystem_info {}; // TODO: define
-#define FS_QUERY_DEFAULT_FLAGS  0xfff
-#define FS_QUERY_TYPE           0x001
-#define FS_QUERY_PERMISSIONS    0x002
-#define FS_QUERY_ID             0x004
-
 enum class filesystem_type
 {
-    Unknown     = FILE_TYPE_UNKNOWN,
-    File        = FILE_TYPE_DISK, // pretty sure this is right
-    Directory   = 6,
-    Symlink     = 7,
-    Pipe        = FILE_TYPE_PIPE
+    Unknown         = FILE_TYPE_UNKNOWN,
+    File            = FILE_TYPE_DISK, // pretty sure this is right
+    Directory       = 6,
+    Symlink         = 7,
+    Pipe            = FILE_TYPE_PIPE,
+    CharacterFile   = FILE_TYPE_CHAR,
 };
+
+struct filesystem_info
+{
+    union _info_detail
+    {
+        FILE_ATTRIBUTE_TAG_INFO attribute_info; // FileAttributeTagInfo
+        FILE_ID_INFO            id_info;        // FileIdInfo
+        int                     permissions;
+        fs::filesystem_type     type;
+    } detail;
+};
+
+#define FS_QUERY_DEFAULT_FLAGS  0
+#define FS_QUERY_ID             FileIdInfo
+#define FS_QUERY_PERMISSIONS    0x1000
+#define FS_QUERY_TYPE           0x1001
 
 #else
 // Linux and others

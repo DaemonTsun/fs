@@ -2,13 +2,17 @@
 // v1.1
 
 #include <assert.h>
+#include <stdio.h>
+// #define printf(...)
 
 #include "shl/platform.hpp"
 
 #if Windows
 #include <windows.h>
-#include <direct.h> // _wgetcwd
+#include <direct.h>
+
 #else
+// ---------- LINUX ----------
 #include <sys/stat.h>
 #include <sys/syscall.h>
 #include <unistd.h> // syscall and faccessat
@@ -41,6 +45,62 @@ int _rename(const char *oldpath, const char *newpath)
 #if Windows
 // PC stands for PATH_CHAR
 #define PC_LIT(c) SYS_CHAR(c)
+
+bool _get_windows_handle_from_path(fs::const_fs_string pth, bool follow_symlinks, io_handle *out, error *err = nullptr)
+{
+    int flags = FILE_FLAG_BACKUP_SEMANTICS; // for directories
+
+    if (!follow_symlinks)
+        flags |= FILE_FLAG_OPEN_REPARSE_POINT; // for symlinks
+
+    io_handle ret = INVALID_HANDLE_VALUE;
+
+    ret = CreateFile(pth.c_str,
+                     0,
+                     FILE_SHARE_DELETE | FILE_SHARE_READ | FILE_SHARE_WRITE,
+                     nullptr,
+                     OPEN_EXISTING,
+                     flags,
+                     nullptr);
+
+    /*
+    if (ret != INVALID_HANDLE_VALUE)
+        break;
+
+    if (GetLastError() != ERROR_PIPE_BUSY)
+        break;
+
+    if (!WaitNamedPipe(pth.c_str, 10000))
+        break;
+    */
+
+    if (ret == INVALID_HANDLE_VALUE || ret == INVALID_IO_HANDLE)
+    {
+        set_GetLastError_error(err);
+        return false;
+    }
+
+    *out = ret;
+
+    return true;
+}
+
+#define GetWindowsHandleFromPath(Name, Pth, FollowSymlinks, Err)\
+    io_handle Name;\
+    if (!_get_windows_handle_from_path(Pth, FollowSymlinks, &Name, Err))\
+        return false;
+
+bool CloseWindowsPathHandle(io_handle h, error *err = nullptr)
+{
+    if (!CloseHandle(h))
+    {
+        set_GetLastError_error(err);
+        return false;
+    }
+
+    return true;
+}
+
 
 #else // Linux
 #define PC_LIT(c) c
@@ -282,9 +342,32 @@ hash_t fs::hash(const fs::path *pth)
 
 bool fs::get_filesystem_info(io_handle h, fs::filesystem_info *out, int flags, error *err)
 {
+    assert(out != nullptr);
+
 #if Windows
-    // TODO: implement
-    return false;
+    if (flags >= 0x1000)
+    {
+        switch (flags)
+        {
+        case FS_QUERY_TYPE:
+            return fs::get_filesystem_type(h, &out->detail.type, err);
+        default:
+            return false;
+        }
+    }
+    else
+    {
+        if (!GetFileInformationByHandleEx(h,
+                                          (FILE_INFO_BY_HANDLE_CLASS)flags,
+                                          &out,
+                                          sizeof(fs::filesystem_info)))
+        {
+            set_GetLastError_error(err);
+            return false;
+        }
+    }
+
+    return true;
 #else
     if (::statx(h, "", AT_EMPTY_PATH, flags /* mask */, (struct statx*)out) != 0)
     {
@@ -301,9 +384,18 @@ bool fs::_get_filesystem_info(fs::const_fs_string pth, fs::filesystem_info *out,
     assert(out != nullptr);
 
 #if Windows
-    // TODO: implement
-    return false;
+    GetWindowsHandleFromPath(h, pth, follow_symlinks, err);
 
+    if (!fs::get_filesystem_info(h, out, flags, err))
+    {
+        CloseWindowsPathHandle(h);
+        return false;
+    }
+
+    if (!CloseWindowsPathHandle(h, err))
+        return false;
+
+    return true;
 #else
     int statx_flags = 0;
 
@@ -347,12 +439,10 @@ fs::filesystem_type fs::get_filesystem_type(const fs::filesystem_info *info)
     assert(info != nullptr);
 
 #if Windows
-    // TODO: implement
+    return info->detail.type;
 #else
     return (fs::filesystem_type)(info->stx_mode & S_IFMT);
 #endif
-
-    return fs::filesystem_type::Unknown;
 }
 
 bool fs::get_filesystem_type(io_handle h, fs::filesystem_type *out, error *err)
@@ -360,8 +450,56 @@ bool fs::get_filesystem_type(io_handle h, fs::filesystem_type *out, error *err)
     assert(out != nullptr);
 
 #if Windows
-    // TODO: implement
-    return false;
+    int ptype = GetFileType(h);
+
+    switch (ptype)
+    {
+    case FILE_TYPE_PIPE:
+        *out = fs::filesystem_type::Pipe;
+        return true;
+    
+    case FILE_TYPE_DISK:
+    {
+        // may still be a directory or a file
+        FILE_ATTRIBUTE_TAG_INFO inf;
+
+        if (!GetFileInformationByHandleEx(h, FileAttributeTagInfo, &inf, sizeof(inf)))
+        {
+            set_GetLastError_error(err);
+            return false;
+        }
+
+        int attrs = (int)inf.FileAttributes;
+
+        if (attrs & FILE_ATTRIBUTE_REPARSE_POINT)
+        {
+            *out = fs::filesystem_type::Symlink;
+            return true;
+        }
+
+        if (attrs & FILE_ATTRIBUTE_DIRECTORY)
+        {
+            *out = fs::filesystem_type::Directory;
+            return true;
+        }
+
+        *out = fs::filesystem_type::File;
+        return true;
+    }
+
+    case FILE_TYPE_CHAR:
+        *out = fs::filesystem_type::CharacterFile;
+        return true;
+
+    case FILE_TYPE_UNKNOWN:
+    {
+        set_GetLastError_error(err);
+        return false;
+    }
+    }
+
+    *out = fs::filesystem_type::Unknown;
+    return true;
 #else
     fs::filesystem_info info;
 
@@ -484,8 +622,7 @@ bool fs::is_file_info(const fs::filesystem_info *info)
     assert(info != nullptr);
 
 #if Windows
-    // TODO: implement
-    return false;
+    return info->detail.type == fs::filesystem_type::File;
 #else
 
     return S_ISREG(info->stx_mode);
@@ -497,7 +634,7 @@ bool fs::is_pipe_info(const fs::filesystem_info *info)
     assert(info != nullptr);
 
 #if Windows
-    return false;
+    return info->detail.type == fs::filesystem_type::Pipe;
 #else
 
     return S_ISFIFO(info->stx_mode);
@@ -521,7 +658,7 @@ bool fs::is_special_character_file_info(const fs::filesystem_info *info)
     assert(info != nullptr);
 
 #if Windows
-    return false;
+    return info->detail.type == fs::filesystem_type::CharacterFile;
 #else
 
     return S_ISCHR(info->stx_mode);
@@ -545,8 +682,7 @@ bool fs::is_symlink_info(const fs::filesystem_info *info)
     assert(info != nullptr);
 
 #if Windows
-    // TODO: implement
-    return false;
+    return info->detail.type == fs::filesystem_type::Symlink;
 #else
 
     return S_ISLNK(info->stx_mode);
@@ -558,8 +694,7 @@ bool fs::is_directory_info(const fs::filesystem_info *info)
     assert(info != nullptr);
 
 #if Windows
-    // TODO: implement
-    return false;
+    return info->detail.type == fs::filesystem_type::Directory;
 #else
 
     return S_ISDIR(info->stx_mode);
@@ -571,8 +706,7 @@ bool fs::is_other_info(const fs::filesystem_info *info)
     assert(info != nullptr);
 
 #if Windows
-    // TODO: implement
-    return false;
+    return info->detail.type == fs::filesystem_type::Unknown;
 
 #else
     // if only normal flags are set, this is not Other.
@@ -2036,6 +2170,7 @@ bool fs::_remove_directory(fs::const_fs_string pth, error *err)
             break;
         }
         case fs::filesystem_type::Unknown:
+        case fs::filesystem_type::CharacterFile:
         default:
             return false;
         }
@@ -2070,6 +2205,7 @@ bool fs::_remove(fs::const_fs_string pth, error *err)
     case fs::filesystem_type::File:
     case fs::filesystem_type::Symlink:
     case fs::filesystem_type::Pipe:
+    case fs::filesystem_type::CharacterFile:
     default:
         return fs::remove_file(pth, err);
     }

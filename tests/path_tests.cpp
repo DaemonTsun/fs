@@ -32,7 +32,7 @@ int path_comparer(const fs::path *a, const fs::path *b)
 #define SANDBOX_TEST_FILE       SANDBOX_DIR L"\\file"
 #define SANDBOX_TEST_SYMLINK    SANDBOX_DIR L"\\symlink"
 #define SANDBOX_TEST_SYMLINK_NO_TARGET   SANDBOX_DIR L"\\symlink2"
-#define SANDBOX_TEST_PIPE       SANDBOX_DIR L"\\pipe"
+#define SANDBOX_TEST_PIPE       L"\\\\.\\Pipe\\_sandboxPipe"
 
 #define SANDBOX_TEST_DIR2       SANDBOX_TEST_DIR  L"\\dir2"
 #define SANDBOX_TEST_FILE2      SANDBOX_TEST_DIR2 L"\\file2"
@@ -59,7 +59,8 @@ define_test(set_path_sets_path)
 {
     fs::path pth{};
     
-    fs::set_path(&pth, "/abc"); assert_equal_str(pth.data, SYS_CHAR("/abc"));
+    fs::set_path(&pth, "/abc");
+    assert_equal_str(pth.data, SYS_CHAR("/abc"));
     fs::set_path(&pth, "/abc/def"); assert_equal_str(pth.data, SYS_CHAR("/abc/def"));
     fs::set_path(&pth, L"/abc///:def"); assert_equal_str(pth.data, SYS_CHAR("/abc///:def"));
     fs::set_path(&pth, L"C:/abc///:def"); assert_equal_str(pth.data, SYS_CHAR("C:/abc///:def"));
@@ -121,10 +122,10 @@ define_test(is_fs_type_tests)
 
     // pipe
     fs::set_path(&p, SANDBOX_TEST_PIPE);
+    assert_equal(fs::is_pipe(&p),         true);
     assert_equal(fs::is_file(&p),         false);
     assert_equal(fs::is_block_device(&p), false);
     assert_equal(fs::is_symlink(&p),      false);
-    assert_equal(fs::is_pipe(&p),         true);
     assert_equal(fs::is_socket(&p),       false);
     assert_equal(fs::is_directory(&p),    false);
 
@@ -2325,11 +2326,73 @@ define_test(get_temporary_path_gets_temporary_path)
 
 static fs::path old_current_dir;
 
+#if Windows
+#include <filesystem> // lol
+namespace stdfs = std::filesystem;
+
+HANDLE _pipe_handle = INVALID_HANDLE_VALUE;
+
+void create_test_pipe()
+{
+    _pipe_handle = CreateNamedPipe(SANDBOX_TEST_PIPE,
+                                   PIPE_ACCESS_INBOUND,
+                                   PIPE_TYPE_BYTE | PIPE_WAIT,
+                                   1,
+                                   4096,
+                                   4096,
+                                   0,
+                                   nullptr);
+
+    assert(_pipe_handle != INVALID_HANDLE_VALUE);
+}
+
+void destroy_test_pipe()
+{
+    if (_pipe_handle != INVALID_HANDLE_VALUE)
+        CloseHandle(_pipe_handle);
+
+    _pipe_handle = INVALID_HANDLE_VALUE;
+}
+#endif
+
 void _setup()
 {
     fs::get_current_path(&old_current_dir);
 #if Windows
-    // TODO: implement sandbox
+    try
+    {
+        stdfs::permissions(SANDBOX_TEST_DIR_NO_PERMISSION, stdfs::perms::all);
+        stdfs::remove_all(SANDBOX_DIR);
+    } catch (...) {}
+
+    try
+    {
+    stdfs::create_directories(SANDBOX_DIR);
+    stdfs::permissions(SANDBOX_DIR, stdfs::perms::all);
+    stdfs::create_directories(SANDBOX_TEST_DIR);
+    stdfs::permissions(SANDBOX_TEST_DIR, stdfs::perms::all);
+    FILE *f = _wfopen(SANDBOX_TEST_FILE, L"w");
+    assert(f != nullptr);
+    fclose(f);
+    stdfs::create_symlink(SANDBOX_TEST_FILE, SANDBOX_TEST_SYMLINK);
+    stdfs::create_symlink(SANDBOX_DIR "/symlink_dest", SANDBOX_TEST_SYMLINK_NO_TARGET);
+
+    stdfs::create_directories(SANDBOX_TEST_DIR2);
+    stdfs::permissions(SANDBOX_TEST_DIR2, stdfs::perms::all);
+    f = _wfopen(SANDBOX_TEST_FILE2, L"w"); assert(f != nullptr); fclose(f);
+
+    create_test_pipe();
+
+    stdfs::create_directories(SANDBOX_TEST_DIR_NO_PERMISSION);
+    f = _wfopen(SANDBOX_TEST_FILE_IN_NOPERM_DIR, L"w"); assert(f != nullptr); fclose(f);
+    stdfs::permissions(SANDBOX_TEST_DIR_NO_PERMISSION, stdfs::perms::none);
+
+    stdfs::current_path(SANDBOX_DIR);
+    }
+    catch (std::exception &e)
+    {
+        printf("%s\n", e.what());
+    }
 #else
     umask(0); // if this is not set to 0 mkdir might not set correct permissions
     mkdir(SANDBOX_DIR, 0777);
@@ -2348,25 +2411,27 @@ void _setup()
     f = fopen(SANDBOX_TEST_FILE_IN_NOPERM_DIR, "w"); assert(f != nullptr); fclose(f);
     chmod(SANDBOX_TEST_DIR_NO_PERMISSION, 0000);
 
-    fs::path _tmp{};
-    fs::set_path(&_tmp, SANDBOX_DIR);
-    fs::set_current_path(&_tmp);
-    fs::free(&_tmp);
+    fs::set_current_path(SANDBOX_DIR);
 #endif
 }
-
-#if Windows
-#include <filesystem> // lol
-#endif
 
 void _cleanup()
 {
 #if Windows
-    // _chmod(SANDBOX_TEST_DIR_NO_PERMISSION, _S_IWRITE | S_IREAD);
+    try
+    {
+    destroy_test_pipe();
+
+    stdfs::permissions(SANDBOX_TEST_DIR_NO_PERMISSION, stdfs::perms::all);
     fs::set_current_path(&old_current_dir);
-    std::filesystem::remove_all(SANDBOX_DIR);
+    stdfs::remove_all(SANDBOX_DIR);
 
     fs::free(&old_current_dir);
+    }
+    catch (std::exception &e)
+    {
+        printf("%s\n", e.what());
+    }
 #else
     chmod(SANDBOX_TEST_DIR_NO_PERMISSION, 0777);
     fs::set_current_path(&old_current_dir);

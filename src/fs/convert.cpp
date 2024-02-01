@@ -21,7 +21,7 @@ fs::converted_string<char> fs::convert_string(const wchar_t *wcstring, u64 wchar
     u64 sz = (wchar_count + 1) * sizeof(char);
     ret.data = (char*)::allocate_memory(sz);
 
-    ::fill_memory(ret.data, 0, sz);
+    ::fill_memory((void*)ret.data, 0, sz);
 
     ret.size = ::wcstombs(ret.data, wcstring, wchar_count * sizeof(wchar_t));
 
@@ -44,7 +44,7 @@ fs::converted_string<wchar_t> fs::convert_string(const char *cstring, u64 char_c
     u64 sz = (char_count + 1) * sizeof(wchar_t);
     ret.data = (wchar_t*)::allocate_memory(sz);
 
-    ::fill_memory(ret.data, 0, sz);
+    ::fill_memory((void*)ret.data, 0, sz);
 
     ret.size = ::mbstowcs(ret.data, cstring, char_count * sizeof(char));
 

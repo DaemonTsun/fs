@@ -27,4 +27,4 @@ add_lib(fs STATIC
 
 exit_if_included()
 
-add_subdirectory("${CMAKE_SOURCE_DIR}/demos")
+# add_subdirectory("${CMAKE_SOURCE_DIR}/demos")

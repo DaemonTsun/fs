@@ -1,14 +1,20 @@
 
 #include <stdio.h>
 #include "shl/error.hpp"
-#include "fs/filesystem_watcher.hpp"
+// #include "fs/filesystem_watcher.hpp"
 
+/*
 void callback(const char *path, fs::watcher_event_type event)
 {
     printf("%d %s\n", value(event), path);
 }
+*/
 
 int main(int argc, char **argv)
+{
+    return 0;
+}
+#if 0
 try
 {
     fs::filesystem_watcher *watcher;
@@ -46,3 +52,4 @@ catch (error &e)
 {
     fprintf(stderr, "%s\n", e.what);
 }
+#endif

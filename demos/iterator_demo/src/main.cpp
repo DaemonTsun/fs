@@ -2,7 +2,6 @@
 #include <stdio.h>
 
 #include "fs/path.hpp"
-#include "fs/iterator.hpp"
 
 int main(int argc, char **argv)
 {
@@ -12,6 +11,7 @@ int main(int argc, char **argv)
         return 1;
     }
 
+    /*
     fs::path pth(argv[1]);
 
     if (!fs::is_directory(&pth))
@@ -25,11 +25,6 @@ int main(int argc, char **argv)
     iterate_path(p, &pth, true)
         printf("[%s]\n", p->c_str());
 
-    /*
-    stdfs::recursive_directory_iterator it(argv[1]);
-
-    for (auto &p : it)
-        printf("[%s]\n", p.path().c_str());
     */
 
     return 0;
