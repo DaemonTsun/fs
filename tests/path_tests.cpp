@@ -168,14 +168,13 @@ define_test(is_fs_type_tests_on_handles)
     free(&p);
 }
 
-#if Linux
 define_test(get_filesystem_type_test)
 {
     fs::filesystem_type fstype;
     error err{};
 
     // directory
-    const char *p = nullptr;
+    const sys_char *p = nullptr;
 
     p = SANDBOX_TEST_DIR;
     assert_equal(fs::get_filesystem_type(p, &fstype), true);
@@ -194,30 +193,38 @@ define_test(get_filesystem_type_test)
     p = SANDBOX_TEST_SYMLINK_NO_TARGET;
     assert_equal(fs::get_filesystem_type(p, &fstype, true, &err), false);
 
-#if Linux
+#if Windows
+    assert_equal(err.error_code, ERROR_FILE_NOT_FOUND);
+#else
     assert_equal(err.error_code, ENOENT);
 #endif
 
     assert_equal(fs::get_filesystem_type(p, &fstype, false, &err), true);
     assert_equal(fstype, fs::filesystem_type::Symlink);
 
+#if Linux
+    // pipe behavior on Windows is weird so we skip this test
     p = SANDBOX_TEST_PIPE;
     assert_equal(fs::get_filesystem_type(p, &fstype), true);
     assert_equal(fstype, fs::filesystem_type::Pipe);
+#endif
 
     assert_equal(fs::get_filesystem_type(SANDBOX_DIR "/doesnotexist", &fstype, false, &err), false);
 
-#if Linux
+#if Windows
+    assert_equal(err.error_code, ERROR_FILE_NOT_FOUND);
+#else
     assert_equal(err.error_code, ENOENT);
 #endif
 }
 
+#if Linux
 define_test(get_permissions_gets_permissions)
 {
     fs::permission perms;
     error err{};
 
-    const char *p = nullptr;
+    const sys_char *p = nullptr;
 
     p = SANDBOX_TEST_DIR;
     assert_equal(fs::get_permissions(p, &perms), true);
@@ -230,7 +237,9 @@ define_test(get_permissions_gets_permissions)
     p = SANDBOX_DIR "/doesnotexist";
     assert_equal(fs::get_permissions(p, &perms, true, &err), false);
 
-#if Linux
+#if Windows
+    assert_equal(err.error_code, ERROR_FILE_NOT_FOUND);
+#else
     assert_equal(err.error_code, ENOENT);
 #endif
 }
@@ -259,6 +268,7 @@ define_test(set_permissions_sets_permissions)
     assert_equal(err.error_code, ENOENT);
 #endif
 }
+#endif
 
 define_test(exists_returns_true_if_directory_exists)
 {
@@ -279,8 +289,11 @@ define_test(exists_returns_true_if_file_exists)
 
     // testing other inputs
     assert_equal(fs::exists(SANDBOX_TEST_FILE), 1);
+
+#if Linux
     assert_equal(fs::exists("/tmp/sandbox/file"), 1);
     assert_equal(fs::exists(L"/tmp/sandbox/file"), 1);
+#endif
 
     fs::free(&p);
 }
@@ -294,6 +307,19 @@ define_test(exists_checks_if_symlink_exists)
 
     fs::set_path(&p, SANDBOX_TEST_SYMLINK_NO_TARGET);
     assert_equal(fs::exists(&p, false), 1);
+
+    fs::free(&p);
+}
+
+define_test(exists_checks_if_symlink_target_exists)
+{
+    fs::path p{};
+    fs::set_path(&p, SANDBOX_TEST_SYMLINK_NO_TARGET);
+    // target doesnt exist, this checks if symlink exists
+    assert_equal(fs::exists(&p, false), 1);
+
+    // this checks if target exists
+    assert_equal(fs::exists(&p, true), 0);
 
     fs::free(&p);
 }
@@ -313,26 +339,19 @@ define_test(exists_yields_error_when_unauthorized)
 {
     fs::path p{};
     error err;
+#if Windows
+    fs::set_path(&p, L"C:\\System Volume Information");
+#else
     fs::set_path(&p, "/root/abc");
+#endif
 
     assert_equal(fs::exists(&p, true, &err), -1);
 
-#if Linux
+#if Windows
+    assert_equal(err.error_code, ERROR_ACCESS_DENIED);
+#else
     assert_equal(err.error_code, EACCES);
 #endif
-
-    fs::free(&p);
-}
-
-define_test(exists_checks_if_symlink_target_exists)
-{
-    fs::path p{};
-    fs::set_path(&p, SANDBOX_TEST_SYMLINK_NO_TARGET);
-    // target doesnt exist, this checks if symlink exists
-    assert_equal(fs::exists(&p, false), 1);
-
-    // this checks if target exists
-    assert_equal(fs::exists(&p, true), 0);
 
     fs::free(&p);
 }
@@ -350,6 +369,7 @@ define_test(is_absolute_returns_true_if_path_is_absoltue)
     fs::free(&p);
 }
 
+#if Linux
 define_test(is_absolute_returns_false_if_path_is_not_absolute)
 {
 #if Windows

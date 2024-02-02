@@ -414,8 +414,26 @@ bool fs::_get_filesystem_info(fs::const_fs_string pth, fs::filesystem_info *out,
 int fs::_exists(fs::const_fs_string pth, bool follow_symlinks, error *err)
 {
 #if Windows
-    // TODO: implement
-    return -1;
+    io_handle h;
+    error _err{};
+
+    bool ok = _get_windows_handle_from_path(pth, follow_symlinks, &h, &_err);
+
+    if (err != nullptr)
+        *err = _err;
+    
+    if (!ok)
+    {
+        if (_err.error_code == ERROR_FILE_NOT_FOUND)
+            return 0;
+
+        return -1;
+    }
+
+    if (!CloseWindowsPathHandle(h))
+        return -1;
+
+    return 1;
 #else
     int flags = 0;
 
@@ -517,8 +535,18 @@ bool fs::_get_filesystem_type(fs::const_fs_string pth, fs::filesystem_type *out,
     assert(out != nullptr);
 
 #if Windows
-    // TODO: implement
-    return false;
+    GetWindowsHandleFromPath(h, pth, follow_symlinks, err);
+
+    if (!fs::get_filesystem_type(h, out, err))
+    {
+        CloseWindowsPathHandle(h);
+        return false;
+    }
+
+    if (!CloseWindowsPathHandle(h, err))
+        return false;
+
+    return true;
 #else
     fs::filesystem_info info;
 
@@ -536,18 +564,20 @@ fs::permission fs::get_permissions(const fs::filesystem_info *info)
     assert(info != nullptr);
 
 #if Windows
-    // TODO: implement
+    // TODO: implement ACLs at some point
+    // turns out not even C++ std::filesystem implements this, and
+    // windows ACL api is a huge giant mess with a truly abysmal
+    // documentation, so this will be implemented at some other point.
+    return fs::permission::None;
 #else
     return (fs::permission)(info->stx_mode & ~S_IFMT);
 #endif
-
-    return fs::permission::None;
 }
 
 bool fs::get_permissions(io_handle h, fs::permission *out, error *err)
 {
 #if Windows
-    // TODO: implement
+    // TODO: implement, see above
     return false;
 #else
     fs::filesystem_info info;
@@ -566,7 +596,7 @@ bool fs::_get_permissions(fs::const_fs_string pth, fs::permission *out, bool fol
     assert(out != nullptr);
 
 #if Windows
-    // TODO: implement
+    // TODO: implement, see get_permissions
     return false;
 #else
     fs::filesystem_info info;
@@ -583,7 +613,7 @@ bool fs::_get_permissions(fs::const_fs_string pth, fs::permission *out, bool fol
 bool fs::set_permissions(io_handle h, fs::permission perms, error *err)
 {
 #if Windows
-    // TODO: implement
+    // TODO: implement, see get_permissions
     return false;
 #else
     if (::fchmod(h, (::mode_t)perms) == -1)
@@ -599,7 +629,7 @@ bool fs::set_permissions(io_handle h, fs::permission perms, error *err)
 bool fs::_set_permissions(fs::const_fs_string pth, fs::permission perms, bool follow_symlinks, error *err)
 {
 #if Windows
-    // TODO: implement
+    // TODO: implement, see get_permissions
     return false;
 #else
     int flags = 0;
