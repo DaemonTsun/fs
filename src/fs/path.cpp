@@ -2,15 +2,14 @@
 // v1.1
 
 #include <assert.h>
-#include <stdio.h>
-// #define printf(...)
+#include "shl/print.hpp"
 
+#include "shl/string.hpp"
 #include "shl/platform.hpp"
 
 #if Windows
 #include <windows.h>
 #include <direct.h>
-
 #else
 // ---------- LINUX ----------
 #include <sys/stat.h>
@@ -41,6 +40,8 @@ int _rename(const char *oldpath, const char *newpath)
 #include "shl/error.hpp"
 
 #include "fs/path.hpp"
+
+#define empty_fs_string     fs::const_fs_string{SYS_CHAR(""), 0}
 
 #if Windows
 // PC stands for PATH_CHAR
@@ -101,10 +102,59 @@ bool CloseWindowsPathHandle(io_handle h, error *err = nullptr)
     return true;
 }
 
+// Windows supports both / and \, but \ is preferred.
+inline bool _is_directory_separator(sys_char c)
+{
+    return (c == SYS_CHAR('/')) || (c == SYS_CHAR('\\'));
+}
+
+inline bool _is_special_unc(fs::const_fs_string s)
+{
+    return ((compare_strings(s, SYS_CHAR(".")) == 0)
+         || (compare_strings(s, SYS_CHAR("?")) == 0));
+}
+
+inline bool _parse_drive_letter(const sys_char *c, s64 size, s64 start, s64 *end)
+{
+    // need at least <letter><colon>
+    if (size - start < 2)
+        return false;
+
+    if (is_alpha(c[start]) && (c[start+1] == SYS_CHAR(':')))
+    {
+        start += 2;
+
+        if ((start < size) && _is_directory_separator(c[start]))
+            start += 1;
+    }
+    else
+        return false;
+
+    *end = start;
+    return true;
+}
+
+inline bool _parse_unc_segment(const sys_char *c, s64 size, s64 start, fs::const_fs_string *out)
+{
+    if (size - start < 1)
+    {
+        *out = empty_fs_string;
+        return false;
+    }
+
+    s64 i = start;
+
+    while (i < size && !_is_directory_separator(c[i]))
+        i++;
+
+    out->c_str = c + start;
+    out->size = i - start;
+
+    return true;
+}
 
 #else // Linux
 #define PC_LIT(c) c
-
 
 bool operator<(statx_timestamp lhs, statx_timestamp rhs)
 {
@@ -128,7 +178,6 @@ bool operator>=(statx_timestamp lhs, statx_timestamp rhs) { return !(lhs < rhs);
 
 #define as_array_ptr(x)     (::array<fs::path_char_t>*)(x)
 #define as_string_ptr(x)    (::string_base<fs::path_char_t>*)(x)
-#define empty_fs_string     fs::const_fs_string{PC_LIT(""), 0}
 
 // conversion helpers
 inline fs::path _converted_string_to_path(fs::platform_converted_string str)
@@ -983,9 +1032,97 @@ fs::const_fs_string fs::parent_path_segment(const fs::path *pth)
 fs::const_fs_string fs::root(fs::const_fs_string pth)
 {
 #if Windows
-    // TODO: implement, check for unc, check for long unc (\\?\..., \\?\UNC\...)
+    // please refer to this link for details
+    // https://learn.microsoft.com/en-us/dotnet/standard/io/file-path-formats
 
-    return empty_fs_string;
+    if (pth.size == 0)
+        return empty_fs_string;
+
+    if (pth.size == 1)
+    {
+        if (_is_directory_separator(pth[0]))
+            return pth;
+        else
+            return empty_fs_string;
+    }
+
+    // e.g. /abc/def -> /
+    if (_is_directory_separator(pth[0]) && !(_is_directory_separator(pth[1])))
+        return fs::const_fs_string{pth.c_str, 1};
+
+    s64 i = 0;
+
+    // e.g. C:/abc -> C:/
+    if (_parse_drive_letter(pth.c_str, (s64)pth.size, 0, &i))
+        return fs::const_fs_string{pth.c_str, (u64)i};
+
+    // if path is not / or drive letter, path must begin with
+    // two path separators (UNC path), otherwise it has no root.
+    if (!_is_directory_separator(pth[0]) && !(_is_directory_separator(pth[1])))
+        return empty_fs_string;
+
+    fs::const_fs_string seg1{};
+    fs::const_fs_string seg2{};
+
+    s64 offset = 2;
+    bool ok1 = _parse_unc_segment(pth.c_str, pth.size, offset, &seg1);
+
+    if (!ok1)
+        return empty_fs_string;
+
+    offset += seg1.size + 1;
+    bool ok2 = ok1 && _parse_unc_segment(pth.c_str, pth.size, offset, &seg2);
+
+#define _include_last_sep(Seg)\
+    len = (Seg.c_str - pth.c_str) + Seg.size;\
+    if (len < pth.size && _is_directory_separator(pth[len]))\
+        len += 1;
+
+    s64 len = 0;
+
+    // single segment UNC path
+    if (!ok2)
+    {
+        _include_last_sep(seg1);
+        return fs::const_fs_string{pth.c_str, (u64)len};
+    }
+
+    // if its not . or ?, we can safely just return the first two segments
+    if (!_is_special_unc(seg1))
+    {
+        _include_last_sep(seg2);
+        return fs::const_fs_string{pth.c_str, (u64)len};
+    }
+
+    // not "UNC" UNC path
+    if (compare_strings(seg2, SYS_CHAR("UNC")) != 0)
+    {
+        _include_last_sep(seg2);
+        return fs::const_fs_string{pth.c_str, (u64)len};
+    }
+
+    offset += seg2.size + 1;
+    bool ok3 = _parse_unc_segment(pth.c_str, pth.size, offset, &seg1);
+
+    if (!ok3)
+    {
+        _include_last_sep(seg2);
+        return fs::const_fs_string{pth.c_str, (u64)len};
+    }
+
+    offset += seg1.size + 1;
+    bool ok4 = _parse_unc_segment(pth.c_str, pth.size, offset, &seg2);
+
+    if (!ok4)
+    {
+        _include_last_sep(seg1);
+        return fs::const_fs_string{pth.c_str, (u64)len};
+    }
+
+    _include_last_sep(seg2);
+    return fs::const_fs_string{pth.c_str, (u64)len};
+
+#undef _include_last_sep
 #else
     if (pth.size == 0 || pth.c_str[0] != fs::path_separator)
         return empty_fs_string;

@@ -3,6 +3,8 @@
 #include "shl/platform.hpp"
 
 #if Windows
+#include <filesystem> // lol
+namespace stdfs = std::filesystem;
 #else
 #define pipe __original_pipe
 #include <sys/stat.h>
@@ -356,7 +358,7 @@ define_test(exists_yields_error_when_unauthorized)
     fs::free(&p);
 }
 
-define_test(is_absolute_returns_true_if_path_is_absoltue)
+define_test(is_absolute_returns_true_if_path_is_absolute)
 {
 #if Windows
     fs::path p = R"=(C:\Windows\notepad.exe)="_path;
@@ -719,13 +721,133 @@ define_test(path_segments_gets_the_segments_of_a_path)
     fs::free(&p);
     ::free(&segs);
 }
+#endif
 
 define_test(root_returns_the_path_root)
 {
     fs::path p{};
 
 #if Windows
-    // TODO: implement
+#define print_stdfsroot(P)\
+    printf("%ws -> %ws\n", P, stdfs::path(P).root_path().c_str())
+
+    /*
+    print_stdfsroot(L"");
+    print_stdfsroot(L".");
+    print_stdfsroot(L"..");
+    print_stdfsroot(L"file");
+    print_stdfsroot(L"file.txt");
+    print_stdfsroot(L"C:");
+    print_stdfsroot(L"C:\\");
+    print_stdfsroot(L"C:\\file");
+    print_stdfsroot(L"C:\\dir\\file.txt");
+    print_stdfsroot(L"/dir/file");
+    print_stdfsroot(L"//server");
+    print_stdfsroot(L"//server/share");
+    print_stdfsroot(L"//server/share/file");
+    print_stdfsroot(L"//127.0.0.1");
+    print_stdfsroot(L"//127.0.0.1/c$");
+    print_stdfsroot(L"//127.0.0.1/c$/file");
+    print_stdfsroot(LR"(\dir\file)");
+    print_stdfsroot(LR"(\\server)");
+    print_stdfsroot(LR"(\\server\share)");
+    print_stdfsroot(LR"(\\server\share/file)");
+    print_stdfsroot(LR"(\\127.0.0.1)");
+    print_stdfsroot(LR"(\\127.0.0.1\c$)");
+    print_stdfsroot(LR"(\\127.0.0.1\c$/file)");
+    print_stdfsroot(L"//?/c:");
+    print_stdfsroot(L"//?/D:/file");
+    print_stdfsroot(L"//?/E:/dir/file");
+    print_stdfsroot(LR"(\\?\c:)");
+    print_stdfsroot(LR"(\\?\D:/file)");
+    print_stdfsroot(LR"(\\?\E:/dir/file)");
+    print_stdfsroot(LR"(\\.\Volume{b75e2c83-0000-0000-0000-602f00000000})");
+    print_stdfsroot(LR"(\\.\Volume{b75e2c83-0000-0000-0000-602f00000000}\file)");
+    print_stdfsroot(LR"(\\.\Volume{b75e2c83-0000-0000-0000-602f00000000}\dir\file)");
+    print_stdfsroot(LR"(\\?\Volume{b75e2c83-0000-0000-0000-602f00000000})");
+    print_stdfsroot(LR"(\\?\Volume{b75e2c83-0000-0000-0000-602f00000000}\file)");
+    print_stdfsroot(LR"(\\?\Volume{b75e2c83-0000-0000-0000-602f00000000}\dir\file)");
+    print_stdfsroot(LR"(\\.\UNC)");
+    print_stdfsroot(LR"(\\.\UNC\server)");
+    print_stdfsroot(LR"(\\.\UNC\server\share)");
+    print_stdfsroot(LR"(\\.\UNC\server\share\file)");
+    print_stdfsroot(LR"(\\.\UNC\server\share\dir\file)");
+    print_stdfsroot(LR"(\\?\C:)");
+    print_stdfsroot(LR"(\\?\C:\file)");
+    print_stdfsroot(LR"(\\?\C:\dir\file)");
+    print_stdfsroot(LR"(\\.\C:)");
+    print_stdfsroot(LR"(\\.\C:\file)");
+    print_stdfsroot(LR"(\\.\C:\dir\file)");
+    print_stdfsroot(L"//?/c:");
+    print_stdfsroot(L"/\\?/c:");
+    print_stdfsroot(L"\\/?/c:");
+    */
+
+#define assert_path_root(Pth, Root)\
+    assert_equal_str(fs::root(to_const_string(Pth)), Root)
+
+    // please refer to this link
+    // https://learn.microsoft.com/en-us/dotnet/standard/io/file-path-formats
+    assert_path_root(L"", L"");
+    assert_path_root(L".", L"");
+    assert_path_root(L"..", L"");
+    assert_path_root(L"file", L"");
+    assert_path_root(L"file.txt", L"");
+    assert_path_root(L"C:", LR"(C:)");
+    assert_path_root(L"C:\\", LR"(C:\)");
+    assert_path_root(L"C:\\file", LR"(C:\)");
+    assert_path_root(L"C:\\dir\\file.txt", LR"(C:\)");
+    // single slash / backslash at the start means current drive
+    assert_path_root(L"/", LR"(/)");
+    assert_path_root(L"/file", LR"(/)");
+    assert_path_root(L"/dir/file", LR"(/)");
+    assert_path_root(L"\\", LR"(\)");
+    assert_path_root(L"\\file", LR"(\)");
+    assert_path_root(L"\\dir\file", LR"(\)");
+    assert_path_root(L"//server", LR"(//server)");
+    assert_path_root(L"//server/share", LR"(//server/share)");
+    assert_path_root(L"//server/share/file", LR"(//server/share/)");
+    assert_path_root(L"//127.0.0.1", LR"(//127.0.0.1)");
+    assert_path_root(L"//127.0.0.1/c$", LR"(//127.0.0.1/c$)");
+    assert_path_root(L"//127.0.0.1/c$/file", LR"(//127.0.0.1/c$/)");
+    assert_path_root(LR"(\dir\file)", LR"(\)");
+    assert_path_root(LR"(\\server)", LR"(\\server)");
+    assert_path_root(LR"(\\server\share)", LR"(\\server\share)");
+    assert_path_root(LR"(\\server\share\file)", LR"(\\server\share\)");
+    assert_path_root(LR"(\\127.0.0.1)", LR"(\\127.0.0.1)");
+    assert_path_root(LR"(\\127.0.0.1\c$)", LR"(\\127.0.0.1\c$)");
+    assert_path_root(LR"(\\127.0.0.1\c$\file)", LR"(\\127.0.0.1\c$\)");
+    assert_path_root(L"//?", LR"(//?)"); // is this even valid?
+    assert_path_root(L"//?/", LR"(//?/)"); // is this even valid?
+    assert_path_root(L"//?/c:", LR"(//?/c:)");
+    assert_path_root(L"//?/D:/file", LR"(//?/D:/)");
+    assert_path_root(L"//?/E:/dir/file", LR"(//?/E:/)");
+    assert_path_root(LR"(\\?)", LR"(\\?)"); // is this even valid?
+    assert_path_root(LR"(\\?\)", LR"(\\?\)"); // is this even valid?
+    assert_path_root(LR"(\\?\c:)", LR"(\\?\c:)");
+    assert_path_root(LR"(\\?\D:\file)", LR"(\\?\D:\)");
+    assert_path_root(LR"(\\?\E:\dir\file)", LR"(\\?\E:\)");
+    assert_path_root(LR"(\\.)", LR"(\\.)"); // valid?
+    assert_path_root(LR"(\\.\C:)", LR"(\\.\C:)");
+    assert_path_root(LR"(\\.\C:\file)", LR"(\\.\C:\)");
+    assert_path_root(LR"(\\.\C:\dir\file)", LR"(\\.\C:\)");
+    assert_path_root(LR"(\\.\Volume{b75e2c83-0000-0000-0000-602f00000000})", LR"(\\.\Volume{b75e2c83-0000-0000-0000-602f00000000})");
+    assert_path_root(LR"(\\.\Volume{b75e2c83-0000-0000-0000-602f00000000}\file)", LR"(\\.\Volume{b75e2c83-0000-0000-0000-602f00000000}\)");
+    assert_path_root(LR"(\\.\Volume{b75e2c83-0000-0000-0000-602f00000000}\dir\file)", LR"(\\.\Volume{b75e2c83-0000-0000-0000-602f00000000}\)");
+    assert_path_root(LR"(\\?\Volume{b75e2c83-0000-0000-0000-602f00000000})", LR"(\\?\Volume{b75e2c83-0000-0000-0000-602f00000000})");
+    assert_path_root(LR"(\\?\Volume{b75e2c83-0000-0000-0000-602f00000000}\file)", LR"(\\?\Volume{b75e2c83-0000-0000-0000-602f00000000}\)");
+    assert_path_root(LR"(\\?\Volume{b75e2c83-0000-0000-0000-602f00000000}\dir\file)", LR"(\\?\Volume{b75e2c83-0000-0000-0000-602f00000000}\)");
+    assert_path_root(LR"(\\.\UNC)", LR"(\\.\UNC)"); // again, is this even valid?
+    assert_path_root(LR"(\\.\UNC\server)", LR"(\\.\UNC\server)");
+    assert_path_root(LR"(\\.\UNC\server\share)", LR"(\\.\UNC\server\share)");
+    assert_path_root(LR"(\\.\UNC\server\share\file)", LR"(\\.\UNC\server\share\)");
+    assert_path_root(LR"(\\.\UNC\server\share\dir\file)", LR"(\\.\UNC\server\share\)");
+    assert_path_root(LR"(\\?\UNC)", LR"(\\?\UNC)"); // again, is this even valid?
+    assert_path_root(LR"(\\?\UNC\server)", LR"(\\?\UNC\server)");
+    assert_path_root(LR"(\\?\UNC\server\share)", LR"(\\?\UNC\server\share)");
+    assert_path_root(LR"(\\?\UNC\server\share\file)", LR"(\\?\UNC\server\share\)");
+    assert_path_root(LR"(\\?\UNC\server\share\dir\file)", LR"(\\?\UNC\server\share\)");
+
 #else
     fs::set_path(&p, "/foo/bar");
     assert_equal_str(fs::root(&p), SYS_CHAR("/"));
@@ -750,6 +872,7 @@ define_test(root_returns_the_path_root)
     fs::free(&p);
 }
 
+#if Linux
 define_test(normalize_normalizes_path)
 {
     fs::path p{};
@@ -2347,9 +2470,6 @@ define_test(get_temporary_path_gets_temporary_path)
 static fs::path old_current_dir;
 
 #if Windows
-#include <filesystem> // lol
-namespace stdfs = std::filesystem;
-
 HANDLE _pipe_handle = INVALID_HANDLE_VALUE;
 
 void create_test_pipe()
