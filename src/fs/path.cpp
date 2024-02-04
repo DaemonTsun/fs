@@ -400,6 +400,27 @@ bool fs::get_filesystem_info(io_handle h, fs::filesystem_info *out, int flags, e
         {
         case FS_QUERY_TYPE:
             return fs::get_filesystem_type(h, &out->detail.type, err);
+        case FS_QUERY_ID:
+        {
+            BY_HANDLE_FILE_INFORMATION _info;
+
+            if (!GetFileInformationByHandle(h, &_info))
+            {
+                set_GetLastError_error(err);
+                return false;
+            }
+
+            out->detail.id_info.VolumeSerialNumber = _info.dwVolumeSerialNumber;
+
+            fill_memory(&out->detail.id_info.FileId, 0);
+            u64 _id = ((u64)_info.nFileIndexHigh << 32) | _info.nFileIndexLow;
+
+            u64 *_out_id = (u64*)&out->detail.id_info.FileId;
+            _out_id++;
+            *_out_id = _id;
+
+            return true;
+        }
         default:
             return false;
         }
@@ -907,8 +928,7 @@ bool fs::are_equivalent_infos(const fs::filesystem_info *info1, const fs::filesy
         return true;
 
 #if Windows
-    // TODO: implement
-    return false;
+    return memcmp(&info1->detail.id_info, &info2->detail.id_info, sizeof(FILE_ID_INFO)) == 0;
 #else
     return (info1->stx_ino       == info2->stx_ino)
         && (info1->stx_dev_major == info2->stx_dev_major)
@@ -937,7 +957,22 @@ bool fs::_are_equivalent(fs::const_fs_string pth1, fs::const_fs_string pth2, boo
 
 fs::const_fs_string fs::filename(fs::const_fs_string pth)
 {
+#if Windows
+    fs::const_fs_string rt = fs::root(pth);
+
+    if (rt.size > 0)
+    {
+        pth.c_str += rt.size;
+        pth.size -= rt.size;
+    }
+#endif
+
     s64 found = ::last_index_of(pth, fs::path_separator);
+
+#if Windows
+    if (found == -1)
+        found = ::last_index_of(pth, SYS_CHAR('/'));
+#endif
 
     if (found == -1)
         found = 0;

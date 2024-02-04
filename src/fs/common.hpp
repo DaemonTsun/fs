@@ -51,9 +51,9 @@ struct filesystem_info
 };
 
 #define FS_QUERY_DEFAULT_FLAGS  0
-#define FS_QUERY_ID             FileIdInfo
 #define FS_QUERY_PERMISSIONS    0x1000
 #define FS_QUERY_TYPE           0x1001
+#define FS_QUERY_ID             0x1002
 
 #else
 // Linux and others

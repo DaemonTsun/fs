@@ -371,7 +371,6 @@ define_test(is_absolute_returns_true_if_path_is_absolute)
     fs::free(&p);
 }
 
-#if Linux
 define_test(is_absolute_returns_false_if_path_is_not_absolute)
 {
 #if Windows
@@ -414,7 +413,8 @@ define_test(is_relative_returns_false_if_path_is_not_relative)
 define_test(are_equivalent_returns_true_for_same_path)
 {
 #if Windows
-    // fs::path p = R"=(C:\Windows\notepad.exe)="_path;
+    fs::path p1 = R"=(C:\Windows\notepad.exe)="_path;
+    fs::path p2 = R"=(C:\Windows\notepad.exe)="_path;
 #else
     fs::path p1 = "/etc/passwd"_path;
     fs::path p2 = "/etc/passwd"_path;
@@ -429,7 +429,8 @@ define_test(are_equivalent_returns_true_for_same_path)
 define_test(are_equivalent_returns_true_for_equivalent_paths)
 {
 #if Windows
-    // fs::path p = R"=(C:\Windows\notepad.exe)="_path;
+    fs::path p1 = R"=(C:\Windows\..\Windows\notepad.exe)="_path;
+    fs::path p2 = R"=(C:\Windows\notepad.exe)="_path;
 #else
     fs::path p1 = "/etc/passwd"_path;
     fs::path p2 = "/etc/../etc/passwd"_path;
@@ -444,13 +445,17 @@ define_test(are_equivalent_returns_true_for_equivalent_paths)
 define_test(are_equivalent_returns_false_for_different_existing_paths)
 {
 #if Windows
-    // fs::path p = R"=(C:\Windows\notepad.exe)="_path;
+    fs::path p1 = R"=(C:\Windows\notepad.exe)="_path;
+    fs::path p2 = R"=(C:\Windows\regedit.exe)="_path;
 #else
     fs::path p1 = "/etc/passwd"_path;
     fs::path p2 = "/etc/profile"_path;
 #endif
 
-    assert_equal(fs::are_equivalent(&p1, &p2), false);
+    error err{};
+
+    assert_equal(fs::are_equivalent(&p1, &p2, true, &err), false);
+    assert_equal(err.error_code, 0);
 
     fs::free(&p1);
     fs::free(&p2);
@@ -459,13 +464,21 @@ define_test(are_equivalent_returns_false_for_different_existing_paths)
 define_test(are_equivalent_returns_false_if_only_one_path_doesnt_exist)
 {
 #if Windows
-    // fs::path p = R"=(C:\Windows\notepad.exe)="_path;
+    fs::path p1 = R"=(C:\Windows\notepad.exe)="_path;
+    fs::path p2 = R"=(C:\Windows\notepad2.exe)="_path;
 #else
     fs::path p1 = "/etc/passwd"_path;
     fs::path p2 = "/etc/passwd2"_path;
 #endif
 
-    assert_equal(fs::are_equivalent(&p1, &p2), false);
+    error err{};
+    assert_equal(fs::are_equivalent(&p1, &p2, true, &err), false);
+
+#if Windows
+    assert_equal(err.error_code, ERROR_FILE_NOT_FOUND);
+#else
+    assert_equal(err.error_code, ENOENT);
+#endif
 
     fs::free(&p1);
     fs::free(&p2);
@@ -473,125 +486,77 @@ define_test(are_equivalent_returns_false_if_only_one_path_doesnt_exist)
 
 define_test(filename_returns_the_filename)
 {
-    fs::path p{};
-
-    fs::set_path(&p, "/foo/bar.txt");
-    assert_equal_str(fs::filename(&p), SYS_CHAR("bar.txt"));
-
-    fs::set_path(&p, R"(C:\foo\bar.txt)");
 #if Windows
-    assert_equal_str(fs::filename(&p), SYS_CHAR("bar.txt"));
+    assert_equal_str(fs::filename(L"/foo/bar.txt"_cs), L"bar.txt");
+    assert_equal_str(fs::filename(L"/foo/.bar"_cs), L".bar");
+    assert_equal_str(fs::filename(L"/foo/bar/"_cs), L"");
+    assert_equal_str(fs::filename(L"/foo/."_cs), L".");
+    assert_equal_str(fs::filename(L"/foo/.."_cs), L"..");
+    assert_equal_str(fs::filename(L"."_cs), L".");
+    assert_equal_str(fs::filename(L".."_cs), L"..");
+    assert_equal_str(fs::filename(L"/"_cs), L"");
+    assert_equal_str(fs::filename(L"//host"_cs), L"");
+    assert_equal_str(fs::filename(L"//host/"_cs), L"");
+    assert_equal_str(fs::filename(L"//host/share"_cs), L"");
+    assert_equal_str(fs::filename(L"//host/share/"_cs), L"");
+    assert_equal_str(fs::filename(L"//host/share/file.txt"_cs), L"file.txt");
+    assert_equal_str(fs::filename(L"//host/share/dir/file.txt"_cs), L"file.txt");
+    assert_equal_str(fs::filename(L"//."_cs), L"");
+    assert_equal_str(fs::filename(L"//./UNC"_cs), L"");
+    assert_equal_str(fs::filename(L"//./UNC/server"_cs), L"");
+    assert_equal_str(fs::filename(L"//./UNC/server/"_cs), L"");
+    assert_equal_str(fs::filename(L"//./UNC/server/share"_cs), L"");
+    assert_equal_str(fs::filename(L"//./UNC/server/share/"_cs), L"");
+    assert_equal_str(fs::filename(L"//./UNC/server/share/file.txt"_cs), L"file.txt");
+    assert_equal_str(fs::filename(L"//./UNC/server/share/dir/file.txt"_cs), L"file.txt");
+    assert_equal_str(fs::filename(LR"(C:\foo\bar.txt)"_cs), L"bar.txt");
+    assert_equal_str(fs::filename(LR"(C:\foo\.bar)"_cs), L".bar");
+    assert_equal_str(fs::filename(LR"(C:\foo\bar\)"_cs), L"");
+    assert_equal_str(fs::filename(LR"(C:\foo\.)"_cs), L".");
+    assert_equal_str(fs::filename(LR"(C:\foo\..)"_cs), L"..");
+    assert_equal_str(fs::filename(LR"(C:\)"_cs), L"");
+    assert_equal_str(fs::filename(LR"(C:foo.txt)"_cs), L"foo.txt");
 #else
+    assert_equal_str(fs::filename("/foo/bar.txt"_cs), "bar.txt");
+    assert_equal_str(fs::filename("/foo/.bar"_cs), ".bar");
+    assert_equal_str(fs::filename("/foo/bar/"_cs), "");
+    assert_equal_str(fs::filename("/foo/."_cs), ".");
+    assert_equal_str(fs::filename("/foo/.."_cs), "..");
+    assert_equal_str(fs::filename("."_cs), ".");
+    assert_equal_str(fs::filename(".."_cs), "..");
+    assert_equal_str(fs::filename("/"_cs), "");
+    assert_equal_str(fs::filename("//host"_cs), "host");
+
     // https://theboostcpplibraries.com/boost.filesystem-paths#ex.filesystem_05
     // not that we try to imitate boost or std::filesystem (which would be bad),
     // but interpreting paths of other systems is a bad idea as the default
     // behavior.
-    assert_equal_str(fs::filename(&p), R"(C:\foo\bar.txt)");
+    assert_equal_str(fs::filename(R"(C:\foo\bar.txt)"_cs), R"(C:\foo\bar.txt)");
+    assert_equal_str(fs::filename(R"(C:\foo\.bar)"_cs), R"(C:\foo\.bar)");
+    assert_equal_str(fs::filename(R"(C:\foo\bar\)"_cs), R"(C:\foo\bar\)");
+    assert_equal_str(fs::filename(R"(C:\foo\.)"_cs), R"(C:\foo\.)");
+    assert_equal_str(fs::filename(R"(C:\foo\..)"_cs), R"(C:\foo\..)");
+    assert_equal_str(fs::filename(R"(C:\)"_cs), R"(C:\)");
 #endif
-
-    fs::set_path(&p, "/foo/.bar");
-    assert_equal_str(fs::filename(&p), SYS_CHAR(".bar"));
-
-    fs::set_path(&p, R"(C:\foo\.bar)");
-#if Windows
-    assert_equal_str(fs::filename(&p), SYS_CHAR(".bar"));
-#else
-    assert_equal_str(fs::filename(&p), R"(C:\foo\.bar)");
-#endif
-
-    fs::set_path(&p, "/foo/bar/");
-    assert_equal_str(fs::filename(&p), SYS_CHAR(""));
-
-    fs::set_path(&p, R"(C:\foo\bar\)");
-#if Windows
-    assert_equal_str(fs::filename(&p), SYS_CHAR(""));
-#else
-    assert_equal_str(fs::filename(&p), R"(C:\foo\bar\)");
-#endif
-
-    fs::set_path(&p, "/foo/.");
-    assert_equal_str(fs::filename(&p), SYS_CHAR("."));
-
-    fs::set_path(&p, R"(C:\foo\.)");
-#if Windows
-    assert_equal_str(fs::filename(&p), SYS_CHAR("."));
-#else
-    assert_equal_str(fs::filename(&p), R"(C:\foo\.)");
-#endif
-
-    fs::set_path(&p, "/foo/..");
-    assert_equal_str(fs::filename(&p), SYS_CHAR(".."));
-
-    fs::set_path(&p, R"(C:\foo\..)");
-#if Windows
-    assert_equal_str(fs::filename(&p), SYS_CHAR(".."));
-#else
-    assert_equal_str(fs::filename(&p), R"(C:\foo\..)");
-#endif
-
-    fs::set_path(&p, ".");
-    assert_equal_str(fs::filename(&p), SYS_CHAR("."));
-
-    fs::set_path(&p, "..");
-    assert_equal_str(fs::filename(&p), SYS_CHAR(".."));
-
-    fs::set_path(&p, "/");
-    assert_equal_str(fs::filename(&p), SYS_CHAR(""));
-
-    fs::set_path(&p, R"(C:\)");
-#if Windows
-    assert_equal_str(fs::filename(&p), SYS_CHAR(""));
-#else
-    assert_equal_str(fs::filename(&p), R"(C:\)");
-#endif
-
-    fs::set_path(&p, "//host");
-    assert_equal_str(fs::filename(&p), SYS_CHAR("host"));
-
-    fs::free(&p);
 }
 
 define_test(extension_returns_path_extension)
 {
-    fs::path p{};
-
-    fs::set_path(&p, "/foo/bar.txt");
-    assert_equal_str(fs::file_extension(&p), SYS_CHAR(".txt"));
-
-    fs::set_path(&p, R"(C:\foo\bar.txt)");
-    assert_equal_str(fs::file_extension(&p), SYS_CHAR(".txt"));
-
-    fs::set_path(&p, "/foo/bar.");
-    assert_equal_str(fs::file_extension(&p), SYS_CHAR("."));
-
-    fs::set_path(&p, "/foo/bar");
-    assert_equal_str(fs::file_extension(&p), SYS_CHAR(""));
-
-    fs::set_path(&p, "/foo/bar.txt/bar.cc");
-    assert_equal_str(fs::file_extension(&p), SYS_CHAR(".cc"));
-
-    fs::set_path(&p, "/foo/bar.txt/bar.");
-    assert_equal_str(fs::file_extension(&p), SYS_CHAR("."));
-
-    fs::set_path(&p, "/foo/bar.txt/bar");
-    assert_equal_str(fs::file_extension(&p), SYS_CHAR(""));
-
-    fs::set_path(&p, "/foo/.");
-    assert_equal_str(fs::file_extension(&p), SYS_CHAR(""));
-
-    fs::set_path(&p, "/foo/..");
-    assert_equal_str(fs::file_extension(&p), SYS_CHAR(""));
-
-    fs::set_path(&p, "/foo/.hidden");
+    assert_equal_str(fs::file_extension(SYS_CHAR("/foo/bar.txt"_cs)), SYS_CHAR(".txt"));
+    assert_equal_str(fs::file_extension(SYS_CHAR(R"(C:\foo\bar.txt)"_cs)), SYS_CHAR(".txt"));
+    assert_equal_str(fs::file_extension(SYS_CHAR("/foo/bar."_cs)), SYS_CHAR("."));
+    assert_equal_str(fs::file_extension(SYS_CHAR("/foo/bar"_cs)), SYS_CHAR(""));
+    assert_equal_str(fs::file_extension(SYS_CHAR("/foo/bar.txt/bar.cc"_cs)), SYS_CHAR(".cc"));
+    assert_equal_str(fs::file_extension(SYS_CHAR("/foo/bar.txt/bar."_cs)), SYS_CHAR("."));
+    assert_equal_str(fs::file_extension(SYS_CHAR("/foo/bar.txt/bar"_cs)), SYS_CHAR(""));
+    assert_equal_str(fs::file_extension(SYS_CHAR("/foo/."_cs)), SYS_CHAR(""));
+    assert_equal_str(fs::file_extension(SYS_CHAR("/foo/.."_cs)), SYS_CHAR(""));
     // this differs from std::filesystem
-    assert_equal_str(fs::file_extension(&p), SYS_CHAR(".hidden"));
-
-    fs::set_path(&p, "/foo/..bar");
-    assert_equal_str(fs::file_extension(&p), SYS_CHAR(".bar"));
-
-    fs::free(&p);
+    assert_equal_str(fs::file_extension(SYS_CHAR("/foo/.hidden"_cs)), SYS_CHAR(".hidden"));
+    assert_equal_str(fs::file_extension(SYS_CHAR("/foo/..bar"_cs)), SYS_CHAR(".bar"));
 }
 
+#if Linux
 define_test(replace_filename_replaces_filename_of_path)
 {
     fs::path p{};
