@@ -556,7 +556,6 @@ define_test(extension_returns_path_extension)
     assert_equal_str(fs::file_extension(SYS_CHAR("/foo/..bar"_cs)), SYS_CHAR(".bar"));
 }
 
-#if Linux
 define_test(replace_filename_replaces_filename_of_path)
 {
     fs::path p{};
@@ -599,31 +598,59 @@ define_test(replace_filename_replaces_filename_of_path)
     fs::replace_filename(&p, "abc"_cs);
     assert_equal_str(p, SYS_CHAR("abc"));
 
+#if Windows
+    fs::set_path(&p, L"C:/");
+    fs::replace_filename(&p, L"abc"_cs);
+    assert_equal_str(p, SYS_CHAR("C:/abc"));
+
+    fs::set_path(&p, L"C:\\");
+    fs::replace_filename(&p, L"abc"_cs);
+    assert_equal_str(p, SYS_CHAR("C:\\abc"));
+
+    fs::set_path(&p, L"C:");
+    fs::replace_filename(&p, L"abc"_cs);
+    assert_equal_str(p, SYS_CHAR("C:abc"));
+
+    fs::set_path(&p, L"C:");
+    fs::replace_filename(&p, "abc"_cs);
+    assert_equal_str(p, SYS_CHAR("C:abc"));
+
+    fs::set_path(&p, LR"(\\server\share)");
+    fs::replace_filename(&p, "abc"_cs);
+    assert_equal_str(p, SYS_CHAR(R"(\\server\share\abc)"));
+
+    fs::set_path(&p, LR"(\\server\share\)");
+    fs::replace_filename(&p, "abc"_cs);
+    assert_equal_str(p, SYS_CHAR(R"(\\server\share\abc)"));
+#endif
+
     fs::free(&p);
 }
 
 define_test(parent_path_segment_returns_the_parent_path_segment)
 {
-    fs::path p{};
+    assert_equal_str(fs::parent_path_segment(SYS_CHAR("/foo/bar"_cs)), SYS_CHAR("/foo"));
+    assert_equal_str(fs::parent_path_segment(SYS_CHAR("/foo"_cs)), SYS_CHAR("/"));
+    assert_equal_str(fs::parent_path_segment(SYS_CHAR("/"_cs)), SYS_CHAR("/"));
+    assert_equal_str(fs::parent_path_segment(SYS_CHAR("/bar/"_cs)), SYS_CHAR("/bar"));
+    assert_equal_str(fs::parent_path_segment(SYS_CHAR(""_cs)), SYS_CHAR(""));
 
-    fs::set_path(&p, "/foo/bar");
-    assert_equal_str(fs::parent_path_segment(&p), SYS_CHAR("/foo"));
+    assert_equal_str(fs::parent_path_segment(SYS_CHAR("abc/def"_cs)), SYS_CHAR("abc"));
 
-    fs::set_path(&p, "/foo");
-    assert_equal_str(fs::parent_path_segment(&p), SYS_CHAR("/"));
-
-    fs::set_path(&p, "/");
-    assert_equal_str(fs::parent_path_segment(&p), SYS_CHAR("/"));
-
-    fs::set_path(&p, "/bar/");
-    assert_equal_str(fs::parent_path_segment(&p), SYS_CHAR("/bar"));
-
-    fs::set_path(&p, ".");
-    assert_equal_str(fs::parent_path_segment(&p), SYS_CHAR(""));
-
-    fs::free(&p);
+#if Windows
+    assert_equal_str(fs::parent_path_segment(L"C:/abc"_cs), L"C:/");
+    assert_equal_str(fs::parent_path_segment(L"C:/"_cs),    L"C:/");
+    assert_equal_str(fs::parent_path_segment(L"C:abc"_cs),  L"C:");
+    assert_equal_str(fs::parent_path_segment(L"C:"_cs),     L"C:");
+    assert_equal_str(fs::parent_path_segment(L"//server/share"_cs), L"//server/share");
+    assert_equal_str(fs::parent_path_segment(L"//server/share/"_cs), L"//server/share/");
+    assert_equal_str(fs::parent_path_segment(L"//server/share/file"_cs), L"//server/share/");
+    assert_equal_str(fs::parent_path_segment(LR"(\\.\UNC\server\share)"_cs), LR"(\\.\UNC\server\share)");
+    assert_equal_str(fs::parent_path_segment(LR"(\\.\UNC\server\share\abc)"_cs), LR"(\\.\UNC\server\share\)");
+#endif
 }
 
+#if Linux
 define_test(path_segments_gets_the_segments_of_a_path)
 {
     fs::path p{};

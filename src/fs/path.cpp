@@ -103,7 +103,7 @@ bool CloseWindowsPathHandle(io_handle h, error *err = nullptr)
 }
 
 // Windows supports both / and \, but \ is preferred.
-inline bool _is_directory_separator(sys_char c)
+inline bool _is_path_separator(sys_char c)
 {
     return (c == SYS_CHAR('/')) || (c == SYS_CHAR('\\'));
 }
@@ -124,13 +124,15 @@ inline bool _parse_drive_letter(const sys_char *c, s64 size, s64 start, s64 *end
     {
         start += 2;
 
-        if ((start < size) && _is_directory_separator(c[start]))
+        if ((start < size) && _is_path_separator(c[start]))
             start += 1;
     }
     else
         return false;
 
-    *end = start;
+    if (end != nullptr)
+        *end = start;
+
     return true;
 }
 
@@ -144,7 +146,7 @@ inline bool _parse_unc_segment(const sys_char *c, s64 size, s64 start, fs::const
 
     s64 i = start;
 
-    while (i < size && !_is_directory_separator(c[i]))
+    while (i < size && !_is_path_separator(c[i]))
         i++;
 
     out->c_str = c + start;
@@ -1039,14 +1041,30 @@ fs::const_fs_string fs::file_extension(const fs::path *pth)
 
 fs::const_fs_string fs::parent_path_segment(fs::const_fs_string pth)
 {
+#if Windows
+    auto rt = fs::root(pth);
+
     s64 last_sep = ::last_index_of(pth, fs::path_separator);
 
     if (last_sep == -1)
+        last_sep = ::last_index_of(pth, SYS_CHAR('/'));
+
+    if (last_sep == -1)
+    {
+        // e.g. C: without separator
+        if (rt.size > 0)
+            return rt;
+        else
+            return empty_fs_string;
+    }
+    else if ((u64)last_sep < rt.size)
+        return rt;
+#else
+    s64 last_sep = ::last_index_of(pth, fs::path_separator);
+    
+    if (last_sep == -1)
         return empty_fs_string;
 
-#if Windows
-    // TODO: implement check for root
-#else
     s64 first_sep = ::index_of(pth, fs::path_separator);
 
     if (first_sep == last_sep
@@ -1075,14 +1093,14 @@ fs::const_fs_string fs::root(fs::const_fs_string pth)
 
     if (pth.size == 1)
     {
-        if (_is_directory_separator(pth[0]))
+        if (_is_path_separator(pth[0]))
             return pth;
         else
             return empty_fs_string;
     }
 
     // e.g. /abc/def -> /
-    if (_is_directory_separator(pth[0]) && !(_is_directory_separator(pth[1])))
+    if (_is_path_separator(pth[0]) && !(_is_path_separator(pth[1])))
         return fs::const_fs_string{pth.c_str, 1};
 
     s64 i = 0;
@@ -1093,7 +1111,7 @@ fs::const_fs_string fs::root(fs::const_fs_string pth)
 
     // if path is not / or drive letter, path must begin with
     // two path separators (UNC path), otherwise it has no root.
-    if (!_is_directory_separator(pth[0]) && !(_is_directory_separator(pth[1])))
+    if (!_is_path_separator(pth[0]) && !(_is_path_separator(pth[1])))
         return empty_fs_string;
 
     fs::const_fs_string seg1{};
@@ -1110,7 +1128,7 @@ fs::const_fs_string fs::root(fs::const_fs_string pth)
 
 #define _include_last_sep(Seg)\
     len = (Seg.c_str - pth.c_str) + Seg.size;\
-    if (len < pth.size && _is_directory_separator(pth[len]))\
+    if (len < pth.size && _is_path_separator(pth[len]))\
         len += 1;
 
     s64 len = 0;
@@ -1173,18 +1191,37 @@ fs::const_fs_string fs::root(const fs::path *pth)
     return fs::root(to_const_string(pth));
 }
 
-void fs::replace_filename(fs::path *out, fs::const_fs_string newname)
+void fs::_replace_filename(fs::path *out, fs::const_fs_string newname)
 {
     assert(out != nullptr);
 
     auto parent_seg = fs::parent_path_segment(out);
+    auto rt = fs::root(out);
     u64 start = 0;
     u64 cutoff = newname.size;
 
-    if (parent_seg == fs::root(out))
+    if (parent_seg == rt)
     {
         start = parent_seg.size;
         cutoff += start;
+
+#if Windows
+        // so, in the case of C:\, we add the name at the end.
+        // in the case of C:, we add the name _without a separator_.
+        // HOWEVER, in the case of \\server\share, appending without a
+        // separator is nonsense, so in that case we have to append
+        // a separator.
+        
+        if (rt.size > 2
+         && _is_path_separator(rt[0])
+         && _is_path_separator(rt[1])
+         && !_is_path_separator(rt[rt.size - 1]))
+        {
+            fs::concat_path(out, SYS_CHAR("\\"));
+            start += 1;
+            cutoff += 1;
+        }
+#endif
     }
     else if (parent_seg.size != 0)
     {

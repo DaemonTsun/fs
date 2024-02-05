@@ -2,7 +2,7 @@
 /* path.hpp
  TODO: write new docs
 
-Note: fs::path has a size member, but because fs uses a lot of 
+Note: fs::path has a size member, but because fs uses a lot of
 standard library functions / syscalls (e.g. stat), which do not
 check for size, a null character is required to terminate a
 fs::path.
@@ -263,7 +263,18 @@ fs::const_fs_string parent_path_segment(const fs::path *pth);
 fs::const_fs_string root(fs::const_fs_string pth);
 fs::const_fs_string root(const fs::path *pth);
 
-void replace_filename(fs::path *out, fs::const_fs_string newname);
+void _replace_filename(fs::path *out, fs::const_fs_string newname);
+
+template<typename T>
+void replace_filename(fs::path *out, T newname)
+{
+    auto pth_str = fs::get_platform_string(newname);
+
+    _replace_filename(out, ::to_const_string(pth_str));
+
+    if constexpr (needs_conversion(T))
+        fs::free(&pth_str);
+}
 
 void path_segments(fs::const_fs_string pth, array<fs::const_fs_string> *out);
 void path_segments(const fs::path *pth, array<fs::const_fs_string> *out);
@@ -442,7 +453,7 @@ bool get_executable_path(fs::path *out, error *err);
 bool get_executable_directory_path(fs::path *out, error *err);
 
 // AppData, .local/share, etc
-// will also create the folder if it doesn't exist. 
+// will also create the folder if it doesn't exist.
 bool get_preference_path(fs::path *out, const char *app = nullptr, const char *org = nullptr, error *err = nullptr);
 
 // /tmp
