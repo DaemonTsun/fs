@@ -650,15 +650,11 @@ define_test(parent_path_segment_returns_the_parent_path_segment)
 #endif
 }
 
-#if Linux
 define_test(path_segments_gets_the_segments_of_a_path)
 {
     fs::path p{};
     array<fs::const_fs_string> segs{};
 
-#if Windows
-    // TODO: add tests
-#else
     fs::set_path(&p, "/foo/bar");
     fs::path_segments(&p, &segs);
 
@@ -708,12 +704,58 @@ define_test(path_segments_gets_the_segments_of_a_path)
     fs::set_path(&p, "");
     fs::path_segments(&p, &segs);
     assert_equal(segs.size, 0);
+
+#if Windows
+    fs::set_path(&p, SYS_CHAR(R"(C:)"));
+    fs::path_segments(&p, &segs);
+    assert_equal(segs.size, 1);
+    assert_equal_str(segs[0], SYS_CHAR("C:"));
+
+    fs::set_path(&p, SYS_CHAR(R"(C:\)"));
+    fs::path_segments(&p, &segs);
+    assert_equal(segs.size, 1);
+    assert_equal_str(segs[0], SYS_CHAR("C:\\"));
+
+    fs::set_path(&p, SYS_CHAR(R"(C:\file.txt)"));
+    fs::path_segments(&p, &segs);
+    assert_equal(segs.size, 2);
+    assert_equal_str(segs[0], SYS_CHAR("C:\\"));
+    assert_equal_str(segs[1], SYS_CHAR("file.txt"));
+
+    fs::set_path(&p, SYS_CHAR(R"(C:\dir\file.txt)"));
+    fs::path_segments(&p, &segs);
+    assert_equal(segs.size, 3);
+    assert_equal_str(segs[0], SYS_CHAR("C:\\"));
+    assert_equal_str(segs[1], SYS_CHAR("dir"));
+    assert_equal_str(segs[2], SYS_CHAR("file.txt"));
+
+    fs::set_path(&p, SYS_CHAR(R"(\\server)"));
+    fs::path_segments(&p, &segs);
+    assert_equal(segs.size, 1);
+    assert_equal_str(segs[0], SYS_CHAR(R"(\\server)"));
+
+    fs::set_path(&p, SYS_CHAR(R"(\\server\share)"));
+    fs::path_segments(&p, &segs);
+    assert_equal(segs.size, 1);
+    assert_equal_str(segs[0], SYS_CHAR(R"(\\server\share)"));
+
+    fs::set_path(&p, SYS_CHAR(R"(\\server\share\file.txt)"));
+    fs::path_segments(&p, &segs);
+    assert_equal(segs.size, 2);
+    assert_equal_str(segs[0], SYS_CHAR(R"(\\server\share\)"));
+    assert_equal_str(segs[1], SYS_CHAR(R"(file.txt)"));
+
+    fs::set_path(&p, SYS_CHAR(R"(\\server\share\dir\file.txt)"));
+    fs::path_segments(&p, &segs);
+    assert_equal(segs.size, 3);
+    assert_equal_str(segs[0], SYS_CHAR(R"(\\server\share\)"));
+    assert_equal_str(segs[1], SYS_CHAR(R"(dir)"));
+    assert_equal_str(segs[2], SYS_CHAR(R"(file.txt)"));
 #endif
 
     fs::free(&p);
     ::free(&segs);
 }
-#endif
 
 define_test(root_returns_the_path_root)
 {
@@ -793,6 +835,9 @@ define_test(root_returns_the_path_root)
     assert_path_root(L"/", LR"(/)");
     assert_path_root(L"/file", LR"(/)");
     assert_path_root(L"/dir/file", LR"(/)");
+    assert_path_root(L"a", LR"()");
+    assert_path_root(L"a/b", LR"()");
+    assert_path_root(L"a/b/c", LR"()");
     assert_path_root(L"\\", LR"(\)");
     assert_path_root(L"\\file", LR"(\)");
     assert_path_root(L"\\dir\file", LR"(\)");
@@ -864,14 +909,10 @@ define_test(root_returns_the_path_root)
     fs::free(&p);
 }
 
-#if Linux
 define_test(normalize_normalizes_path)
 {
     fs::path p{};
 
-#if Windows
-    // TODO: add tests
-#else
     fs::set_path(&p, "");
     fs::normalize(&p);
     assert_equal_str(p, SYS_CHAR(""));
@@ -982,11 +1023,15 @@ define_test(normalize_normalizes_path)
     fs::set_path(&p, "....");
     fs::normalize(&p);
     assert_equal_str(p, SYS_CHAR("...."));
+
+#if Windows
+    // TODO: add windows specific tests, e.g. replacing all / with \ when possible
 #endif
 
     fs::free(&p);
 }
 
+#if Linux
 define_test(longest_existing_path_returns_longest_existing_path)
 {
     fs::path p{};
