@@ -1146,18 +1146,10 @@ define_test(normalize_normalizes_path)
     fs::free(&p);
 }
 
-#if Linux
 define_test(longest_existing_path_returns_longest_existing_path)
 {
     fs::path p{};
     fs::path longest{};
-
-#if Windows
-    // TODO: add tests
-#else
-    fs::set_path(&p, "/foo/bar");
-    fs::longest_existing_path(&p, &longest);
-    assert_equal_str(longest, SYS_CHAR("/"));
 
     fs::set_path(&p, SANDBOX_DIR);
     fs::longest_existing_path(&p, &longest);
@@ -1166,6 +1158,31 @@ define_test(longest_existing_path_returns_longest_existing_path)
     fs::set_path(&p, SANDBOX_TEST_FILE);
     fs::longest_existing_path(&p, &longest);
     assert_equal_str(longest, SANDBOX_TEST_FILE);
+
+#if Windows
+    fs::set_path(&p, SYS_CHAR(R"(C:\DoesntExist\Hopefully)"));
+    fs::longest_existing_path(&p, &longest);
+    assert_equal_str(longest, SYS_CHAR(R"(C:\)"));
+
+    fs::set_path(&p, SYS_CHAR(R"(/abc/def)"));
+    fs::longest_existing_path(&p, &longest);
+    assert_equal_str(longest, SYS_CHAR(R"(/)"));
+
+    fs::set_path(&p, SYS_CHAR(R"(C:\Windows)"));
+    fs::longest_existing_path(&p, &longest);
+    assert_equal_str(longest, SYS_CHAR(R"(C:\Windows)"));
+
+    fs::set_path(&p, SYS_CHAR(R"(C:\Windows\system1234)"));
+    fs::longest_existing_path(&p, &longest);
+    assert_equal_str(longest, SYS_CHAR(R"(C:\Windows)"));
+
+    fs::set_path(&p, SYS_CHAR(R"(C:/Windows/notepad.exe/xyz)"));
+    fs::longest_existing_path(&p, &longest);
+    assert_equal_str(longest, SYS_CHAR(R"(C:/Windows/notepad.exe)"));
+#else
+    fs::set_path(&p, "/foo/bar");
+    fs::longest_existing_path(&p, &longest);
+    assert_equal_str(longest, SYS_CHAR("/"));
 
     fs::set_path(&p, "/tmp");
     fs::longest_existing_path(&p, &longest);
@@ -1181,23 +1198,22 @@ define_test(longest_existing_path_returns_longest_existing_path)
     fs::free(&longest);
 }
 
-
 define_test(absolute_path_gets_the_absolute_path)
 {
     fs::path p{};
     fs::path absp{};
 
-#if Windows
-    // TODO: add tests
-    assert_equal(true, false);
-#else
     fs::set_path(&p, "/foo/bar");
     fs::absolute_path(&p, &absp);
     assert_equal_str(absp, SYS_CHAR("/foo/bar"));
 
     fs::set_path(&p, "foo/bar");
     fs::absolute_path(&p, &absp);
+#if Windows
+    assert_equal_str(absp, SANDBOX_DIR L"\\foo/bar");
+#else
     assert_equal_str(absp, SANDBOX_DIR "/foo/bar");
+#endif
 
     // does not expand relative paths within the path,
     // use normalize(&p) to remove relative parts (. and ..) within the path,
@@ -1208,8 +1224,11 @@ define_test(absolute_path_gets_the_absolute_path)
 
     fs::set_path(&p, "foo/bar/./abc/../def");
     fs::absolute_path(&p, &absp);
+#if Windows
+    assert_equal_str(absp, SANDBOX_DIR "\\foo/bar/./abc/../def");
+#else
     assert_equal_str(absp, SANDBOX_DIR "/foo/bar/./abc/../def");
-
+#endif
 
     // using the same pointer for input and output was removed because it's unintuitive.
     // an assert will now crash this.
@@ -1218,7 +1237,6 @@ define_test(absolute_path_gets_the_absolute_path)
     fs::absolute_path(&p, &p);
     assert_equal_str(p, SANDBOX_DIR "/foo/bar");
     */
-#endif
 
     fs::free(&absp);
     fs::free(&p);
@@ -1229,10 +1247,6 @@ define_test(canonical_path_gets_canonical_path)
     fs::path p{};
     fs::path canonp{};
 
-#if Windows
-    // TODO: add tests
-    assert_equal(true, false);
-#else
     fs::set_path(&p, SANDBOX_TEST_DIR);
     assert_equal(fs::canonical_path(&p, &canonp), true);
     assert_equal_str(canonp, SANDBOX_TEST_DIR);
@@ -1260,12 +1274,12 @@ define_test(canonical_path_gets_canonical_path)
     // fails on paths that don't exist
     fs::set_path(&p, "/tmp/abc/../def");
     assert_equal(fs::canonical_path(&p, &canonp), false);
-#endif
 
     fs::free(&canonp);
     fs::free(&p);
 }
 
+#if Linux
 define_test(weakly_canonical_path_gets_weakly_canonical_path)
 {
     fs::path p{};

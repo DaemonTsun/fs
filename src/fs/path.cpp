@@ -1342,7 +1342,7 @@ void fs::_longest_existing_path(fs::const_fs_string pth, fs::path *out)
 
         i = out->size - 1;
 
-        while (i > rt.size && out->data[i] != fs::path_separator)
+        while (i > rt.size && !_is_path_separator(out->data[i]))
             i--;
 
         out->size = i;
@@ -1601,9 +1601,40 @@ bool fs::_canonical_path(fs::const_fs_string pth, fs::path *out, error *err)
     assert(pth.c_str != out->data);
 
 #if Windows
-    // TODO: PathCchCanonicalizeEx or, if not supported, _fullpath
 
-    return false;
+#if defined(UNICODE)
+    #define fullpath _wfullpath
+#else
+    #define fullpath _fullpath
+#endif
+
+    sys_char *npath = fullpath(nullptr, pth.c_str, 4096);
+
+    if (npath == nullptr)
+    {
+        set_errno_error(err);
+        return false;
+    }
+
+    fs::free(out);
+    out->data = npath;
+    out->size = ::string_length(npath);
+    out->reserved_size = out->size;
+
+    auto rt = fs::root(out);
+
+    if (out->size > rt.size)
+    {
+        u64 end = out->size - 1;
+
+        if (_is_path_separator(out->data[end]))
+        {
+            out->data[end] = PC_NUL;
+            out->size -= 1;
+        }
+    }
+
+    return fs::exists(out, false, err) == 1;
 #else
 
     // TODO: replace with a real realpath, not a fake one.
@@ -1680,7 +1711,7 @@ bool fs::_weakly_canonical_path(fs::const_fs_string pth, fs::path *out, error *e
     if (rest.size == 0)
         return true;
 
-    if (rest.c_str[0] == fs::path_separator)
+    if (_is_path_separator(rest.c_str[0]))
     {
         rest.c_str += 1;
         rest.size  -= 1;
