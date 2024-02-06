@@ -149,6 +149,9 @@ inline bool _parse_unc_segment(const sys_char *c, s64 size, s64 start, fs::const
     while (i < size && !_is_path_separator(c[i]))
         i++;
 
+    if (i == start)
+        return false;
+
     out->c_str = c + start;
     out->size = i - start;
 
@@ -1123,7 +1126,12 @@ fs::const_fs_string fs::root(fs::const_fs_string pth)
     bool ok1 = _parse_unc_segment(pth.c_str, pth.size, offset, &seg1);
 
     if (!ok1)
-        return empty_fs_string;
+    {
+        // this is a special case, e.g. ///, where the path is not a
+        // UNC path at all, but has 2 // at the start.
+        // We return a single / here.
+        return fs::const_fs_string{pth.c_str, 1};
+    }
 
     offset += seg1.size + 1;
     bool ok2 = ok1 && _parse_unc_segment(pth.c_str, pth.size, offset, &seg2);
@@ -1354,7 +1362,20 @@ void fs::normalize(fs::path *pth)
     if (pth->size == 0)
         return;
 
-    u64 i = 0;
+#if Windows
+    for (u64 di = 0; di < pth->size; ++di)
+        if (pth->data[di] == SYS_CHAR('/'))
+            pth->data[di] = fs::path_separator;
+#endif
+
+    u64 _start = 0;
+    auto rt = fs::root(pth);
+
+#if Windows
+    _start = (rt.size != 1 ? rt.size : 0);
+#endif
+
+    u64 i = _start;
     u64 j = 0;
 
     // Simplify multiple separators into one
@@ -1388,7 +1409,7 @@ void fs::normalize(fs::path *pth)
 
     // remove ./
 
-    i = 0;
+    i = _start;
     j = 0;
 
     while (pth->size > 0 && (i < pth->size - 1))
@@ -1409,7 +1430,13 @@ void fs::normalize(fs::path *pth)
 
     // remove <dir>/..[/]
 
-    i = 0;
+    u64 up_start = _start;
+#if Windows
+    if (up_start > 0 && _is_path_separator(rt[up_start - 1]))
+        up_start -= 1;
+#endif
+
+    i = up_start;
     u64 filename_start = 0;
 
     // 3 to account for "/.."
@@ -1427,7 +1454,7 @@ void fs::normalize(fs::path *pth)
             if (i >= pth->size - 3)
                 break;
 
-            if (_is_path_separator(pth->data[i])
+            while (_is_path_separator(pth->data[i])
              && pth->data[i + 1] == PC_DOT
              && pth->data[i + 2] == PC_DOT
              && (i + 3 >= pth->size || _is_path_separator(pth->data[i + 3])))
@@ -1440,9 +1467,11 @@ void fs::normalize(fs::path *pth)
                 ::remove_elements(as_array_ptr(pth), filename_start, i - filename_start);
                 pth->data[pth->size] = PC_NUL;
 
-                // we set i to 0 here because of ../..
-                i = 0;
-                continue;
+                // we set i to beginning here because of ../..
+                i = up_start;
+
+                if (pth->size <= 3 || i >= pth->size -3)
+                    break;
             }
         }
         else
@@ -1452,8 +1481,6 @@ void fs::normalize(fs::path *pth)
     pth->data[pth->size] = PC_NUL;
 
     // remove trailing .. after root
-    auto rt = fs::root(pth);
-
     if (rt.size > 0)
     {
         i = rt.size;

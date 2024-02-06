@@ -885,6 +885,7 @@ define_test(root_returns_the_path_root)
     assert_path_root(LR"(\\?\UNC\server\share\file)", LR"(\\?\UNC\server\share\)");
     assert_path_root(LR"(\\?\UNC\server\share\dir\file)", LR"(\\?\UNC\server\share\)");
 
+    assert_path_root(LR"(\\\)", LR"(\)");
 #else
     fs::set_path(&p, "/foo/bar");
     assert_equal_str(fs::root(&p), SYS_CHAR("/"));
@@ -919,85 +920,173 @@ define_test(normalize_normalizes_path)
 
     fs::set_path(&p, "/");
     fs::normalize(&p);
+#if Windows
+    assert_equal_str(p, SYS_CHAR(R"(\)"));
+#else
     assert_equal_str(p, SYS_CHAR("/"));
+#endif
 
     fs::set_path(&p, "///");
     fs::normalize(&p);
+#if Windows
+    assert_equal_str(p, SYS_CHAR(R"(\)"));
+#else
     assert_equal_str(p, SYS_CHAR("/"));
+#endif
 
     fs::set_path(&p, "/a");
     fs::normalize(&p);
+#if Windows
+    assert_equal_str(p, SYS_CHAR(R"(\a)"));
+#else
     assert_equal_str(p, SYS_CHAR("/a"));
+#endif
 
     fs::set_path(&p, "/a/////b");
     fs::normalize(&p);
+#if Windows
+    assert_equal_str(p, SYS_CHAR(R"(\a\b)"));
+#else
     assert_equal_str(p, SYS_CHAR("/a/b"));
+#endif
 
     fs::set_path(&p, "/.");
     fs::normalize(&p);
+#if Windows
+    assert_equal_str(p, SYS_CHAR(R"(\)"));
+#else
     assert_equal_str(p, SYS_CHAR("/"));
+#endif
 
     fs::set_path(&p, "/..");
     fs::normalize(&p);
+#if Windows
+    assert_equal_str(p, SYS_CHAR(R"(\)"));
+#else
     assert_equal_str(p, SYS_CHAR("/"));
+#endif
 
     fs::set_path(&p, "/abc/./def");
     fs::normalize(&p);
-    assert_equal_str(p, SYS_CHAR("/abc/def"));
+#if Windows
+    assert_equal_str(p, SYS_CHAR(R"(\abc\def)"));
+#else
+    assert_equal_str(p, SYS_CHAR("/abc\def"));
+#endif
 
     fs::set_path(&p, "/abc/../def");
     fs::normalize(&p);
+#if Windows
+    assert_equal_str(p, SYS_CHAR(R"(\def)"));
+#else
     assert_equal_str(p, SYS_CHAR("/def"));
+#endif
 
     fs::set_path(&p, "/abc/def/xyz/../../uvw");
     fs::normalize(&p);
+#if Windows
+    assert_equal_str(p, SYS_CHAR(R"(\abc\uvw)"));
+#else
     assert_equal_str(p, SYS_CHAR("/abc/uvw"));
+#endif
 
     fs::set_path(&p, "/abc/../def/./");
     fs::normalize(&p);
+#if Windows
+    assert_equal_str(p, SYS_CHAR(R"(\def)"));
+#else
     assert_equal_str(p, SYS_CHAR("/def"));
+#endif
+
+    fs::set_path(&p, "/abc/../../def/./");
+    fs::normalize(&p);
+#if Windows
+    assert_equal_str(p, SYS_CHAR(R"(\def)"));
+#else
+    assert_equal_str(p, SYS_CHAR("/def"));
+#endif
 
     fs::set_path(&p, "/abc/../def/../../../../");
     fs::normalize(&p);
+#if Windows
+    assert_equal_str(p, SYS_CHAR(R"(\)"));
+#else
     assert_equal_str(p, SYS_CHAR("/"));
+#endif
 
     fs::set_path(&p, "/abc/def/./.././");
     fs::normalize(&p);
+#if Windows
+    assert_equal_str(p, SYS_CHAR(R"(\abc)"));
+#else
     assert_equal_str(p, SYS_CHAR("/abc"));
+#endif
 
     // make sure other dots don't get changed
     fs::set_path(&p, "/abc/def./");
     fs::normalize(&p);
+#if Windows
+    assert_equal_str(p, SYS_CHAR(R"(\abc\def.)"));
+#else
     assert_equal_str(p, SYS_CHAR("/abc/def."));
+#endif
 
     fs::set_path(&p, "/abc/.def/");
     fs::normalize(&p);
+#if Windows
+    assert_equal_str(p, SYS_CHAR(R"(\abc\.def)"));
+#else
     assert_equal_str(p, SYS_CHAR("/abc/.def"));
+#endif
 
     fs::set_path(&p, "/abc/def../");
     fs::normalize(&p);
+#if Windows
+    assert_equal_str(p, SYS_CHAR(R"(\abc\def..)"));
+#else
     assert_equal_str(p, SYS_CHAR("/abc/def.."));
+#endif
 
     fs::set_path(&p, "/abc/..def/");
     fs::normalize(&p);
+#if Windows
+    assert_equal_str(p, SYS_CHAR(R"(\abc\..def)"));
+#else
     assert_equal_str(p, SYS_CHAR("/abc/..def"));
+#endif
 
     fs::set_path(&p, "/abc/def.../");
     fs::normalize(&p);
+#if Windows
+    assert_equal_str(p, SYS_CHAR(R"(\abc\def...)"));
+#else
     assert_equal_str(p, SYS_CHAR("/abc/def..."));
+#endif
 
     fs::set_path(&p, "/abc/...def/");
     fs::normalize(&p);
+#if Windows
+    assert_equal_str(p, SYS_CHAR(R"(\abc\...def)"));
+#else
     assert_equal_str(p, SYS_CHAR("/abc/...def"));
+#endif
 
     // yes this is a valid filename
     fs::set_path(&p, "/abc/.../");
     fs::normalize(&p);
+#if Windows
+    assert_equal_str(p, SYS_CHAR(R"(\abc\...)"));
+#else
     assert_equal_str(p, SYS_CHAR("/abc/..."));
+#endif
 
     fs::set_path(&p, "/abc/..../");
     fs::normalize(&p);
+#if Windows
+    assert_equal_str(p, SYS_CHAR(R"(\abc\....)"));
+#else
     assert_equal_str(p, SYS_CHAR("/abc/...."));
+#endif
 
     // relative paths
     fs::set_path(&p, "..");
@@ -1025,7 +1114,33 @@ define_test(normalize_normalizes_path)
     assert_equal_str(p, SYS_CHAR("...."));
 
 #if Windows
-    // TODO: add windows specific tests, e.g. replacing all / with \ when possible
+    fs::set_path(&p, SYS_CHAR(R"(\\server)"));
+    fs::normalize(&p);
+    assert_equal_str(p, SYS_CHAR(R"(\\server)"));
+
+    fs::set_path(&p, SYS_CHAR(R"(\\server\)"));
+    fs::normalize(&p);
+    assert_equal_str(p, SYS_CHAR(R"(\\server\)"));
+
+    fs::set_path(&p, SYS_CHAR(R"(\\server\share\)"));
+    fs::normalize(&p);
+    assert_equal_str(p, SYS_CHAR(R"(\\server\share\)"));
+
+    fs::set_path(&p, SYS_CHAR(R"(\\server\share\dir\file)"));
+    fs::normalize(&p);
+    assert_equal_str(p, SYS_CHAR(R"(\\server\share\dir\file)"));
+
+    fs::set_path(&p, SYS_CHAR(R"(\\server\share\dir\..\file)"));
+    fs::normalize(&p);
+    assert_equal_str(p, SYS_CHAR(R"(\\server\share\file)"));
+
+    fs::set_path(&p, SYS_CHAR(R"(\\server\share\dir\..\..\file)"));
+    fs::normalize(&p);
+    assert_equal_str(p, SYS_CHAR(R"(\\server\share\file)"));
+
+    fs::set_path(&p, SYS_CHAR(R"(\\.\UNC\server\share\dir\..\..\file)"));
+    fs::normalize(&p);
+    assert_equal_str(p, SYS_CHAR(R"(\\.\UNC\server\share\file)"));
 #endif
 
     fs::free(&p);
