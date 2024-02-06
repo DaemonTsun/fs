@@ -971,7 +971,7 @@ define_test(normalize_normalizes_path)
 #if Windows
     assert_equal_str(p, SYS_CHAR(R"(\abc\def)"));
 #else
-    assert_equal_str(p, SYS_CHAR("/abc\def"));
+    assert_equal_str(p, SYS_CHAR("/abc/def"));
 #endif
 
     fs::set_path(&p, "/abc/../def");
