@@ -9,6 +9,8 @@
 
 #if Windows
 #include <windows.h>
+#include <ioapiset.h>
+#include <winioctl.h>
 #include <direct.h>
 #else
 // ---------- LINUX ----------
@@ -1601,40 +1603,43 @@ bool fs::_canonical_path(fs::const_fs_string pth, fs::path *out, error *err)
     assert(pth.c_str != out->data);
 
 #if Windows
+    io_handle h;
 
-#if defined(UNICODE)
-    #define fullpath _wfullpath
-#else
-    #define fullpath _fullpath
-#endif
+    if (!_get_windows_handle_from_path(pth, true, &h, err))
+        return false;
 
-    sys_char *npath = fullpath(nullptr, pth.c_str, 4096);
+    fs::filesystem_type typ;
 
-    if (npath == nullptr)
+    if (!fs::get_filesystem_type(h, &typ, err))
+        return false;
+
+    u32 ret = (u32)GetFinalPathNameByHandle(h, out->data, (DWORD)out->reserved_size, 0);
+
+    if (ret > out->size)
     {
-        set_errno_error(err);
+        ::reserve(as_array_ptr(out), ret);
+        ret = (u32)GetFinalPathNameByHandle(h, out->data, (DWORD)out->reserved_size, 0);
+    }
+
+    if (ret == 0)
+    {
+        CloseHandle(h);
+        set_GetLastError_error(err);
         return false;
     }
 
-    fs::free(out);
-    out->data = npath;
-    out->size = ::string_length(npath);
-    out->reserved_size = out->size;
+    out->size = ret;
 
-    auto rt = fs::root(out);
-
-    if (out->size > rt.size)
+    if (::begins_with(to_const_string(out), SYS_CHAR(R"(\\?\)")))
     {
-        u64 end = out->size - 1;
-
-        if (_is_path_separator(out->data[end]))
-        {
-            out->data[end] = PC_NUL;
-            out->size -= 1;
-        }
+        ::remove_elements(as_array_ptr(out), 0, 4);
+        out->data[out->size] = PC_NUL;
     }
 
-    return fs::exists(out, false, err) == 1;
+    if (!CloseWindowsPathHandle(h, err))
+        return false;
+
+    return true;
 #else
 
     // TODO: replace with a real realpath, not a fake one.
@@ -1727,8 +1732,83 @@ bool fs::_get_symlink_target(fs::const_fs_string pth, fs::path *out, error *err)
     assert(out != nullptr);
 
 #if Windows
-    // TODO: implement
-    return false;
+    HANDLE h = CreateFile(pth.c_str,
+                          0,
+                          0,
+                          nullptr, 
+                          OPEN_EXISTING,
+                          FILE_FLAG_OPEN_REPARSE_POINT,
+                          nullptr);
+
+    if (h == INVALID_HANDLE_VALUE || h == INVALID_IO_HANDLE)
+    {
+        set_GetLastError_error(err);
+        return false;
+    }
+
+    defer { CloseHandle(h); };
+
+    // this is pretty huge
+    char buffer[MAXIMUM_REPARSE_DATA_BUFFER_SIZE];
+    DWORD bufsize = 0;
+
+    if (!DeviceIoControl(h,
+                         FSCTL_GET_REPARSE_POINT,
+                         nullptr,
+                         0,
+                         buffer,
+                         sizeof(buffer),
+                         &bufsize, 0))
+    {
+        set_GetLastError_error(err);
+        return false;
+    }
+
+    typedef struct _REPARSE_DATA_BUFFER {
+        ULONG  ReparseTag;
+        USHORT ReparseDataLength;
+        USHORT Reserved;
+        union {
+            struct {
+                USHORT SubstituteNameOffset;
+                USHORT SubstituteNameLength;
+                USHORT PrintNameOffset;
+                USHORT PrintNameLength;
+                ULONG  Flags;
+                WCHAR  PathBuffer[1];
+            } SymbolicLinkReparseBuffer;
+            struct {
+                USHORT SubstituteNameOffset;
+                USHORT SubstituteNameLength;
+                USHORT PrintNameOffset;
+                USHORT PrintNameLength;
+                WCHAR  PathBuffer[1];
+            } MountPointReparseBuffer;
+            struct {
+                UCHAR DataBuffer[1];
+            } GenericReparseBuffer;
+        } DUMMYUNIONNAME;
+    } REPARSE_DATA_BUFFER, *PREPARSE_DATA_BUFFER;
+
+    REPARSE_DATA_BUFFER* reparse_buf = (REPARSE_DATA_BUFFER*)buffer;
+
+    if (reparse_buf->ReparseTag != IO_REPARSE_TAG_SYMLINK)
+    {
+        set_error(err, ERROR_INVALID_PARAMETER, "");
+        return false;
+    }
+
+    int targetpathlen = reparse_buf->SymbolicLinkReparseBuffer.SubstituteNameLength / sizeof(sys_char);
+    sys_char* targetpath = (sys_char*)((char*)reparse_buf->SymbolicLinkReparseBuffer.PathBuffer + reparse_buf->SymbolicLinkReparseBuffer.SubstituteNameOffset);
+
+    if (::begins_with(to_const_string(targetpath, targetpathlen), SYS_CHAR(R"(\??\)")))
+    {
+        targetpath += 4;
+        targetpathlen -= 4;
+    }
+
+    fs::set_path(out, targetpath, targetpathlen);
+    return true;
 #else
     scratch_buffer<1024> buf{};
     ::init(&buf);
@@ -1920,8 +2000,7 @@ void fs::append_path(fs::path *out, const fs::path *to_append)
     fs::path_char_t end_of_out = out->data[out->size - 1];
     fs::path_char_t start_of_append = to_append->data[0];
 
-    if (end_of_out == fs::path_separator
-     && start_of_append == fs::path_separator)
+    if (_is_path_separator(end_of_out) && _is_path_separator(start_of_append))
     {
         // if there's a separator at the end of the out path as well
         // as the front of the path to add, don't add the one from
@@ -1929,8 +2008,7 @@ void fs::append_path(fs::path *out, const fs::path *to_append)
         append_from = 1;
         extra_size_needed -= 1;
     }
-    else if (end_of_out != fs::path_separator
-          && start_of_append != fs::path_separator)
+    else if (!_is_path_separator(end_of_out) && !_is_path_separator(start_of_append))
     {
         // or if neither is a separator, we have to add one...
         add_separator = true;

@@ -1279,49 +1279,74 @@ define_test(canonical_path_gets_canonical_path)
     fs::free(&p);
 }
 
-#if Linux
 define_test(weakly_canonical_path_gets_weakly_canonical_path)
 {
     fs::path p{};
     fs::path canonp{};
 
-#if Windows
-    // TODO: add tests
-    assert_equal(true, false);
-#else
     fs::set_path(&p, SANDBOX_TEST_DIR);
     assert_equal(fs::weakly_canonical_path(&p, &canonp), true);
     assert_equal_str(canonp, SANDBOX_TEST_DIR);
 
+#if Windows
+    fs::set_path(&p, SANDBOX_TEST_DIR "\\.");
+#else
     fs::set_path(&p, SANDBOX_TEST_DIR "/.");
+#endif
     assert_equal(fs::weakly_canonical_path(&p, &canonp), true);
     assert_equal_str(canonp, SANDBOX_TEST_DIR);
 
+#if Windows
+    fs::set_path(&p, SANDBOX_TEST_DIR "\\..");
+#else
     fs::set_path(&p, SANDBOX_TEST_DIR "/..");
+#endif
     assert_equal(fs::weakly_canonical_path(&p, &canonp), true);
     assert_equal_str(canonp, SANDBOX_DIR);
 
+#if Windows
+    fs::set_path(&p, SANDBOX_TEST_DIR "\\..\\");
+#else
     fs::set_path(&p, SANDBOX_TEST_DIR "/../");
+#endif
     assert_equal(fs::weakly_canonical_path(&p, &canonp), true);
     assert_equal_str(canonp, SANDBOX_DIR);
 
+#if Windows
+    fs::set_path(&p, SANDBOX_TEST_DIR "\\.\\..\\.");
+#else
     fs::set_path(&p, SANDBOX_TEST_DIR "/./../.");
+#endif
     assert_equal(fs::weakly_canonical_path(&p, &canonp), true);
     assert_equal_str(canonp, SANDBOX_DIR);
 
+#if Windows
+    fs::set_path(&p, SANDBOX_TEST_DIR "\\.\\.\\.");
+#else
     fs::set_path(&p, SANDBOX_TEST_DIR "/././.");
+#endif
     assert_equal(fs::weakly_canonical_path(&p, &canonp), true);
     assert_equal_str(canonp, SANDBOX_TEST_DIR);
 
     // does not fail on paths that don't exist (assuming /tmp/abc does not exist)
+#if Windows
+    fs::set_path(&p, R"(\tmp\abc\..\def)");
+    assert_equal(fs::weakly_canonical_path(&p, &canonp), true);
+    assert_equal_str(canonp, SYS_CHAR(R"(\tmp\def)"));
+#else
     fs::set_path(&p, "/tmp/abc/../def");
     assert_equal(fs::weakly_canonical_path(&p, &canonp), true);
     assert_equal_str(canonp, SYS_CHAR("/tmp/def"));
+#endif
 
+#if Windows
+    fs::set_path(&p, R"(\tmp\.\.\abc\..\def\abc)");
+    assert_equal(fs::weakly_canonical_path(&p, &canonp), true);
+    assert_equal_str(canonp, SYS_CHAR(R"(\tmp\def\abc)"));
+#else
     fs::set_path(&p, "/tmp/././abc/../def/abc");
     assert_equal(fs::weakly_canonical_path(&p, &canonp), true);
     assert_equal_str(canonp, SYS_CHAR("/tmp/def/abc"));
-    
 #endif
 
     fs::free(&canonp);
@@ -1337,7 +1362,11 @@ define_test(get_symlink_target_reads_symlink)
     assert_equal_str(target, SANDBOX_TEST_FILE);
 
     assert_equal(fs::get_symlink_target(SANDBOX_TEST_SYMLINK_NO_TARGET, &target, &err), true);
+#if Windows
+    assert_equal_str(target, SANDBOX_DIR "\\symlink_dest");
+#else
     assert_equal_str(target, SANDBOX_DIR "/symlink_dest");
+#endif
 
     assert_equal(fs::get_symlink_target(SANDBOX_TEST_FILE, &target, &err), false);
 
@@ -1347,7 +1376,9 @@ define_test(get_symlink_target_reads_symlink)
 
     assert_equal(fs::get_symlink_target(SANDBOX_DIR "/doesnotexist", &target, &err), false);
 
-#if Linux
+#if Windows
+    assert_equal(err.error_code, ERROR_FILE_NOT_FOUND);
+#else
     assert_equal(err.error_code, ENOENT);
 #endif
 
@@ -1395,59 +1426,84 @@ define_test(append_appends_to_path)
 #if Windows
     fs::set_path(&p, R"(C:\Windows)");
     fs::append_path(&p, "notepad.exe");
-    assert_equal_str(p.data, R"(C:\Windows\notepad.exe)");
+    assert_equal_str(p, SYS_CHAR(R"(C:\Windows\notepad.exe)"));
 
-    // TODO: more tests
-    assert_equal(false, true);
+    fs::set_path(&p, R"(C:\Windows\)");
+    fs::append_path(&p, "notepad.exe");
+    assert_equal_str(p, SYS_CHAR(R"(C:\Windows\notepad.exe)"));
+
+    fs::set_path(&p, R"(C:\Windows)");
+    fs::append_path(&p, "/notepad.exe");
+    assert_equal_str(p, SYS_CHAR(R"(/notepad.exe)"));
+
+    fs::set_path(&p, R"(C:\Windows)");
+    fs::append_path(&p, "\\notepad.exe");
+    assert_equal_str(p, SYS_CHAR(R"(\notepad.exe)"));
+
+    fs::set_path(&p, R"(C:\Windows)");
+    fs::append_path(&p, "notepad.exe/system32");
+    assert_equal_str(p, SYS_CHAR(R"(C:\Windows\notepad.exe/system32)"));
+
+    fs::set_path(&p, R"(C:)");
+    fs::append_path(&p, "Windows\\System32");
+    assert_equal_str(p, SYS_CHAR(R"(C:\Windows\System32)"));
+
+    fs::set_path(&p, "abc");
+    fs::append_path(&p, "xyz");
+    assert_equal_str(p, SYS_CHAR("abc\\xyz"));
+
+    fs::set_path(&p, "");
+    fs::append_path(&p, "xyz");
+    assert_equal_str(p, SYS_CHAR("xyz"));
 #else
     fs::set_path(&p, "/etc");
     fs::append_path(&p, "passwd");
-    assert_equal_str(p.c_str(), SYS_CHAR("/etc/passwd"));
+    assert_equal_str(p, SYS_CHAR("/etc/passwd"));
 
     // with trailing separator, same result
     fs::set_path(&p, "/etc/");
     fs::append_path(&p, "passwd");
-    assert_equal_str(p.c_str(), SYS_CHAR("/etc/passwd"));
+    assert_equal_str(p, SYS_CHAR("/etc/passwd"));
 
     // replaces when appending absolute path
     fs::set_path(&p, "/etc");
     fs::append_path(&p, "/passwd");
-    assert_equal_str(p.c_str(), SYS_CHAR("/passwd"));
+    assert_equal_str(p, SYS_CHAR("/passwd"));
 
     fs::set_path(&p, "//xyz");
     fs::append_path(&p, "abc");
-    assert_equal_str(p.c_str(), SYS_CHAR("//xyz/abc"));
+    assert_equal_str(p, SYS_CHAR("//xyz/abc"));
 
     fs::set_path(&p, "//xyz/");
     fs::append_path(&p, "abc");
-    assert_equal_str(p.c_str(), SYS_CHAR("//xyz/abc"));
+    assert_equal_str(p, SYS_CHAR("//xyz/abc"));
 
     fs::set_path(&p, "//xyz/dir");
     fs::append_path(&p, "/abc");
-    assert_equal_str(p.c_str(), SYS_CHAR("/abc"));
+    assert_equal_str(p, SYS_CHAR("/abc"));
 
     fs::set_path(&p, "//xyz/dir");
     fs::append_path(&p, "//xyz/abc");
-    assert_equal_str(p.c_str(), SYS_CHAR("//xyz/abc"));
+    assert_equal_str(p, SYS_CHAR("//xyz/abc"));
 
     // path alone doesnt check whether what it's pointing to is a directory or not
     // so this will just append at the end.
     fs::set_path(&p, "/etc/test.txt");
     fs::append_path(&p, "passwd");
-    assert_equal_str(p.c_str(), SYS_CHAR("/etc/test.txt/passwd"));
+    assert_equal_str(p, SYS_CHAR("/etc/test.txt/passwd"));
 
     fs::set_path(&p, "/etc/test.txt");
     fs::append_path(&p, "passwd/test2.txt");
-    assert_equal_str(p.c_str(), SYS_CHAR("/etc/test.txt/passwd/test2.txt"));
+    assert_equal_str(p, SYS_CHAR("/etc/test.txt/passwd/test2.txt"));
 
     // relative
     fs::set_path(&p, "abc");
     fs::append_path(&p, "xyz");
-    assert_equal_str(p.c_str(), SYS_CHAR("abc/xyz"));
+    assert_equal_str(p, SYS_CHAR("abc/xyz"));
 
     fs::set_path(&p, "");
     fs::append_path(&p, "xyz");
-    assert_equal_str(p.c_str(), SYS_CHAR("xyz"));
+    assert_equal_str(p, SYS_CHAR("xyz"));
 
 #endif
 
@@ -1483,7 +1539,7 @@ define_test(concat_concats_to_path)
     assert_equal(p.size, 10);
     assert_equal_str(p, SYS_CHAR("/etcpasswd"));
 
-    // wide paths will get converted
+    // paths of different character types will get converted
     fs::set_path(&p, "/etc");
     fs::concat_path(&p, L"passwd");
     assert_equal(p.size, 10);
@@ -1492,6 +1548,7 @@ define_test(concat_concats_to_path)
     fs::free(&p);
 }
 
+#if Linux
 define_test(relative_path_gets_the_relative_path_to_another)
 {
     fs::path from{};
