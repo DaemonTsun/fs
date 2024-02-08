@@ -1548,21 +1548,38 @@ define_test(concat_concats_to_path)
     fs::free(&p);
 }
 
-#if Linux
 define_test(relative_path_gets_the_relative_path_to_another)
 {
     fs::path from{};
     fs::path to{};
     fs::path rel{};
 
-#if Windows
-    // TODO: add test
-#else
 #define assert_rel_path(From, To, ExpectedResult)\
-    fs::set_path(&from, From);\
-    fs::set_path(&to, To);\
+    fs::set_path(&from, SYS_CHAR(From));\
+    fs::set_path(&to, SYS_CHAR(To));\
     fs::relative_path(&from, &to, &rel);\
-    assert_equal_str(to_const_string(&rel), to_const_string(ExpectedResult))
+    assert_equal_str(to_const_string(&rel), to_const_string(SYS_CHAR(ExpectedResult)))
+
+#if Windows
+    assert_rel_path(".\\",      ".\\def", "def");
+    assert_rel_path(".\\",      "def",    "def");
+    assert_rel_path(".",        "def",    "def");
+    assert_rel_path(".",        ".\\def", "def");
+    assert_rel_path(".\\dir",   ".\\def", "..\\def");
+    assert_rel_path(".\\dir\\", ".\\def", "..\\def");
+    assert_rel_path(".\\dir\\", "def",    "..\\def");
+
+    assert_rel_path("C:\\a\\b\\c",  "C:\\a\\d",   "..\\..\\d");
+    assert_rel_path("C:\\a\\d",    "C:\\a\\b\\c", "..\\b\\c");
+    assert_rel_path("a",       "a\\b\\c",  "b\\c");
+    assert_rel_path("a",       "b",  "..\\b");
+    // roots differ
+    assert_rel_path("a",       "C:\\a\\b\\c", "");
+    assert_rel_path("C:\\a\\b\\c",  "a",      "");
+    assert_rel_path("C:\\a\\d",    "D:\\a\\b\\c", "");
+
+    assert_rel_path(".\\dir\\a\\b\\c", "def", "..\\..\\..\\..\\def");
+#else
 
     assert_rel_path("./",      "./def", "def");
     assert_rel_path("./",      "def",   "def");
@@ -1589,6 +1606,7 @@ define_test(relative_path_gets_the_relative_path_to_another)
     fs::free(&rel);
 }
 
+#if Linux
 define_test(touch_touches_file)
 {
     fs::path p{};
