@@ -346,7 +346,7 @@ enum class copy_file_option
     OverwriteExisting,  // (default) overwrites existing destination.
     UpdateExisting,     // overwrites existing destination ONLY if destination is older than source,
                         // but does not report an error in either case.
-                        // looks at MODIFICATION date.
+                        // looks at MODIFICATION time.
     SkipExisting        // skips any existing destination files.
     // UpdateOnly? might be useful
 };

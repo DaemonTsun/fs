@@ -1606,7 +1606,6 @@ define_test(relative_path_gets_the_relative_path_to_another)
     fs::free(&rel);
 }
 
-#if Linux
 define_test(touch_touches_file)
 {
     fs::path p{};
@@ -1620,15 +1619,16 @@ define_test(touch_touches_file)
     fs::filesystem_info old_info{};
     fs::filesystem_info new_info{};
 
-    fs::get_filesystem_info(&p, &old_info);
+    fs::get_filesystem_info(&p, &old_info, true, FS_QUERY_FILE_TIMES);
 
     sleep_ms(200);
 
     assert_equal(fs::touch(&p), true);
-    fs::get_filesystem_info(&p, &new_info);
+    fs::get_filesystem_info(&p, &new_info, true, FS_QUERY_FILE_TIMES);
 
 #if Windows
-    // TODO: implement
+    assert_greater(new_info.detail.file_times.last_write_time, old_info.detail.file_times.last_write_time);
+    assert_greater(new_info.detail.file_times.change_time,    old_info.detail.file_times.change_time);
 #else
     assert_greater(new_info.stx_mtime, old_info.stx_mtime);
 #endif
@@ -1651,7 +1651,7 @@ define_test(copy_file_copies_file)
     assert_equal(fs::copy_file(&from, &to, fs::copy_file_option::None, &err), false);
 
 #if Windows
-    // TODO: implement
+    assert_equal(err.error_code, ERROR_ALREADY_EXISTS);
 #else
     assert_equal(err.error_code, EEXIST);
 #endif
@@ -1666,12 +1666,13 @@ define_test(copy_file_copies_file)
 
     fs::filesystem_info from_info{};
     fs::filesystem_info to_info{};
-    assert_equal(fs::get_filesystem_info(&from, &from_info), true);
-    assert_equal(fs::get_filesystem_info(&to, &to_info), true);
+    assert_equal(fs::get_filesystem_info(&from, &from_info, true, FS_QUERY_FILE_TIMES), true);
+    assert_equal(fs::get_filesystem_info(&to, &to_info, true, FS_QUERY_FILE_TIMES), true);
 
     // check that the date from To is indeed later than From
 #if Windows
-    // TODO: implement
+    assert_greater(to_info.detail.file_times.last_write_time, from_info.detail.file_times.last_write_time);
+    assert_greater(to_info.detail.file_times.change_time,     from_info.detail.file_times.change_time);
 #else
     assert_greater(to_info.stx_mtime, from_info.stx_mtime);
 #endif
@@ -1679,11 +1680,12 @@ define_test(copy_file_copies_file)
     sleep_ms(100);
     fs::touch(&from);
 
-    assert_equal(fs::get_filesystem_info(&from, &from_info), true);
+    assert_equal(fs::get_filesystem_info(&from, &from_info, true, FS_QUERY_FILE_TIMES), true);
 
     // now From should be newer than To
 #if Windows
-    // TODO: implement
+    assert_greater(from_info.detail.file_times.last_write_time, to_info.detail.file_times.last_write_time);
+    assert_greater(from_info.detail.file_times.change_time,     to_info.detail.file_times.change_time);
 #else
     assert_greater(from_info.stx_mtime, to_info.stx_mtime);
 #endif
@@ -1691,11 +1693,12 @@ define_test(copy_file_copies_file)
     sleep_ms(100);
     assert_equal(fs::copy_file(&from, &to, fs::copy_file_option::UpdateExisting, &err), true);
 
-    assert_equal(fs::get_filesystem_info(&to, &to_info), true);
+    assert_equal(fs::get_filesystem_info(&to, &to_info, true, FS_QUERY_FILE_TIMES), true);
 
     // and now To is newer again
 #if Windows
-    // TODO: implement
+    assert_greater(to_info.detail.file_times.last_write_time, from_info.detail.file_times.last_write_time);
+    assert_greater(to_info.detail.file_times.change_time,     from_info.detail.file_times.change_time);
 #else
     assert_greater(to_info.stx_mtime, from_info.stx_mtime);
 #endif
@@ -1704,6 +1707,7 @@ define_test(copy_file_copies_file)
     fs::free(&to);
 }
 
+#if Linux
 define_test(copy_directory_copies_directory)
 {
     error err{};

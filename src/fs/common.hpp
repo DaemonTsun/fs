@@ -39,21 +39,32 @@ enum class filesystem_type
     CharacterFile   = FILE_TYPE_CHAR,
 };
 
+struct windows_file_times
+{
+    u64 creation_time;
+    u64 last_access_time;
+    u64 last_write_time;
+    u64 change_time;
+};
+
 struct filesystem_info
 {
     union _info_detail
     {
+        // FILE_BASIC_INFO         basic_info;     // FileBasicInfo, includes times
         FILE_ATTRIBUTE_TAG_INFO attribute_info; // FileAttributeTagInfo
         FILE_ID_INFO            id_info;        // FileIdInfo
+        windows_file_times      file_times;
         int                     permissions;
         fs::filesystem_type     type;
     } detail;
 };
 
-#define FS_QUERY_DEFAULT_FLAGS  0
+#define FS_QUERY_DEFAULT_FLAGS  FileBasicInfo
 #define FS_QUERY_PERMISSIONS    0x1000
 #define FS_QUERY_TYPE           0x1001
 #define FS_QUERY_ID             0x1002
+#define FS_QUERY_FILE_TIMES     0x1003
 
 #else
 // Linux and others
@@ -104,6 +115,7 @@ struct filesystem_info
 #define FS_QUERY_TYPE           0x001 // STATX_TYPE
 #define FS_QUERY_PERMISSIONS    0x002 // STATX_MODE
 #define FS_QUERY_ID             0x100 // STATX_INO
+#define FS_QUERY_FILE_TIMES     0x8e0 // STATX_BTIME | STATX_ATIME | STATX_MTIME | STATX_CTIME
 
 enum class filesystem_type : u16
 {

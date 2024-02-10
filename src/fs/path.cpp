@@ -430,6 +430,21 @@ bool fs::get_filesystem_info(io_handle h, fs::filesystem_info *out, int flags, e
 
             return true;
         }
+        case FS_QUERY_FILE_TIMES:
+        {
+            FILE_BASIC_INFO binfo{};
+            if (!GetFileInformationByHandleEx(h,
+                                              FileBasicInfo,
+                                              &binfo,
+                                              sizeof(binfo)))
+            {
+                set_GetLastError_error(err);
+                return false;
+            }
+
+            copy_memory(&binfo, &out->detail.file_times, sizeof(windows_file_times));
+            return true;
+        }
         default:
             return false;
         }
@@ -2152,7 +2167,39 @@ void fs::_relative_path(fs::const_fs_string from, fs::const_fs_string to, fs::pa
 bool fs::_touch(fs::const_fs_string pth, fs::permission perms, error *err)
 {
 #if Windows
-    // TODO: implement
+    io_handle h = INVALID_HANDLE_VALUE;
+
+    h = CreateFile(pth.c_str,
+                   GENERIC_READ | GENERIC_WRITE,
+                   FILE_SHARE_DELETE | FILE_SHARE_READ | FILE_SHARE_WRITE,
+                   nullptr,
+                   OPEN_ALWAYS,
+                   FILE_ATTRIBUTE_NORMAL,
+                   nullptr);
+
+    if (h == INVALID_HANDLE_VALUE || h == INVALID_IO_HANDLE)
+    {
+        set_GetLastError_error(err);
+        return false;
+    }
+
+    defer { CloseHandle(h); };
+
+    FILETIME now{};
+
+    GetSystemTimeAsFileTime(&now);
+    
+    if (!SetFileTime(h,
+                     nullptr, // create time, nullptr does not change the time
+                     &now,    // access time
+                     &now     // modification time
+                    ))
+    {
+        set_GetLastError_error(err);
+        return false;
+    }
+
+    return true;
 #else
     int fd = ::open(pth.c_str, O_CREAT | O_WRONLY, (::mode_t)perms);
 
@@ -2171,16 +2218,104 @@ bool fs::_touch(fs::const_fs_string pth, fs::permission perms, error *err)
         return false;
     }
 
-#endif
-
     return true;
+#endif
 }
 
 bool fs::_copy_file(fs::const_fs_string from, fs::const_fs_string to, fs::copy_file_option opt, error *err)
 {
 #if Windows
-    // TODO: implement
-    return false;
+    io_handle from_handle;
+    io_handle to_handle;
+    bool to_exists = false;
+
+    from_handle = CreateFile(from.c_str,
+                             0,
+                             FILE_SHARE_DELETE | FILE_SHARE_READ | FILE_SHARE_WRITE,
+                             nullptr,
+                             OPEN_EXISTING,
+                             FILE_ATTRIBUTE_NORMAL,
+                             nullptr);
+
+    if (from_handle == INVALID_HANDLE_VALUE)
+    {
+        set_GetLastError_error(err);
+        return false;
+    }
+
+    defer { CloseHandle(from_handle); };
+
+    to_handle = CreateFile(to.c_str,
+                           0,
+                           FILE_SHARE_DELETE | FILE_SHARE_READ | FILE_SHARE_WRITE,
+                           nullptr,
+                           OPEN_EXISTING,
+                           FILE_ATTRIBUTE_NORMAL,
+                           nullptr);
+
+    if (to_handle == INVALID_HANDLE_VALUE)
+    {
+        int ec = GetLastError();
+
+        if (ec == ERROR_FILE_NOT_FOUND)
+            to_exists = false;
+        else
+        {
+            // some error other than file not found probably means its inaccessible
+            set_error(err, ec, _windows_error_message(ec));
+            return false;
+        }
+    }
+    else
+        to_exists = true;
+
+    defer { if (to_handle != INVALID_HANDLE_VALUE) CloseHandle(to_handle); };
+
+    if (to_exists)
+    {
+        switch (opt)
+        {
+        case fs::copy_file_option::None:
+        {
+            set_error(err, ERROR_ALREADY_EXISTS, _windows_error_message(ERROR_ALREADY_EXISTS));
+            return false;
+        }
+        case fs::copy_file_option::OverwriteExisting:
+            break;
+
+        case fs::copy_file_option::SkipExisting:
+            return true;
+
+        case fs::copy_file_option::UpdateExisting:
+        {
+            fs::filesystem_info from_info;
+            fs::filesystem_info to_info;
+
+            if (!fs::get_filesystem_info(from_handle, &from_info, FS_QUERY_FILE_TIMES, err))
+                return false;
+
+            if (!fs::get_filesystem_info(to_handle, &to_info, FS_QUERY_FILE_TIMES, err))
+                return false;
+
+            if (to_info.detail.file_times.last_write_time >= from_info.detail.file_times.last_write_time)
+                return true;
+
+            break;
+        }
+        }
+    }
+
+    if (!CopyFile(from.c_str, to.c_str, false))
+    {
+        set_GetLastError_error(err);
+        return false;
+    }
+
+    // is this desired?
+    if (!fs::touch(to, fs::permission::All, err))
+        return false;
+
+    return true;
 #else
     int from_fd = 0;
     int to_fd = 0;
@@ -2265,11 +2400,10 @@ bool fs::_copy_file(fs::const_fs_string from, fs::const_fs_string to, fs::copy_f
 // only the directory, not children
 bool _copy_single_directory(fs::const_fs_string from, fs::const_fs_string to, fs::copy_file_option opt, error *err)
 {
+#if Linux
     unsigned int flags = 0;
 
-#if Linux
     flags = STATX_MODE | STATX_TYPE;
-#endif
 
     fs::filesystem_info from_info;
 
@@ -2298,6 +2432,7 @@ bool _copy_single_directory(fs::const_fs_string from, fs::const_fs_string to, fs
     // so we check again.
     if (_err.error_code == EEXIST && opt == fs::copy_file_option::None)
         return false;
+#endif
 
     return true;
 }
