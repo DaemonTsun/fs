@@ -2510,32 +2510,44 @@ bool fs::_copy(fs::const_fs_string from, fs::const_fs_string to, int max_depth, 
 
 bool fs::_create_directory(fs::const_fs_string pth, fs::permission perms, error *err)
 {
+    // we have to check for ERROR_ALREADY_EXISTS / EEXIST because if it already
+    // exists and it's a directory then we return true (failed successfully),
+    // but if it exists and is not a directory then we yield the correct error
+    // and return false.
+
 #if Windows
-    // TODO: implement
-    return false;
+    // TODO: set perms
+    (void)perms;
+
+    if (::CreateDirectory(pth.c_str, nullptr))
+        return true;
+
+    int _errcode = (int)GetLastError();
+    set_error(err, _errcode, ::_windows_error_message(_errcode));
+
+    if (_errcode != ERROR_ALREADY_EXISTS)
+        return false;
+
+    // continued at the bottom
 #else
     if (::mkdir(pth.c_str, (::mode_t)perms) != -1)
         return true;
 
-    // we have to check for EEXIST because if it already exists and it's a directory
-    // then we return true (failed successfully), but if it exists and is not a
-    // directory then we yield the correct error and return false.
     int _errcode = errno;
     set_error(err, _errcode, ::strerror(_errcode));
 
     if (_errcode != EEXIST)
         return false;
 
-    fs::filesystem_info info;
-
-    if (!fs::get_filesystem_info(pth, &info, false, STATX_TYPE, err))
-        return false;
-
-    if (!S_ISDIR(info.stx_mode))
-        return false;
-
-    return true;
+    // continued at the bottom
 #endif
+
+    fs::filesystem_type t;
+
+    if (!fs::_get_filesystem_type(pth, &t, false, err))
+        return false;
+
+    return t == fs::filesystem_type::Directory;
 }
 
 bool fs::_create_directories(fs::const_fs_string pth, fs::permission perms, error *err)

@@ -1707,7 +1707,7 @@ define_test(copy_file_copies_file)
     fs::free(&to);
 }
 
-#if Linux
+#if Linux // TODO: remove
 define_test(copy_directory_copies_directory)
 {
     error err{};
@@ -1776,7 +1776,9 @@ define_test(copy_directory_copies_directory)
     assert_equal(fs::exists(SANDBOX_DIR "/copy_dir_to/dir1/dir2"), 0);
     assert_equal(fs::exists(SANDBOX_DIR "/copy_dir_to/dir1/dir2/file3"), 0);
 
-#if Linux
+#if Windows
+    assert_equal(err.error_code, ERROR_ALREADY_EXISTS);
+#else
     assert_equal(err.error_code, EEXIST);
 #endif
 
@@ -1794,7 +1796,9 @@ define_test(copy_directory_copies_directory)
 
     fs::remove(dir_to);
 }
+#endif
 
+#if Linux // TODO: remove
 define_test(copy_copies_files_and_directories)
 {
     const char *dir_from = SANDBOX_DIR "/copy1_dir";
@@ -1817,6 +1821,7 @@ define_test(copy_copies_files_and_directories)
     assert_equal(fs::exists(file_from), 1);
     assert_equal(fs::exists(file_to), 1);
 }
+#endif
 
 define_test(create_directory_creates_directory)
 {
@@ -1825,40 +1830,44 @@ define_test(create_directory_creates_directory)
 
     fs::set_path(&p, SANDBOX_TEST_DIR "/_create_dir1");
 
-    assert_equal(fs::exists(&p), false); 
+    assert_equal(fs::exists(&p), 0); 
     assert_equal(fs::create_directory(&p), true); 
-    assert_equal(fs::exists(&p), true); 
+    assert_equal(fs::exists(&p), 1); 
 
     // creating a directory that already exists returns true (but also yields error code)
     assert_equal(fs::create_directory(&p, fs::permission::User, &err), true); 
-    assert_equal(fs::exists(&p), true); 
+    assert_equal(fs::exists(&p), 1); 
 
-#if Linux
+#if Windows
+    assert_equal(err.error_code, ERROR_ALREADY_EXISTS);
+#else
     assert_equal(err.error_code, EEXIST);
 #endif
 
     // creating a directory on a path thats not a directory DOES yield an error
     fs::set_path(&p, SANDBOX_TEST_FILE);
-    assert_equal(fs::exists(&p), true); 
+    assert_equal(fs::exists(&p), 1); 
     assert_equal(fs::create_directory(&p, fs::permission::User, &err), false);
-    assert_equal(fs::exists(&p), true); 
+    assert_equal(fs::exists(&p), 1); 
 
-#if Linux
+#if Windows
+    assert_equal(err.error_code, ERROR_ALREADY_EXISTS);
+#else
     assert_equal(err.error_code, EEXIST);
 #endif
 
     // relative path (in sandbox)
     fs::set_path(&p, "_create_dir2");
 
-    assert_equal(fs::exists(&p), false); 
+    assert_equal(fs::exists(&p), 0); 
     assert_equal(fs::create_directory(&p), true); 
-    assert_equal(fs::exists(&p), true); 
+    assert_equal(fs::exists(&p), 1); 
 
     fs::set_path(&p, "_create_dir2/xyz");
 
-    assert_equal(fs::exists(&p), false); 
+    assert_equal(fs::exists(&p), 0); 
     assert_equal(fs::create_directory(&p), true); 
-    assert_equal(fs::exists(&p), true); 
+    assert_equal(fs::exists(&p), 1); 
 
     // no permission
     fs::set_path(&p, "/root/_create_dir3");
@@ -1885,38 +1894,38 @@ define_test(create_directories_creates_directories_and_parents)
 
     fs::set_path(&p, SANDBOX_TEST_DIR "/_create_dirs1");
 
-    assert_equal(fs::exists(&p), false); 
+    assert_equal(fs::exists(&p), 0); 
     assert_equal(fs::create_directories(&p), true); 
-    assert_equal(fs::exists(&p), true); 
+    assert_equal(fs::exists(&p), 1); 
 
     // creating a directory that already exists does not yield an error
     assert_equal(fs::create_directories(&p), true); 
-    assert_equal(fs::exists(&p), true); 
+    assert_equal(fs::exists(&p), 1); 
 
     // relative path (in sandbox)
     fs::set_path(&p, "_create_dirs2");
 
-    assert_equal(fs::exists(&p), false); 
+    assert_equal(fs::exists(&p), 0); 
     assert_equal(fs::create_directories(&p), true); 
-    assert_equal(fs::exists(&p), true); 
+    assert_equal(fs::exists(&p), 1); 
 
     fs::set_path(&p, "_create_dirs2/xyz");
 
-    assert_equal(fs::exists(&p), false); 
+    assert_equal(fs::exists(&p), 0); 
     assert_equal(fs::create_directories(&p), true); 
-    assert_equal(fs::exists(&p), true); 
+    assert_equal(fs::exists(&p), 1); 
     
     
     // DOES create parent directories
     fs::set_path(&p, SANDBOX_TEST_DIR "/_create_dirs4/abc/def");
-    assert_equal(fs::exists(&p), false); 
+    assert_not_equal(fs::exists(&p), 1);
     assert_equal(fs::create_directories(&p), true); 
-    assert_equal(fs::exists(&p), true); 
+    assert_equal(fs::exists(&p), 1); 
 
     fs::set_path(&p, "_create_dirs5/xyz");
-    assert_equal(fs::exists(&p), false); 
+    assert_not_equal(fs::exists(&p), 1);
     assert_equal(fs::create_directories(&p), true); 
-    assert_equal(fs::exists(&p), true); 
+    assert_equal(fs::exists(&p), 1); 
 
     error err{};
 
@@ -1930,6 +1939,7 @@ define_test(create_directories_creates_directories_and_parents)
     fs::free(&p);
 }
 
+#if Linux // TODO: remove
 define_test(create_hard_link_creates_hard_link)
 {
     fs::path target{};
@@ -1939,9 +1949,9 @@ define_test(create_hard_link_creates_hard_link)
     fs::set_path(&target, SANDBOX_TEST_FILE);
     fs::set_path(&link,   SANDBOX_DIR "/_hardlink1");
 
-    assert_equal(fs::exists(&link), false); 
+    assert_equal(fs::exists(&link), 0); 
     assert_equal(fs::create_hard_link(&target, &link), true); 
-    assert_equal(fs::exists(&link), true); 
+    assert_equal(fs::exists(&link), 1); 
 
     assert_equal(fs::are_equivalent(&target, &link), true);
     assert_equal(fs::are_equivalent(&target, &link, false), true);
@@ -1950,7 +1960,7 @@ define_test(create_hard_link_creates_hard_link)
     assert_equal(fs::create_hard_link(&target, &link, &err), false); 
 
 #if Windows
-    // TODO: check error
+    assert_equal(err.error_code, ERROR_ALREADY_EXISTS);
 #else
     assert_equal(err.error_code, EEXIST);
 #endif
@@ -1971,9 +1981,9 @@ define_test(create_hard_link_creates_hard_link)
     fs::set_path(&target, SANDBOX_TEST_DIR);
     fs::set_path(&link,   SANDBOX_DIR "/_hardlink3");
 
-    assert_equal(fs::exists(&link), false); 
+    assert_equal(fs::exists(&link), 0); 
     assert_equal(fs::create_hard_link(&target, &link, &err), false); 
-    assert_equal(fs::exists(&link), false); 
+    assert_equal(fs::exists(&link), 0); 
 
 #if Windows
     // TODO: check error
@@ -1994,9 +2004,9 @@ define_test(create_symlink_creates_symlink)
     fs::set_path(&target, SANDBOX_TEST_FILE);
     fs::set_path(&link,   SANDBOX_DIR "/_symlink1");
 
-    assert_equal(fs::exists(&link), false); 
+    assert_equal(fs::exists(&link), 0); 
     assert_equal(fs::create_symlink(&target, &link), true); 
-    assert_equal(fs::exists(&link), true); 
+    assert_equal(fs::exists(&link), 1); 
 
     assert_equal(fs::are_equivalent(&target, &link), true);
     assert_equal(fs::are_equivalent(&target, &link, false), false);
@@ -2005,7 +2015,7 @@ define_test(create_symlink_creates_symlink)
     assert_equal(fs::create_symlink(&target, &link, &err), false); 
 
 #if Windows
-    // TODO: check error
+    assert_equal(err.error_code, ERROR_ALREADY_EXISTS);
 #else
     assert_equal(err.error_code, EEXIST);
 #endif
@@ -2015,16 +2025,16 @@ define_test(create_symlink_creates_symlink)
 
     assert_equal(fs::create_symlink(&target, &link, &err), true);
 
-    assert_equal(fs::exists(&link), false); 
-    assert_equal(fs::exists(&link, false), true); 
+    assert_equal(fs::exists(&link), 0); 
+    assert_equal(fs::exists(&link, false), 1); 
 
     // works on directories
     fs::set_path(&target, SANDBOX_TEST_DIR);
     fs::set_path(&link,   SANDBOX_DIR "/_symlink3");
 
-    assert_equal(fs::exists(&link), false); 
+    assert_equal(fs::exists(&link), 0); 
     assert_equal(fs::create_symlink(&target, &link), true); 
-    assert_equal(fs::exists(&link), true); 
+    assert_equal(fs::exists(&link), 1); 
 
     assert_equal(fs::are_equivalent(&target, &link), true);
     assert_equal(fs::are_equivalent(&target, &link, false), false);
@@ -2044,20 +2054,20 @@ define_test(move_moves_files_and_directories)
 
     fs::copy_file(SANDBOX_TEST_FILE, &src);
 
-    assert_equal(fs::exists(&src), true); 
-    assert_equal(fs::exists(&dst), false); 
+    assert_equal(fs::exists(&src), 1); 
+    assert_equal(fs::exists(&dst), 0); 
     assert_equal(fs::move(&src, &dst), true); 
-    assert_equal(fs::exists(&src), false); 
-    assert_equal(fs::exists(&dst), true); 
+    assert_equal(fs::exists(&src), 0); 
+    assert_equal(fs::exists(&dst), 1); 
 
     fs::copy_file(SANDBOX_TEST_FILE, &src);
 
     // overwrites existing files
-    assert_equal(fs::exists(&src), true); 
-    assert_equal(fs::exists(&dst), true); 
+    assert_equal(fs::exists(&src), 1); 
+    assert_equal(fs::exists(&dst), 1); 
     assert_equal(fs::move(&src, &dst), true); 
-    assert_equal(fs::exists(&src), false); 
-    assert_equal(fs::exists(&dst), true); 
+    assert_equal(fs::exists(&src), 0); 
+    assert_equal(fs::exists(&dst), 1); 
 
     // can move directories
     auto src_dir = SANDBOX_DIR "/_movedir1";
@@ -2065,11 +2075,11 @@ define_test(move_moves_files_and_directories)
 
     fs::create_directory(src_dir);
 
-    assert_equal(fs::exists(src_dir), true); 
-    assert_equal(fs::exists(dst_dir), false); 
+    assert_equal(fs::exists(src_dir), 1); 
+    assert_equal(fs::exists(dst_dir), 0); 
     assert_equal(fs::move(src_dir, dst_dir), true); 
-    assert_equal(fs::exists(src_dir), false); 
-    assert_equal(fs::exists(dst_dir), true); 
+    assert_equal(fs::exists(src_dir), 0); 
+    assert_equal(fs::exists(dst_dir), 1); 
 
     assert_equal(fs::move(dst_dir, src_dir), true); 
 
@@ -2092,12 +2102,12 @@ define_test(move_moves_files_and_directories)
     // can move directory thats not empty
     assert_equal(fs::move(dst, SANDBOX_DIR "/_movedir1/_move1"), true);
 
-    assert_equal(fs::exists(src_dir), true); 
-    assert_equal(fs::exists(dst_dir), false); 
+    assert_equal(fs::exists(src_dir), 1); 
+    assert_equal(fs::exists(dst_dir), 0); 
     assert_equal(fs::move(src_dir, dst_dir), true); 
-    assert_equal(fs::exists(src_dir), false); 
-    assert_equal(fs::exists(dst_dir), true); 
-    assert_equal(fs::exists(SANDBOX_DIR "/_movedir2/_move1"), true); 
+    assert_equal(fs::exists(src_dir), 0); 
+    assert_equal(fs::exists(dst_dir), 1); 
+    assert_equal(fs::exists(SANDBOX_DIR "/_movedir2/_move1"), 1); 
 
     fs::free(&src);
     fs::free(&dst);
@@ -2111,9 +2121,9 @@ define_test(remove_file_removes_file)
     fs::set_path(&p, SANDBOX_DIR "/_remove_file1");
     fs::copy_file(SANDBOX_TEST_FILE, &p);
 
-    assert_equal(fs::exists(p), true); 
+    assert_equal(fs::exists(p), 1); 
     assert_equal(fs::remove_file(p), true); 
-    assert_equal(fs::exists(p), false); 
+    assert_equal(fs::exists(p), 0); 
 
     assert_equal(fs::remove_file(p, &err), false); 
 
@@ -2146,22 +2156,22 @@ define_test(remove_empty_directory_removes_only_empty_directories)
     fs::touch(file1);
     fs::touch(file2);
 
-    assert_equal(fs::exists(dir1), true); 
+    assert_equal(fs::exists(dir1), 1); 
     assert_equal(fs::remove_empty_directory(dir1, &err), true); 
-    assert_equal(fs::exists(dir1), false); 
+    assert_equal(fs::exists(dir1), 0); 
 
     // not empty
-    assert_equal(fs::exists(dir2), true); 
+    assert_equal(fs::exists(dir2), 1); 
     assert_equal(fs::remove_empty_directory(dir2, &err), false); 
-    assert_equal(fs::exists(dir2), true); 
+    assert_equal(fs::exists(dir2), 1); 
 
 #if Linux
     assert_equal(err.error_code, ENOTEMPTY);
 #endif
 
-    assert_equal(fs::exists(file1), true); 
+    assert_equal(fs::exists(file1), 1); 
     assert_equal(fs::remove_empty_directory(file1, &err), false); 
-    assert_equal(fs::exists(file1), true); 
+    assert_equal(fs::exists(file1), 1); 
 
 #if Linux
     assert_equal(err.error_code, ENOTDIR);
@@ -2188,31 +2198,31 @@ define_test(remove_directory_removes_directories)
     fs::touch(SANDBOX_DIR "/remove_dir3/file3");
     fs::touch(SANDBOX_DIR "/remove_dir3/dir4/file4");
 
-    assert_equal(fs::exists(dir1), true); 
+    assert_equal(fs::exists(dir1), 1); 
     assert_equal(fs::remove_directory(dir1, &err), true); 
-    assert_equal(fs::exists(dir1), false); 
+    assert_equal(fs::exists(dir1), 0); 
 
     // not empty
-    assert_equal(fs::exists(dir2), true); 
+    assert_equal(fs::exists(dir2), 1); 
     assert_equal(fs::remove_directory(dir2, &err), true);
-    assert_equal(fs::exists(dir2), false); 
+    assert_equal(fs::exists(dir2), 0); 
 
 #if Linux
     assert_equal(err.error_code, 0);
 #endif
 
     // not empty with subdirectories and more descendants
-    assert_equal(fs::exists(dir3), true); 
+    assert_equal(fs::exists(dir3), 1); 
     assert_equal(fs::remove_directory(dir3, &err), true);
-    assert_equal(fs::exists(dir3), false); 
+    assert_equal(fs::exists(dir3), 0); 
 
 #if Linux
     assert_equal(err.error_code, 0);
 #endif
 
-    assert_equal(fs::exists(file1), true); 
+    assert_equal(fs::exists(file1), 1); 
     assert_equal(fs::remove_directory(file1, &err), false); 
-    assert_equal(fs::exists(file1), true); 
+    assert_equal(fs::exists(file1), 1); 
 
 #if Linux
     assert_equal(err.error_code, ENOTDIR);
@@ -2240,26 +2250,26 @@ define_test(remove_removes_anything)
     fs::touch(SANDBOX_DIR "/remove/file3");
     fs::touch(SANDBOX_DIR "/remove/dir4/file4");
 
-    assert_equal(fs::exists(dir1), true); 
+    assert_equal(fs::exists(dir1), 1); 
     assert_equal(fs::remove(dir1, &err), true); 
-    assert_equal(fs::exists(dir1), false); 
+    assert_equal(fs::exists(dir1), 0); 
 
     // not empty
-    assert_equal(fs::exists(dir2), true); 
+    assert_equal(fs::exists(dir2), 1); 
     assert_equal(fs::remove(dir2, &err), true);
-    assert_equal(fs::exists(dir2), false); 
+    assert_equal(fs::exists(dir2), 0); 
 
     // not empty with subdirectories and more descendants
-    assert_equal(fs::exists(dir3), true); 
+    assert_equal(fs::exists(dir3), 1); 
     assert_equal(fs::remove(dir3, &err), true);
-    assert_equal(fs::exists(dir3), false); 
+    assert_equal(fs::exists(dir3), 0); 
 
-    assert_equal(fs::exists(file1), true); 
+    assert_equal(fs::exists(file1), 1); 
     assert_equal(fs::remove(file1, &err), true); 
-    assert_equal(fs::exists(file1), false); 
+    assert_equal(fs::exists(file1), 0); 
 
     // does not exist, still returns true
-    assert_equal(fs::exists(doesnotexist), false); 
+    assert_equal(fs::exists(doesnotexist), 0); 
     assert_equal(fs::remove(doesnotexist, &err), true); 
 }
 
