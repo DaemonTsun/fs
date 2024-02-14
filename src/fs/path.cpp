@@ -2595,76 +2595,137 @@ bool fs::_create_directories(fs::const_fs_string pth, fs::permission perms, erro
 bool fs::_create_hard_link(fs::const_fs_string target, fs::const_fs_string link, error *err)
 {
 #if Windows
-    // TODO: implement
+    if (!::CreateHardLink(link.c_str, target.c_str, nullptr))
+    {
+        set_GetLastError_error(err);
+        return false;
+    }
+
+    return true;
 #else
     if (::link(target.c_str, link.c_str) == -1)
     {
         set_errno_error(err);
         return false;
     }
-#endif
 
     return true;
+#endif
 }
 
 bool fs::_create_symlink(fs::const_fs_string target, fs::const_fs_string link, error *err)
 {
 #if Windows
-    // TODO: implement
+    int flags = 0;
+
+    if (fs::is_directory(target, true, err))
+        flags |= SYMBOLIC_LINK_FLAG_DIRECTORY;
+
+    if (!::CreateSymbolicLink(link.c_str, target.c_str, flags))
+    {
+        set_GetLastError_error(err);
+        return false;
+    }
+
+    return true;
 #else
     if (::symlink(target.c_str, link.c_str) == -1)
     {
         set_errno_error(err);
         return false;
     }
-#endif
 
     return true;
+#endif
 }
 
 bool fs::_move(fs::const_fs_string src, fs::const_fs_string dest, error *err)
 {
 #if Windows
-    // TODO: implement
+    int flags = MOVEFILE_COPY_ALLOWED | MOVEFILE_REPLACE_EXISTING;
+
+    if (fs::exists(dest))
+    {
+        fs::filesystem_type srct;
+        fs::filesystem_type destt;
+
+        if (!fs::get_filesystem_type(src, &srct, true, err))
+            return false;
+
+        if (!fs::get_filesystem_type(dest, &destt, true, err))
+            return false;
+
+        if (srct == fs::filesystem_type::Unknown || destt == filesystem_type::Unknown)
+        {
+            set_error(err, ERROR_INVALID_PARAMETER, "");
+            return false;
+        }
+
+        if (srct != destt)
+        {
+            set_error(err, ERROR_INVALID_PARAMETER, "");
+            return false;
+        }
+    }
+
+    if (!::MoveFileEx(src.c_str, dest.c_str, flags))
+    {
+        set_GetLastError_error(err);
+        return false;
+    }
+
+    return true;
 #else
     if (::_rename(src.c_str, dest.c_str) == -1)
     {
         set_errno_error(err);
         return false;
     }
-#endif
 
     return true;
+#endif
 }
 
 bool fs::_remove_file(fs::const_fs_string pth, error *err)
 {
 #if Windows
-    // TODO: implement
+    if (!::DeleteFile(pth.c_str))
+    {
+        set_GetLastError_error(err);
+        return false;
+    }
+
+    return true;
 #else
     if (::unlink(pth.c_str) == -1)
     {
         set_errno_error(err);
         return false;
     }
-#endif
 
     return true;
+#endif
 }
 
 bool fs::_remove_empty_directory(fs::const_fs_string pth, error *err)
 {
 #if Windows
-    // TODO: implement
+    if (!::RemoveDirectory(pth.c_str))
+    {
+        set_GetLastError_error(err);
+        return false;
+    }
+
+    return true;
 #else
     if (::rmdir(pth.c_str) == -1)
     {
         set_errno_error(err);
         return false;
     }
-#endif
 
     return true;
+#endif
 }
 
 bool fs::_remove_directory(fs::const_fs_string pth, error *err)

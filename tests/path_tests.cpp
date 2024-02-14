@@ -1939,7 +1939,6 @@ define_test(create_directories_creates_directories_and_parents)
     fs::free(&p);
 }
 
-#if Linux // TODO: remove
 define_test(create_hard_link_creates_hard_link)
 {
     fs::path target{};
@@ -1972,7 +1971,7 @@ define_test(create_hard_link_creates_hard_link)
     assert_equal(fs::create_hard_link(&target, &link, &err), false); 
 
 #if Windows
-    // TODO: check error
+    assert_equal(err.error_code, ERROR_FILE_NOT_FOUND);
 #else
     assert_equal(err.error_code, ENOENT);
 #endif
@@ -1986,7 +1985,7 @@ define_test(create_hard_link_creates_hard_link)
     assert_equal(fs::exists(&link), 0); 
 
 #if Windows
-    // TODO: check error
+    assert_equal(err.error_code, ERROR_ACCESS_DENIED);
 #else
     assert_equal(err.error_code, EPERM);
 #endif
@@ -2087,14 +2086,16 @@ define_test(move_moves_files_and_directories)
     assert_equal(fs::move(src_dir, dst, &err), false); 
 
 #if Windows
+    assert_equal(err.error_code, ERROR_INVALID_PARAMETER);
 #else
     assert_equal(err.error_code, ENOTDIR);
 #endif
 
-    // cannot move file into directory
+    // cannot move file into directory (as in, replace the directorys name)
     assert_equal(fs::move(dst, src_dir, &err), false); 
 
 #if Windows
+    assert_equal(err.error_code, ERROR_INVALID_PARAMETER);
 #else
     assert_equal(err.error_code, EISDIR);
 #endif
@@ -2128,6 +2129,7 @@ define_test(remove_file_removes_file)
     assert_equal(fs::remove_file(p, &err), false); 
 
 #if Windows
+    assert_equal(err.error_code, ERROR_FILE_NOT_FOUND);
 #else
     assert_equal(err.error_code, ENOENT);
 #endif
@@ -2135,6 +2137,7 @@ define_test(remove_file_removes_file)
     assert_equal(fs::remove_file(SANDBOX_DIR, &err), false); 
 
 #if Windows
+    assert_equal(err.error_code, ERROR_ACCESS_DENIED);
 #else
     assert_equal(err.error_code, EISDIR);
 #endif
@@ -2146,10 +2149,10 @@ define_test(remove_empty_directory_removes_only_empty_directories)
 {
     error err{};
 
-    const char *dir1 = SANDBOX_DIR "/remove_empty_dir1";
-    const char *dir2 = SANDBOX_DIR "/remove_empty_dir2";
-    const char *file1 = SANDBOX_DIR "/remove_empty_dir_file";
-    const char *file2 = SANDBOX_DIR "/remove_empty_dir2/not_empty";
+    const sys_char *dir1 = SANDBOX_DIR "/remove_empty_dir1";
+    const sys_char *dir2 = SANDBOX_DIR "/remove_empty_dir2";
+    const sys_char *file1 = SANDBOX_DIR "/remove_empty_dir_file";
+    const sys_char *file2 = SANDBOX_DIR "/remove_empty_dir2/not_empty";
 
     fs::create_directory(dir1);
     fs::create_directory(dir2);
@@ -2165,7 +2168,9 @@ define_test(remove_empty_directory_removes_only_empty_directories)
     assert_equal(fs::remove_empty_directory(dir2, &err), false); 
     assert_equal(fs::exists(dir2), 1); 
 
-#if Linux
+#if Windows
+    assert_equal(err.error_code, ERROR_DIR_NOT_EMPTY);
+#else
     assert_equal(err.error_code, ENOTEMPTY);
 #endif
 
@@ -2173,11 +2178,14 @@ define_test(remove_empty_directory_removes_only_empty_directories)
     assert_equal(fs::remove_empty_directory(file1, &err), false); 
     assert_equal(fs::exists(file1), 1); 
 
-#if Linux
+#if Windows
+    assert_equal(err.error_code, ERROR_DIRECTORY);
+#else
     assert_equal(err.error_code, ENOTDIR);
 #endif
 }
 
+#if Linux // TODO: remove
 define_test(remove_directory_removes_directories)
 {
     error err{};
