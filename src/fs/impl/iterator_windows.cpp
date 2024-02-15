@@ -6,9 +6,11 @@
 
 #include <assert.h>
 #include <stddef.h> // offsetof
+#include <stdio.h> // TODO: remove
 
 #include "shl/fixed_array.hpp"
 #include "shl/scratch_buffer.hpp"
+#include "shl/memory.hpp"
 #include "fs/path.hpp"
 
 #define as_array_ptr(x)     (::array<fs::path_char_t>*)(x)
@@ -17,17 +19,44 @@
 
 bool fs::init(fs::fs_iterator_detail *detail, fs::const_fs_string pth, error *err)
 {
-    assert(detail != nullptr);
+    // should always trigger an assert
+    return fs::init(detail, pth, nullptr, err);
+}
 
-    // TODO: implement
+bool fs::init(fs::fs_iterator_detail *detail, fs::const_fs_string pth, void *extra, error *err)
+{
+    assert(detail != nullptr);
+    assert(extra != nullptr);
+
+    printf("%ws\n", pth.c_str);
+
+    detail->find_handle = ::FindFirstFile(pth.c_str, (LPWIN32_FIND_DATA)extra);
+
+    if (detail->find_handle == INVALID_HANDLE_VALUE)
+    {
+        set_GetLastError_error(err);
+        return false;
+    }
+
     return true;
 }
 
-void fs::free(fs::fs_iterator_detail *detail)
+bool fs::free(fs::fs_iterator_detail *detail, error *err)
 {
     assert(detail != nullptr);
 
-    // TODO: implement
+    if (detail->find_handle != INVALID_HANDLE_VALUE)
+    {
+        if (!::FindClose(detail->find_handle))
+        {
+            set_GetLastError_error(err);
+            return false;
+        }
+
+        detail->find_handle = INVALID_HANDLE_VALUE;
+    }
+
+    return true;
 }
 
 bool fs::_init(fs::fs_iterator *it, fs::const_fs_string pth, error *err)
@@ -35,34 +64,36 @@ bool fs::_init(fs::fs_iterator *it, fs::const_fs_string pth, error *err)
     assert(it != nullptr);
 
     it->target_path = pth;
-    fs::init(&it->path_it, pth);
+    it->path_it = fs::canonical_path(pth);
+    
+    fs::append_path(&it->path_it, SYS_CHAR("*"));
 
-    if (!fs::init(&it->_detail, pth, err))
+    if (!fs::init(&it->_detail, to_const_string(&it->path_it), (void*)(&it->current_item.find_data), err))
         return false;
 
-    // TODO: items
-
-    fs::path tmp = fs::canonical_path(&it->path_it);
-    fs::free(&it->path_it);
-    it->path_it = tmp;
-
-    // fs::append_path(&it->path_it, ".");
+    fs::replace_filename(&it->path_it, ".");
 
     return true;
 }
 
-void fs::free(fs_iterator *it)
+bool fs::free(fs_iterator *it, error *err)
 {
     assert(it != nullptr);
 
     fs::free(&it->path_it);
-    fs::free(&it->_detail);
+    return fs::free(&it->_detail, err);
 }
 
 template<fs::iterate_option BakeOpts>
 fs::fs_iterator_item *_iterate(fs::fs_iterator *it, fs::iterate_option opts, error *err)
 {
-    // TODO: implement
+    if (!::FindNextFile(it->_detail.find_handle, &it->current_item.find_data))
+        return nullptr;
+
+    it->current_item.path = to_const_string(it->current_item.find_data.cFileName);
+
+    // TODO: do the rest
+
     return &it->current_item;
 }
 
@@ -113,12 +144,21 @@ bool fs::_init(fs::fs_recursive_iterator *it, fs::const_fs_string pth, fs::itera
     return true;
 }
 
-void fs::free(fs::fs_recursive_iterator *it)
+bool fs::free(fs::fs_recursive_iterator *it, error *err)
 {
     assert(it != nullptr);
 
     fs::free(&it->path_it);
-    ::free<true>(&it->_detail_stack);
+
+    bool all_ok = true;
+
+    for_array(stck, &it->_detail_stack)
+    {
+        if (!fs::free(stck, err))
+            all_ok = false;
+    }
+
+    return all_ok;
 }
 
 template<fs::iterate_option BakeOpts>

@@ -20,20 +20,24 @@ namespace fs
 {
 // "item" may be slightly misleading, but it is the iteration object
 // that is given in the for_path loop and the object the user interacts
-// with.
+// with. "item" is misleading because there is only one of them.
 struct fs_iterator_item
 {
     fs::filesystem_type type;
     fs::const_fs_string path;
 
-#if Linux
+#if Windows
+    WIN32_FIND_DATA find_data;
+#elif Linux
     dirent64 *dirent;
 #endif
 };
 
 struct fs_iterator_detail
 {
-#if Linux
+#if Windows
+    HANDLE find_handle;
+#elif Linux
     scratch_buffer<DIRENT_STACK_BUFFER_SIZE> buffer;
     int fd;
     s64 dirent_size;
@@ -42,7 +46,8 @@ struct fs_iterator_detail
 };
 
 bool init(fs::fs_iterator_detail *detail, fs::const_fs_string pth, error *err = nullptr);
-void free(fs::fs_iterator_detail *detail);
+bool init(fs::fs_iterator_detail *detail, fs::const_fs_string pth, void *extra, error *err = nullptr);
+bool free(fs::fs_iterator_detail *detail, error *err = nullptr);
 
 struct fs_iterator
 {
@@ -68,7 +73,7 @@ auto init(fs::fs_iterator *it, T pth, error *err = nullptr)
     return ret;
 }
 
-void free(fs::fs_iterator *it);
+bool free(fs::fs_iterator *it, error *err = nullptr);
 
 fs::fs_iterator_item *_iterate(fs::fs_iterator *it, fs::iterate_option opt = fs::iterate_option::None, error *err = nullptr);
 
@@ -105,7 +110,7 @@ auto init(fs::fs_recursive_iterator *it, T pth, fs::iterate_option opts = fs::it
     return ret;
 }
 
-void free(fs::fs_recursive_iterator *it);
+bool free(fs::fs_recursive_iterator *it, error *err = nullptr);
 
 fs::fs_recursive_iterator_item *_iterate(fs::fs_recursive_iterator *it, fs::iterate_option opt = fs::iterate_option::None, error *err = nullptr);
 }

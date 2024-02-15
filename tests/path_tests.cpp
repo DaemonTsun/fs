@@ -2280,9 +2280,8 @@ define_test(remove_removes_anything)
     assert_equal(fs::exists(doesnotexist), 0); 
     assert_equal(fs::remove(doesnotexist, &err), true); 
 }
+#endif
 
-
-/*
 define_test(iterator_test1)
 {
     error err{};
@@ -2292,12 +2291,12 @@ define_test(iterator_test1)
     for (fs::fs_iterator_item *item = fs::_iterate(&it, fs::iterate_option::None, &err);
          item != nullptr;
          item = fs::_iterate(&it, fs::iterate_option::None, &err))
-        printf("%x - %s\n", (u32)item->type, item->path.c_str);
+        printf("%x - %ws\n", (u32)item->type, item->path.c_str);
 
     assert_equal(err.error_code, 0);
 }
-*/
 
+#if Linux // TODO: remove
 define_test(iterator_test)
 {
     error err{};

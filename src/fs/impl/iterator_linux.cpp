@@ -79,16 +79,29 @@ bool fs::init(fs::fs_iterator_detail *detail, fs::const_fs_string pth, error *er
     return true;
 }
 
-void fs::free(fs::fs_iterator_detail *detail)
+bool fs::free(fs::fs_iterator_detail *detail, error *err)
 {
     assert(detail != nullptr);
 
     ::free(&detail->buffer);
 
     if (detail->fd != -1)
-        ::close(detail->fd);
+    {
+        if (::close(detail->fd) != 0)
+        {
+            set_errno_error(err);
+            return false; 
+        }
+    }
 
     detail->fd = -1;
+
+    return true; 
+}
+
+bool fs::init(fs::fs_iterator_detail *detail, fs::const_fs_string pth, void *extra, error *err)
+{
+    return fs::init(detail, pth, nullptr, err);
 }
 
 bool fs::_init(fs::fs_iterator *it, fs::const_fs_string pth, error *err)
@@ -113,12 +126,12 @@ bool fs::_init(fs::fs_iterator *it, fs::const_fs_string pth, error *err)
     return true;
 }
 
-void fs::free(fs_iterator *it)
+bool fs::free(fs_iterator *it, error *err)
 {
     assert(it != nullptr);
 
     fs::free(&it->path_it);
-    fs::free(&it->_detail);
+    return fs::free(&it->_detail, err);
 }
 
 template<fs::iterate_option BakeOpts>
@@ -228,12 +241,21 @@ bool fs::_init(fs::fs_recursive_iterator *it, fs::const_fs_string pth, fs::itera
     return true;
 }
 
-void fs::free(fs::fs_recursive_iterator *it)
+bool fs::free(fs::fs_recursive_iterator *it, error *err)
 {
     assert(it != nullptr);
 
     fs::free(&it->path_it);
-    ::free<true>(&it->_detail_stack);
+
+    bool all_ok = true;
+
+    for_array(stck, &it->_detail_stack)
+    {
+        if (!fs::free(stck, err))
+            all_ok = false;
+    }
+
+    return all_ok;
 }
 
 // #include "shl/print.hpp"
