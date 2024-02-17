@@ -28,9 +28,12 @@ bool fs::init(fs::fs_iterator_detail *detail, fs::const_fs_string pth, void *ext
     assert(detail != nullptr);
     assert(extra != nullptr);
 
-    printf("%ws\n", pth.c_str);
-
-    detail->find_handle = ::FindFirstFile(pth.c_str, (LPWIN32_FIND_DATA)extra);
+    detail->find_handle = ::FindFirstFileEx(pth.c_str, 
+                                            FindExInfoBasic,
+                                            (LPWIN32_FIND_DATA)extra,
+                                            FindExSearchNameMatch,
+                                            nullptr,
+                                            0);
 
     if (detail->find_handle == INVALID_HANDLE_VALUE)
     {
@@ -90,9 +93,32 @@ fs::fs_iterator_item *_iterate(fs::fs_iterator *it, fs::iterate_option opts, err
     if (!::FindNextFile(it->_detail.find_handle, &it->current_item.find_data))
         return nullptr;
 
-    it->current_item.path = to_const_string(it->current_item.find_data.cFileName);
+    // ignore . and ..
+    while (fs::is_dot_or_dot_dot(it->current_item.find_data.cFileName))
+        if (!::FindNextFile(it->_detail.find_handle, &it->current_item.find_data))
+            return nullptr;
 
-    // TODO: do the rest
+    const sys_char *name = it->current_item.find_data.cFileName;
+
+    it->current_item.path = ::to_const_string(name);
+
+    // unfortunately, we need the full path to query the type of the item since
+    // FindFirstFile(Ex) / FindNextFile does not provide the type of the iterated
+    // item.
+    if constexpr (is_flag_set(BakeOpts, fs::iterate_option::QueryType)
+               || is_flag_set(BakeOpts, fs::iterate_option::Fullpaths))
+    {
+        fs::replace_filename(&it->path_it, ::to_const_string(name));
+
+        if constexpr (is_flag_set(BakeOpts, fs::iterate_option::Fullpaths))
+            it->current_item.path = ::to_const_string(&it->path_it);
+
+        if constexpr (is_flag_set(BakeOpts, fs::iterate_option::QueryType))
+        {
+            if (!fs::get_filesystem_type(it->path_it, &it->current_item.type, false, err))
+                it->current_item.type = fs::filesystem_type::Unknown;
+        }
+    }
 
     return &it->current_item;
 }
@@ -100,9 +126,19 @@ fs::fs_iterator_item *_iterate(fs::fs_iterator *it, fs::iterate_option opts, err
 fs::fs_iterator_item *fs::_iterate(fs::fs_iterator *it, fs::iterate_option opts, error *err)
 {
     if (is_flag_set(opts, fs::iterate_option::Fullpaths))
-        return ::_iterate<fs::iterate_option::Fullpaths>(it, opts, err);
+    {
+        if (is_flag_set(opts, fs::iterate_option::QueryType))
+            return ::_iterate<fs::iterate_option::Fullpaths | fs::iterate_option::QueryType>(it, opts, err);
+        else
+            return ::_iterate<fs::iterate_option::Fullpaths>(it, opts, err);
+    }
     else
-        return ::_iterate<fs::iterate_option::None>(it, opts, err);
+    {
+        if (is_flag_set(opts, fs::iterate_option::QueryType))
+            return ::_iterate<fs::iterate_option::QueryType>(it, opts, err);
+        else
+            return ::_iterate<fs::iterate_option::None>(it, opts, err);
+    }
 }
 
 // recursive iteration

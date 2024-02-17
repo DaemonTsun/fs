@@ -133,7 +133,7 @@ fs::fs_recursive_iterator_item *_iterate(fs::fs_recursive_iterator *it, fs::iter
 #define for_path(...) GET_MACRO3(__VA_ARGS__, for_path_IPOE, for_path_IPO, for_path_IP)(__VA_ARGS__)
 
 #define for_path_type_IPOE(Type, Item_Var, Pth, Opt, Err)\
-    for_path_Func(fs::_iterate, Item_Var, Pth, Opt, Err)\
+    for_path_Func(fs::_iterate, Item_Var, Pth, ((Opt) | fs::iterate_option::QueryType), Err)\
     if (Item_Var->type == (Type))
 
 #define for_path_type_IPO(Type, Item_Var, Pth, Opt)       for_path_type_IPOE(Type, Item_Var, Pth, Opt, nullptr)
@@ -158,7 +158,7 @@ fs::fs_recursive_iterator_item *_iterate(fs::fs_recursive_iterator *it, fs::iter
 #define for_recursive_path(...) GET_MACRO3(__VA_ARGS__, for_recursive_path_IPOE, for_recursive_path_IPO, for_recursive_path_IP)(__VA_ARGS__)
 
 #define for_recursive_path_type_IPOE(Type, Item_Var, Pth, Opt, Err)\
-    for_recursive_path_Func(fs::_iterate, Item_Var, Pth, Opt, Err)\
+    for_recursive_path_Func(fs::_iterate, Item_Var, Pth, ((Opt) | fs::iterate_option::QueryType), Err)\
     if (Item_Var->type == (Type))
 
 #define for_recursive_path_type_IPO(Type, Item_Var, Pth, Opt)       for_recursive_path_type_IPOE(Type, Item_Var, Pth, Opt, nullptr)

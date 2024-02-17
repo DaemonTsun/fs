@@ -6,7 +6,7 @@
 #include <filesystem> // lol
 namespace stdfs = std::filesystem;
 #else
-#define pipe __original_pipe
+#define pipe __original_pipe // will be removed
 #include <sys/stat.h>
 #include <unistd.h>
 #undef pipe
@@ -2282,6 +2282,7 @@ define_test(remove_removes_anything)
 }
 #endif
 
+/*
 define_test(iterator_test1)
 {
     error err{};
@@ -2295,8 +2296,8 @@ define_test(iterator_test1)
 
     assert_equal(err.error_code, 0);
 }
+*/
 
-#if Linux // TODO: remove
 define_test(iterator_test)
 {
     error err{};
@@ -2307,7 +2308,7 @@ define_test(iterator_test)
     fs::touch(SANDBOX_DIR "/it/file1");
     fs::touch(SANDBOX_DIR "/it/dir2/file2");
 
-    for_path(item, "it", fs::iterate_option::None, &err)
+    for_path(item, SYS_CHAR("it"), fs::iterate_option::None, &err)
     {
         fs::path *cp = ::add_at_end(&descendants);
         fs::init(cp);
@@ -2337,7 +2338,8 @@ define_test(iterator_type_filter_test)
     fs::touch(SANDBOX_DIR "/it2/file1");
     fs::touch(SANDBOX_DIR "/it2/dir2/file2");
 
-    for_path_files(item, "it2", fs::iterate_option::None, &err)
+    // see "for_path_files"
+    for_path_files(item, SYS_CHAR("it2"), fs::iterate_option::None, &err)
     {
         fs::path *cp = ::add_at_end(&descendants);
         fs::init(cp);
@@ -2354,7 +2356,7 @@ define_test(iterator_type_filter_test)
     clear(&descendants);
 
     // directories
-    for_path_type(fs::filesystem_type::Directory, item, "it2", fs::iterate_option::None, &err)
+    for_path_type(fs::filesystem_type::Directory, item, SYS_CHAR("it2"), fs::iterate_option::None, &err)
     {
         fs::path *cp = ::add_at_end(&descendants);
         fs::init(cp);
@@ -2371,6 +2373,43 @@ define_test(iterator_type_filter_test)
     free<true>(&descendants);
 }
 
+define_test(iterator_fullpath_test)
+{
+    error err{};
+    array<fs::path> descendants{};
+
+    fs::create_directories(SANDBOX_DIR "/it3/dir1");
+    fs::create_directories(SANDBOX_DIR "/it3/dir2/dir3");
+    fs::touch(SANDBOX_DIR "/it3/file1");
+    fs::touch(SANDBOX_DIR "/it3/dir2/file2");
+
+    for_path(item, SYS_CHAR("it3"), fs::iterate_option::Fullpaths, &err)
+    {
+        fs::path *cp = ::add_at_end(&descendants);
+        fs::init(cp);
+        fs::set_path(cp, item->path);
+    }
+
+    sort(descendants.data, descendants.size, path_comparer);
+
+    assert_equal(descendants.size, 3);
+
+#if Windows
+    assert_equal_str(descendants[0], SANDBOX_DIR "\\it3\\dir1");
+    assert_equal_str(descendants[1], SANDBOX_DIR "\\it3\\dir2");
+    assert_equal_str(descendants[2], SANDBOX_DIR "\\it3\\file1");
+#else
+    assert_equal_str(descendants[0], SANDBOX_DIR "/it3/dir1");
+    assert_equal_str(descendants[1], SANDBOX_DIR "/it3/dir2");
+    assert_equal_str(descendants[2], SANDBOX_DIR "/it3/file1");
+#endif
+
+    assert_equal(err.error_code, 0);
+
+    free<true>(&descendants);
+}
+
+#if Linux // TODO: remove
 define_test(recursive_iterator_test)
 {
     error err{};

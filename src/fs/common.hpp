@@ -158,13 +158,17 @@ typedef const_string_base<fs::path_char_t> const_fs_string;
 
 enum class iterate_option : u8
 {
-    None            = 0b0000, // does not follow symlinks and does not stop on errors
-    FollowSymlinks  = 0b0001, // follows directory symlinks
-    StopOnError     = 0b0010, // stop on first error
-    Fullpaths       = 0b0100, // yields full paths in item->path. does consume more memory.
-    ChildrenFirst   = 0b1000  // when recursively iterating, iterates all children of a
-                              // directory before iterating the directory.
-                              // does nothing when not iterating recursively.
+    None            = 0x00, // Does not follow symlinks and does not stop on errors.
+    FollowSymlinks  = 0x01, // Follows directory symlinks.
+    StopOnError     = 0x02, // Stop on first error.
+    Fullpaths       = 0x04, // Yields full paths in item->path. does consume more memory.
+    ChildrenFirst   = 0x08, // When recursively iterating, iterates all children of a
+                            // directory before iterating the directory.
+                            // Does nothing when not iterating recursively.
+    QueryType       = 0x10, // Whether or not to query type information.
+                            // Because you get type information on dirent (Linux
+                            // implementation) anyway, this flag does nothing on
+                            // Linux.
 };
 
 enum_flag(iterate_option);

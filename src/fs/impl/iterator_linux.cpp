@@ -153,6 +153,7 @@ fs::fs_iterator_item *_iterate(fs::fs_iterator *it, fs::iterate_option opts, err
     fs::filesystem_type current_type = (fs::filesystem_type)(it->current_item.dirent->type << 12);
     const char *name = ((char*)it->current_item.dirent) + offsetof(dirent64, type) + 1;
 
+    // ignore . and ..
     while (fs::is_dot_or_dot_dot(name))
     {
         it->_detail.dirent_offset += it->current_item.dirent->record_size;
