@@ -2409,7 +2409,6 @@ define_test(iterator_fullpath_test)
     free<true>(&descendants);
 }
 
-#if Linux // TODO: remove
 define_test(recursive_iterator_test)
 {
     error err{};
@@ -2420,7 +2419,13 @@ define_test(recursive_iterator_test)
 
     fs::iterate_option opts = fs::iterate_option::None;//Fullpaths;
 
-    for_recursive_path(item, SANDBOX_DIR "/rit", opts, &err)
+#if Windows
+    const sys_char *rit = SANDBOX_DIR "\\rit";
+#else
+    const sys_char *rit = SANDBOX_DIR "/rit";
+#endif
+
+    for_recursive_path(item, rit, opts, &err)
     {
         fs::path *cp = ::add_at_end(&descendants);
         fs::init(cp);
@@ -2431,15 +2436,24 @@ define_test(recursive_iterator_test)
 
     // order here is fixed and the results must look like this.
     // use ChildrenFirst for reverse order (see next test)
+#if Windows
+    assert_equal_str(descendants[0], SANDBOX_DIR "\\rit\\dir1");
+    assert_equal_str(descendants[1], SANDBOX_DIR "\\rit\\dir1\\dir2");
+    assert_equal_str(descendants[2], SANDBOX_DIR "\\rit\\dir1\\dir2\\dir3");
+    assert_equal_str(descendants[3], SANDBOX_DIR "\\rit\\dir1\\dir2\\dir3\\dir4");
+    assert_equal_str(descendants[4], SANDBOX_DIR "\\rit\\dir1\\dir2\\dir3\\dir4\\file");
+#else
     assert_equal_str(descendants[0], SANDBOX_DIR "/rit/dir1");
     assert_equal_str(descendants[1], SANDBOX_DIR "/rit/dir1/dir2");
     assert_equal_str(descendants[2], SANDBOX_DIR "/rit/dir1/dir2/dir3");
     assert_equal_str(descendants[3], SANDBOX_DIR "/rit/dir1/dir2/dir3/dir4");
     assert_equal_str(descendants[4], SANDBOX_DIR "/rit/dir1/dir2/dir3/dir4/file");
+#endif
 
     free<true>(&descendants);
 }
 
+#if Linux // TODO: remove
 define_test(recursive_iterator_children_first_test)
 {
     error err{};

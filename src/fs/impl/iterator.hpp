@@ -27,16 +27,23 @@ struct fs_iterator_item
     fs::const_fs_string path;
 
 #if Windows
-    WIN32_FIND_DATA find_data;
+    WIN32_FIND_DATA *find_data;
 #elif Linux
     dirent64 *dirent;
 #endif
 };
 
+// maybe "directory detail" would be a better name, this struct contains
+// a handle to a directory for iterating, and multiple of these are used
+// in a recursive iterator.
 struct fs_iterator_detail
 {
 #if Windows
     HANDLE find_handle;
+    // find_data is here because when iterating recursively we don't want to
+    // forget the directory being iterated on.
+    WIN32_FIND_DATA find_data;
+    bool at_end;
 #elif Linux
     scratch_buffer<DIRENT_STACK_BUFFER_SIZE> buffer;
     int fd;
