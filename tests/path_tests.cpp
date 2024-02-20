@@ -2453,7 +2453,6 @@ define_test(recursive_iterator_test)
     free<true>(&descendants);
 }
 
-#if Linux // TODO: remove
 define_test(recursive_iterator_children_first_test)
 {
     error err{};
@@ -2475,15 +2474,24 @@ define_test(recursive_iterator_children_first_test)
     assert_equal(descendants.size, 5);
 
     // order here is fixed and the results must look like this
+#if Windows
+    assert_equal_str(descendants[0], SANDBOX_DIR "\\cf\\dir1\\dir2\\dir3\\dir4\\file");
+    assert_equal_str(descendants[1], SANDBOX_DIR "\\cf\\dir1\\dir2\\dir3\\dir4");
+    assert_equal_str(descendants[2], SANDBOX_DIR "\\cf\\dir1\\dir2\\dir3");
+    assert_equal_str(descendants[3], SANDBOX_DIR "\\cf\\dir1\\dir2");
+    assert_equal_str(descendants[4], SANDBOX_DIR "\\cf\\dir1");
+#else
     assert_equal_str(descendants[0], SANDBOX_DIR "/cf/dir1/dir2/dir3/dir4/file");
     assert_equal_str(descendants[1], SANDBOX_DIR "/cf/dir1/dir2/dir3/dir4");
     assert_equal_str(descendants[2], SANDBOX_DIR "/cf/dir1/dir2/dir3");
     assert_equal_str(descendants[3], SANDBOX_DIR "/cf/dir1/dir2");
     assert_equal_str(descendants[4], SANDBOX_DIR "/cf/dir1");
+#endif
 
     free<true>(&descendants);
 }
 
+#if Linux // TODO: remove
 define_test(recursive_iterator_symlink_test)
 {
     error err{};

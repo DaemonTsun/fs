@@ -232,6 +232,7 @@ bool fs::free(fs::fs_recursive_iterator *it, error *err)
         \
         detail_idx -= 1;\
         detail = stack->data + detail_idx;\
+        \
         it->path_it.size = fs::parent_path_segment(&it->path_it).size;\
         it->path_it.data[it->path_it.size] = SYS_CHAR('\0');\
         \
@@ -239,42 +240,36 @@ bool fs::free(fs::fs_recursive_iterator *it, error *err)
         {\
             it->current_item.find_data = &detail->find_data;\
             it->current_item.path = ::to_const_string(&it->path_it);\
+            it->current_item._advance = true;\
             _query_item_type(it->path_it, &it->current_item);\
             return &it->current_item;\
+        }\
+        else\
+        {\
+            it->current_item._advance = false;\
+            error _tmp_err2{};\
+            if (!_get_next_item(detail, &_tmp_err2))\
+            {\
+                if (_tmp_err2.error_code != 0 &&\
+                    is_flag_set(opts, fs::iterate_option::StopOnError))\
+                {\
+                    if (err) *err = _tmp_err2;\
+                    return nullptr;\
+                }\
+            }\
         }\
     }\
 }
 
-/*
-        else\
-        {\
-            error _tmp_err{};\
-            if (!_get_next_item(detail, &_tmp_err))\
-            {\
-                if (_tmp_err.error_code != 0 &&\
-                    is_flag_set(opts, fs::iterate_option::StopOnError))\
-                {\
-                    if (err) *err = _tmp_err;\
-                    return nullptr;\
-                }\
-            }\
-        }
-*/
-
 template<fs::iterate_option BakeOpts>
 fs::fs_recursive_iterator_item *_recursive_iterate(fs::fs_recursive_iterator *it, fs::iterate_option opts, error *err)
 {
-    static int DEPTH = 0;
-    DEPTH++;
-
-    if (DEPTH > 5)
-        return nullptr;
-
     array<fs::fs_iterator_detail> *stack = &it->_detail_stack;
 
     // if recursion is on, add the subdirectory onto the stack
     if (it->current_item.recurse)
     {
+        // +2 because at the end of the path is "\*"
         it->current_item.path.size += 2;
         tprint(L"  recursing into %\n", it->current_item.path);
         it->current_item.recurse = false;
@@ -289,17 +284,10 @@ fs::fs_recursive_iterator_item *_recursive_iterate(fs::fs_recursive_iterator *it
             if (is_flag_set(opts, fs::iterate_option::StopOnError))
                 return nullptr;
             else
-            {
-                stack->size -= 1;
+                stack->size -= 1; // TODO: test this
 
-                if constexpr (is_flag_set(BakeOpts, fs::iterate_option::ChildrenFirst))
-                    it->current_item._advance = true;
-            }
+            it->current_item._advance = false;
         }
-        /*
-        else
-            fs::append_path(&it->path_it, SYS_CHAR("*"));
-        */
 
         tprint(L"  recursed first entry %\n", subdir->find_data.cFileName);
     }
@@ -316,6 +304,24 @@ fs::fs_recursive_iterator_item *_recursive_iterate(fs::fs_recursive_iterator *it
     u64 detail_idx = stack->size - 1;
     fs::fs_iterator_detail *detail = stack->data + detail_idx;
 
+    while (it->current_item._advance)
+    {
+        error _tmp_err{};
+        if (!_get_next_item(detail, &_tmp_err))
+        {
+            if (_tmp_err.error_code != 0 &&
+                is_flag_set(opts, fs::iterate_option::StopOnError))
+            {
+                if (err) *err = _tmp_err;
+                return nullptr;
+            }
+        }
+
+        it->current_item._advance = false;
+
+        _while_done_with_directory_go_up();
+    }
+
     _while_done_with_directory_go_up();
 
     // we're done if stack is now empty
@@ -326,18 +332,6 @@ fs::fs_recursive_iterator_item *_recursive_iterate(fs::fs_recursive_iterator *it
     }
 
     tprint(L"  settled on idx %\n", detail_idx);
-
-    /*
-    if constexpr (is_flag_set(BakeOpts, fs::iterate_option::ChildrenFirst))
-    {
-        if (it->current_item._advance)
-        {
-            it->current_item._advance = false;
-            it->current_item.dirent = (dirent64*)(detail->buffer.data + detail->dirent_offset);
-            detail->dirent_offset += it->current_item.dirent->record_size;
-        }
-    }
-    */
 
     const sys_char *name = detail->find_data.cFileName;
 
@@ -367,7 +361,7 @@ fs::fs_recursive_iterator_item *_recursive_iterate(fs::fs_recursive_iterator *it
 
     it->current_item.depth = (u32)detail_idx;
     it->current_item.recurse = false;
-    // it->current_item._advance = false;
+    it->current_item._advance = false;
 
     _query_item_type(it->path_it, &it->current_item);
 
@@ -381,6 +375,8 @@ fs::fs_recursive_iterator_item *_recursive_iterate(fs::fs_recursive_iterator *it
         it->current_item.recurse = true;
         fs::append_path(&it->path_it, SYS_CHAR("*"));
     }
+    else
+        it->current_item._advance = true;
 
     if constexpr (is_flag_set(BakeOpts, fs::iterate_option::ChildrenFirst))
     {
