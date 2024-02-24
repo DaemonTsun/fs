@@ -79,6 +79,11 @@ bool fs::init(fs::fs_iterator_detail *detail, fs::const_fs_string pth, error *er
     return true;
 }
 
+bool fs::init(fs::fs_iterator_detail *detail, fs::const_fs_string pth, [[maybe_unused]] void *extra, error *err)
+{
+    return fs::init(detail, pth, err);
+}
+
 bool fs::free(fs::fs_iterator_detail *detail, error *err)
 {
     assert(detail != nullptr);
@@ -97,11 +102,6 @@ bool fs::free(fs::fs_iterator_detail *detail, error *err)
     detail->fd = -1;
 
     return true; 
-}
-
-bool fs::init(fs::fs_iterator_detail *detail, fs::const_fs_string pth, void *extra, error *err)
-{
-    return fs::init(detail, pth, nullptr, err);
 }
 
 bool fs::_init(fs::fs_iterator *it, fs::const_fs_string pth, error *err)
@@ -255,6 +255,8 @@ bool fs::free(fs::fs_recursive_iterator *it, error *err)
         if (!fs::free(stck, err))
             all_ok = false;
     }
+
+    ::free(&it->_detail_stack);
 
     return all_ok;
 }

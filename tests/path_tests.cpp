@@ -6,10 +6,9 @@
 #include <filesystem> // lol
 namespace stdfs = std::filesystem;
 #else
-#define pipe __original_pipe // will be removed
 #include <sys/stat.h>
 #include <unistd.h>
-#undef pipe
+#include <errno.h>
 #endif
 
 #include "shl/string.hpp"
@@ -55,7 +54,6 @@ int path_comparer(const fs::path *a, const fs::path *b)
 #define SANDBOX_TEST_DIR_NO_PERMISSION  SANDBOX_TEST_DIR2 "/dir_noperm"
 #define SANDBOX_TEST_FILE_IN_NOPERM_DIR SANDBOX_TEST_DIR_NO_PERMISSION "/file_noperm"
 #endif
-
 
 define_test(set_path_sets_path)
 {
@@ -157,7 +155,7 @@ define_test(is_fs_type_tests_on_handles)
 
     free(&strm);
 
-    pipe p;
+    pipe_t p;
     init(&p);
 
     assert_equal(fs::is_file(p.read), false);
@@ -2943,7 +2941,7 @@ void _cleanup()
 
     stdfs::permissions(SANDBOX_TEST_DIR_NO_PERMISSION, stdfs::perms::all);
     fs::set_current_path(&old_current_dir);
-    // stdfs::remove_all(SANDBOX_DIR);
+    stdfs::remove_all(SANDBOX_DIR);
 
     fs::free(&old_current_dir);
     }
@@ -2962,4 +2960,4 @@ void _cleanup()
 #endif
 }
 
-define_test_main(_setup(), _cleanup());
+define_test_main(_setup, _cleanup);

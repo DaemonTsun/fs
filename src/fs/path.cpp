@@ -2978,12 +2978,6 @@ bool fs::_get_preference_path(fs::path *out, const_fs_string app, const_fs_strin
     const char *envr = ::getenv("XDG_DATA_HOME");
     const char *append;
 
-    if (app == nullptr)
-        app = "";
-
-    if (org == nullptr)
-        org = "";
-
     if (envr == nullptr)
     {
         // You end up with "$HOME/.local/share/Name"
@@ -2991,7 +2985,7 @@ bool fs::_get_preference_path(fs::path *out, const_fs_string app, const_fs_strin
 
         if (envr == nullptr)
         {
-            set_error(err, 0, "neither XDG_DATA_HOME nor HOME environment variables are defined");
+            set_error(err, 1, "neither XDG_DATA_HOME nor HOME environment variables are defined");
             return false;
         }
 
@@ -3006,15 +3000,16 @@ bool fs::_get_preference_path(fs::path *out, const_fs_string app, const_fs_strin
     if (envr[len - 1] == fs::path_separator)
         append += 1;
 
-    len += string_length(append) + string_length(org) + string_length(app) + 3;
+    len += string_length(append) + org.size + app.size + 3;
 
     fs::concat_path(out, envr);
     fs::concat_path(out, append);
 
-    if (*org != '\0')
+    if (org.size > 0)
         fs::append_path(out, org);
 
-    fs::append_path(out, app);
+    if (app.size > 0)
+        fs::append_path(out, app);
 
     if (!fs::create_directories(out, fs::permission::User, err))
         return false;
