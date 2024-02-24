@@ -216,6 +216,8 @@ bool fs::free(fs::fs_recursive_iterator *it, error *err)
             all_ok = false;
     }
 
+    ::free(&it->_detail_stack);
+
     return all_ok;
 }
 
@@ -271,7 +273,7 @@ fs::fs_recursive_iterator_item *_recursive_iterate(fs::fs_recursive_iterator *it
     {
         // * is needed to get everything inside a directory
         fs::append_path(&it->path_it, SYS_CHAR("*"));
-        it->current_item.path.size += 2;
+        it->current_item.path = ::to_const_string(it->path_it);
         tprint(L"  recursing into %\n", it->current_item.path);
         it->current_item.recurse = false;
 

@@ -2,10 +2,7 @@
 #include <t1/t1.hpp>
 #include "shl/platform.hpp"
 
-#if Windows
-#include <filesystem> // lol
-namespace stdfs = std::filesystem;
-#else
+#if Linux
 #include <sys/stat.h>
 #include <unistd.h>
 #include <errno.h>
@@ -760,61 +757,6 @@ define_test(root_returns_the_path_root)
     fs::path p{};
 
 #if Windows
-#define print_stdfsroot(P)\
-    printf("%ws -> %ws\n", P, stdfs::path(P).root_path().c_str())
-
-    /*
-    print_stdfsroot(L"");
-    print_stdfsroot(L".");
-    print_stdfsroot(L"..");
-    print_stdfsroot(L"file");
-    print_stdfsroot(L"file.txt");
-    print_stdfsroot(L"C:");
-    print_stdfsroot(L"C:\\");
-    print_stdfsroot(L"C:\\file");
-    print_stdfsroot(L"C:\\dir\\file.txt");
-    print_stdfsroot(L"/dir/file");
-    print_stdfsroot(L"//server");
-    print_stdfsroot(L"//server/share");
-    print_stdfsroot(L"//server/share/file");
-    print_stdfsroot(L"//127.0.0.1");
-    print_stdfsroot(L"//127.0.0.1/c$");
-    print_stdfsroot(L"//127.0.0.1/c$/file");
-    print_stdfsroot(LR"(\dir\file)");
-    print_stdfsroot(LR"(\\server)");
-    print_stdfsroot(LR"(\\server\share)");
-    print_stdfsroot(LR"(\\server\share/file)");
-    print_stdfsroot(LR"(\\127.0.0.1)");
-    print_stdfsroot(LR"(\\127.0.0.1\c$)");
-    print_stdfsroot(LR"(\\127.0.0.1\c$/file)");
-    print_stdfsroot(L"//?/c:");
-    print_stdfsroot(L"//?/D:/file");
-    print_stdfsroot(L"//?/E:/dir/file");
-    print_stdfsroot(LR"(\\?\c:)");
-    print_stdfsroot(LR"(\\?\D:/file)");
-    print_stdfsroot(LR"(\\?\E:/dir/file)");
-    print_stdfsroot(LR"(\\.\Volume{b75e2c83-0000-0000-0000-602f00000000})");
-    print_stdfsroot(LR"(\\.\Volume{b75e2c83-0000-0000-0000-602f00000000}\file)");
-    print_stdfsroot(LR"(\\.\Volume{b75e2c83-0000-0000-0000-602f00000000}\dir\file)");
-    print_stdfsroot(LR"(\\?\Volume{b75e2c83-0000-0000-0000-602f00000000})");
-    print_stdfsroot(LR"(\\?\Volume{b75e2c83-0000-0000-0000-602f00000000}\file)");
-    print_stdfsroot(LR"(\\?\Volume{b75e2c83-0000-0000-0000-602f00000000}\dir\file)");
-    print_stdfsroot(LR"(\\.\UNC)");
-    print_stdfsroot(LR"(\\.\UNC\server)");
-    print_stdfsroot(LR"(\\.\UNC\server\share)");
-    print_stdfsroot(LR"(\\.\UNC\server\share\file)");
-    print_stdfsroot(LR"(\\.\UNC\server\share\dir\file)");
-    print_stdfsroot(LR"(\\?\C:)");
-    print_stdfsroot(LR"(\\?\C:\file)");
-    print_stdfsroot(LR"(\\?\C:\dir\file)");
-    print_stdfsroot(LR"(\\.\C:)");
-    print_stdfsroot(LR"(\\.\C:\file)");
-    print_stdfsroot(LR"(\\.\C:\dir\file)");
-    print_stdfsroot(L"//?/c:");
-    print_stdfsroot(L"/\\?/c:");
-    print_stdfsroot(L"\\/?/c:");
-    */
-
 #define assert_path_root(Pth, Root)\
     assert_equal_str(fs::root(to_const_string(Pth)), Root)
 
@@ -2876,40 +2818,25 @@ void _setup()
 {
     fs::get_current_path(&old_current_dir);
 #if Windows
-    try
-    {
-        stdfs::permissions(SANDBOX_TEST_DIR_NO_PERMISSION, stdfs::perms::all);
-        stdfs::remove_all(SANDBOX_DIR);
-    } catch (...) {}
+    fs::remove(SANDBOX_DIR);
 
-    try
-    {
-    stdfs::create_directories(SANDBOX_DIR);
-    stdfs::permissions(SANDBOX_DIR, stdfs::perms::all);
-    stdfs::create_directories(SANDBOX_TEST_DIR);
-    stdfs::permissions(SANDBOX_TEST_DIR, stdfs::perms::all);
-    FILE *f = _wfopen(SANDBOX_TEST_FILE, L"w");
-    assert(f != nullptr);
-    fclose(f);
-    stdfs::create_symlink(SANDBOX_TEST_FILE, SANDBOX_TEST_SYMLINK);
-    stdfs::create_symlink(SANDBOX_DIR "/symlink_dest", SANDBOX_TEST_SYMLINK_NO_TARGET);
+    fs::create_directories(SANDBOX_DIR);
+    fs::create_directories(SANDBOX_TEST_DIR);
+    fs::touch(SANDBOX_TEST_FILE);
 
-    stdfs::create_directories(SANDBOX_TEST_DIR2);
-    stdfs::permissions(SANDBOX_TEST_DIR2, stdfs::perms::all);
-    f = _wfopen(SANDBOX_TEST_FILE2, L"w"); assert(f != nullptr); fclose(f);
+    fs::create_symlink(SANDBOX_TEST_FILE, SANDBOX_TEST_SYMLINK);
+    fs::create_symlink(SANDBOX_DIR "/symlink_dest", SANDBOX_TEST_SYMLINK_NO_TARGET);
+
+    fs::create_directories(SANDBOX_TEST_DIR2);
+    fs::touch(SANDBOX_TEST_FILE2);
 
     create_test_pipe();
 
-    stdfs::create_directories(SANDBOX_TEST_DIR_NO_PERMISSION);
-    f = _wfopen(SANDBOX_TEST_FILE_IN_NOPERM_DIR, L"w"); assert(f != nullptr); fclose(f);
-    stdfs::permissions(SANDBOX_TEST_DIR_NO_PERMISSION, stdfs::perms::none);
+    fs::create_directories(SANDBOX_TEST_DIR_NO_PERMISSION);
+    fs::touch(SANDBOX_TEST_FILE_IN_NOPERM_DIR);
+    // stdfs::permissions(SANDBOX_TEST_DIR_NO_PERMISSION, stdfs::perms::none);
 
-    stdfs::current_path(SANDBOX_DIR);
-    }
-    catch (std::exception &e)
-    {
-        printf("%s\n", e.what());
-    }
+    fs::set_current_path(SANDBOX_DIR);
 #else
     umask(0); // if this is not set to 0 mkdir might not set correct permissions
     mkdir(SANDBOX_DIR, 0777);
@@ -2935,20 +2862,17 @@ void _setup()
 void _cleanup()
 {
 #if Windows
-    try
-    {
     destroy_test_pipe();
 
-    stdfs::permissions(SANDBOX_TEST_DIR_NO_PERMISSION, stdfs::perms::all);
+    // stdfs::permissions(SANDBOX_TEST_DIR_NO_PERMISSION, stdfs::perms::all);
     fs::set_current_path(&old_current_dir);
-    stdfs::remove_all(SANDBOX_DIR);
+
+    error err{};
+
+    if (!fs::remove_directory(SANDBOX_DIR, &err))
+        fprintf(stderr, "ERROR: could not remove directory %ws. Error code %d:\n%s\n", SANDBOX_DIR, err.error_code, err.what);
 
     fs::free(&old_current_dir);
-    }
-    catch (std::exception &e)
-    {
-        printf("%s\n", e.what());
-    }
 #else
     chmod(SANDBOX_TEST_DIR_NO_PERMISSION, 0777);
     fs::set_current_path(&old_current_dir);

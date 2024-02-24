@@ -400,6 +400,9 @@ template<typename T1, typename T2> auto move(T1 src, T2 dest, error *err = nullp
 bool _remove_file(fs::const_fs_string pth, error *err);
 template<typename T> auto remove_file(T pth, error *err = nullptr) define_fs_conversion_body(fs::_remove_file, pth, err)
 
+bool _remove_symlink(fs::const_fs_string pth, error *err);
+template<typename T> auto remove_symlink(T pth, error *err = nullptr) define_fs_conversion_body(fs::_remove_symlink, pth, err)
+
 // removes single empty directory
 bool _remove_empty_directory(fs::const_fs_string pth, error *err);
 template<typename T> auto remove_empty_directory(T pth, error *err = nullptr) define_fs_conversion_body(fs::_remove_empty_directory, pth, err)

@@ -77,7 +77,7 @@ bool _get_windows_handle_from_path(fs::const_fs_string pth, bool follow_symlinks
         break;
     */
 
-    if (ret == INVALID_HANDLE_VALUE || ret == INVALID_IO_HANDLE)
+    if (ret == INVALID_HANDLE_VALUE)
     {
         set_GetLastError_error(err);
         return false;
@@ -1753,7 +1753,7 @@ bool fs::_get_symlink_target(fs::const_fs_string pth, fs::path *out, error *err)
                           FILE_FLAG_OPEN_REPARSE_POINT,
                           nullptr);
 
-    if (h == INVALID_HANDLE_VALUE || h == INVALID_IO_HANDLE)
+    if (h == INVALID_HANDLE_VALUE)
     {
         set_GetLastError_error(err);
         return false;
@@ -2730,6 +2730,55 @@ bool fs::_remove_file(fs::const_fs_string pth, error *err)
 #endif
 }
 
+bool fs::_remove_symlink(fs::const_fs_string pth, error *err)
+{
+#if Windows
+    // the BACKUP_SEMANTICS is needed to delete links to directories.
+    int flags = FILE_FLAG_BACKUP_SEMANTICS | FILE_FLAG_OPEN_REPARSE_POINT;
+
+    io_handle h = INVALID_HANDLE_VALUE;
+
+    h = CreateFile(pth.c_str,
+                   DELETE,
+                   FILE_SHARE_DELETE | FILE_SHARE_READ | FILE_SHARE_WRITE,
+                   nullptr,
+                   OPEN_EXISTING,
+                   flags,
+                   nullptr);
+
+    if (h == INVALID_HANDLE_VALUE)
+    {
+        set_GetLastError_error(err);
+        return false;
+    }
+
+    defer { CloseHandle(h); };
+
+    fs::filesystem_type t;
+
+    if (!fs::get_filesystem_type(h, &t, err))
+        return false;
+
+    if (t != fs::filesystem_type::Symlink)
+        return false;
+
+    FILE_DISPOSITION_INFO dinfo{true};
+
+    if (!SetFileInformationByHandle(h,
+                                    FileDispositionInfo,
+                                    &dinfo,
+                                    sizeof(FILE_DISPOSITION_INFO)))
+    {
+        set_GetLastError_error(err);
+        return false;
+    }
+
+    return true;
+#else
+    return fs::_remove_file(pth, err);
+#endif
+}
+
 bool fs::_remove_empty_directory(fs::const_fs_string pth, error *err)
 {
 #if Windows
@@ -2755,18 +2804,30 @@ bool fs::_remove_directory(fs::const_fs_string pth, error *err)
 {
     fs::iterate_option opts = fs::iterate_option::Fullpaths
                             | fs::iterate_option::StopOnError
-                            | fs::iterate_option::ChildrenFirst;
+                            | fs::iterate_option::ChildrenFirst
+                            | fs::iterate_option::QueryType;
 
     for_recursive_path(item, pth, opts, err)
     {
         switch (item->type)
         {
         case fs::filesystem_type::File:
-        case fs::filesystem_type::Symlink:
+#if Linux
         case fs::filesystem_type::Pipe:
+#endif
         {
             if (!fs::remove_file(item->path, err))
                 return false;
+
+            break;
+        }
+        case fs::filesystem_type::Symlink:
+        {
+            if (!fs::remove_symlink(item->path, err))
+            {
+                tprint(L"could not remove %\n", item->path.c_str);
+                return false;
+            }
 
             break;
         }
@@ -2779,6 +2840,9 @@ bool fs::_remove_directory(fs::const_fs_string pth, error *err)
         }
         case fs::filesystem_type::Unknown:
         case fs::filesystem_type::CharacterFile:
+#if Windows
+        case fs::filesystem_type::Pipe:
+#endif
         default:
             return false;
         }
