@@ -269,7 +269,8 @@ fs::fs_recursive_iterator_item *_recursive_iterate(fs::fs_recursive_iterator *it
     // if recursion is on, add the subdirectory onto the stack
     if (it->current_item.recurse)
     {
-        // +2 because at the end of the path is "\*"
+        // * is needed to get everything inside a directory
+        fs::append_path(&it->path_it, SYS_CHAR("*"));
         it->current_item.path.size += 2;
         tprint(L"  recursing into %\n", it->current_item.path);
         it->current_item.recurse = false;
@@ -343,6 +344,11 @@ fs::fs_recursive_iterator_item *_recursive_iterate(fs::fs_recursive_iterator *it
         if (stack->size == 0)
             return nullptr;
 
+        name = detail->find_data.cFileName;
+
+        if (!fs::is_dot_or_dot_dot(name))
+            break;
+
         if (!_get_next_item(detail, err))
             continue;
 
@@ -365,7 +371,7 @@ fs::fs_recursive_iterator_item *_recursive_iterate(fs::fs_recursive_iterator *it
 
     _query_item_type(it->path_it, &it->current_item);
 
-    tprint("types: % %\n", (int)fs::filesystem_type::Directory, (int)it->current_item.type);
+    tprint("  types: % %\n", (int)fs::filesystem_type::Directory, (int)it->current_item.type);
 
     if (it->current_item.type == fs::filesystem_type::Directory
      || (it->current_item.type == fs::filesystem_type::Symlink
@@ -373,7 +379,6 @@ fs::fs_recursive_iterator_item *_recursive_iterate(fs::fs_recursive_iterator *it
         && fs::is_directory(it->current_item.path, true)))
     {
         it->current_item.recurse = true;
-        fs::append_path(&it->path_it, SYS_CHAR("*"));
     }
     else
         it->current_item._advance = true;
@@ -386,6 +391,8 @@ fs::fs_recursive_iterator_item *_recursive_iterate(fs::fs_recursive_iterator *it
         // else
         //  it->current_item._advance = true;
     }
+
+    tprint(L"  yielding %\n", it->current_item.path);
 
     return &it->current_item;
 }

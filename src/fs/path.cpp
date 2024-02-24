@@ -2257,7 +2257,7 @@ bool fs::_copy_file(fs::const_fs_string from, fs::const_fs_string to, fs::copy_f
     {
         int ec = GetLastError();
 
-        if (ec == ERROR_FILE_NOT_FOUND)
+        if (ec == ERROR_FILE_NOT_FOUND || ec == ERROR_PATH_NOT_FOUND)
             to_exists = false;
         else
         {
@@ -2305,7 +2305,7 @@ bool fs::_copy_file(fs::const_fs_string from, fs::const_fs_string to, fs::copy_f
         }
     }
 
-    if (!CopyFile(from.c_str, to.c_str, false))
+    if (!::CopyFile(from.c_str, to.c_str, false))
     {
         set_GetLastError_error(err);
         return false;
@@ -2400,7 +2400,32 @@ bool fs::_copy_file(fs::const_fs_string from, fs::const_fs_string to, fs::copy_f
 // only the directory, not children
 bool _copy_single_directory(fs::const_fs_string from, fs::const_fs_string to, fs::copy_file_option opt, error *err)
 {
-#if Linux
+#if Windows
+    fs::filesystem_type from_type;
+
+    if (!fs::get_filesystem_type(from, &from_type, true, err))
+        return false;
+
+    if (from_type != fs::filesystem_type::Directory)
+    {
+        set_error(err, ERROR_ALREADY_EXISTS, ::_windows_error_message(ERROR_ALREADY_EXISTS));
+        return false;
+    }
+
+    error _err{};
+    bool ok = fs::create_directory(to, fs::permission::All, &_err);
+
+    if (err != nullptr)
+        *err = _err;
+
+    if (!ok)
+        return false;
+
+    if (_err.error_code == ERROR_ALREADY_EXISTS && opt == fs::copy_file_option::None)
+        return false;
+
+    return true;
+#else
     unsigned int flags = 0;
 
     flags = STATX_MODE | STATX_TYPE;
@@ -2432,9 +2457,9 @@ bool _copy_single_directory(fs::const_fs_string from, fs::const_fs_string to, fs
     // so we check again.
     if (_err.error_code == EEXIST && opt == fs::copy_file_option::None)
         return false;
-#endif
 
     return true;
+#endif
 }
 
 template<bool CheckDepth>
