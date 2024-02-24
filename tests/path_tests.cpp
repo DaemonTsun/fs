@@ -1734,8 +1734,6 @@ define_test(copy_directory_copies_directory)
 
     fs::remove(dir_to);
 
-    // TODO: remove if 0
-#if 0
     // up to depth 0 only
     assert_equal(fs::exists(dir_from), 1);
     assert_equal(fs::exists(dir_to), 0);
@@ -1746,7 +1744,7 @@ define_test(copy_directory_copies_directory)
     assert_equal(fs::exists(SANDBOX_DIR "/copy_dir_to/dir3"), 1);
     assert_equal(fs::exists(SANDBOX_DIR "/copy_dir_to/dir1/file2"), 0);
     assert_equal(fs::exists(SANDBOX_DIR "/copy_dir_to/dir1/dir2"), 0);
-    assert_equal(fs::exists(SANDBOX_DIR "/copy_dir_to/dir1/dir2/file3"), 0);
+    assert_not_equal(fs::exists(SANDBOX_DIR "/copy_dir_to/dir1/dir2/file3"), 1);
 
     fs::remove(dir_to);
 
@@ -1773,9 +1771,9 @@ define_test(copy_directory_copies_directory)
     assert_equal(fs::exists(dir_to), 1);
     assert_equal(fs::exists(SANDBOX_DIR "/copy_dir_to/file1"), 0);
     assert_equal(fs::exists(SANDBOX_DIR "/copy_dir_to/dir3"), 0);
-    assert_equal(fs::exists(SANDBOX_DIR "/copy_dir_to/dir1/file2"), 0);
-    assert_equal(fs::exists(SANDBOX_DIR "/copy_dir_to/dir1/dir2"), 0);
-    assert_equal(fs::exists(SANDBOX_DIR "/copy_dir_to/dir1/dir2/file3"), 0);
+    assert_not_equal(fs::exists(SANDBOX_DIR "/copy_dir_to/dir1/file2"), 1);
+    assert_not_equal(fs::exists(SANDBOX_DIR "/copy_dir_to/dir1/dir2"), 1);
+    assert_not_equal(fs::exists(SANDBOX_DIR "/copy_dir_to/dir1/dir2/file3"), 1);
 
 #if Windows
     assert_equal(err.error_code, ERROR_ALREADY_EXISTS);
@@ -1796,14 +1794,12 @@ define_test(copy_directory_copies_directory)
     assert_equal(fs::exists(SANDBOX_DIR "/copy_dir_to/dir1/dir2/file3"), 1);
 
     fs::remove(dir_to);
-#endif
 }
 
-#if Linux // TODO: remove
 define_test(copy_copies_files_and_directories)
 {
-    const char *dir_from = SANDBOX_DIR "/copy1_dir";
-    const char *dir_to = SANDBOX_DIR "/copy1_dir_to";
+    const sys_char *dir_from = SANDBOX_DIR "/copy1_dir";
+    const sys_char *dir_to = SANDBOX_DIR "/copy1_dir_to";
     fs::create_directory(dir_from);
 
     assert_equal(fs::exists(dir_from), 1);
@@ -1812,8 +1808,8 @@ define_test(copy_copies_files_and_directories)
     assert_equal(fs::exists(dir_from), 1);
     assert_equal(fs::exists(dir_to), 1);
 
-    const char *file_from = SANDBOX_DIR "/copy1_file";
-    const char *file_to = SANDBOX_DIR "/copy1_file_to";
+    const sys_char *file_from = SANDBOX_DIR "/copy1_file";
+    const sys_char *file_to = SANDBOX_DIR "/copy1_file_to";
     fs::touch(file_from);
 
     assert_equal(fs::exists(file_from), 1);
@@ -1822,7 +1818,6 @@ define_test(copy_copies_files_and_directories)
     assert_equal(fs::exists(file_from), 1);
     assert_equal(fs::exists(file_to), 1);
 }
-#endif
 
 define_test(create_directory_creates_directory)
 {
@@ -1879,12 +1874,10 @@ define_test(create_directory_creates_directory)
     assert_equal(fs::create_directory(&p, fs::permission::User, &err), false); 
 
 #if Windows
-    // TODO: check error
+    assert_equal(err.error_code, ERROR_PATH_NOT_FOUND);
 #else
     assert_equal(err.error_code, ENOENT);
 #endif
-
-    // TODO: create directory on top of file
 
     fs::free(&p);
 }
@@ -2186,15 +2179,14 @@ define_test(remove_empty_directory_removes_only_empty_directories)
 #endif
 }
 
-#if Linux // TODO: remove
 define_test(remove_directory_removes_directories)
 {
     error err{};
 
-    const char *dir1 = SANDBOX_DIR  "/remove_dir1";
-    const char *dir2 = SANDBOX_DIR  "/remove_dir2";
-    const char *dir3 = SANDBOX_DIR  "/remove_dir3";
-    const char *file1 = SANDBOX_DIR "/remove_dir_file";
+    const sys_char *dir1 = SANDBOX_DIR  "/remove_dir1";
+    const sys_char *dir2 = SANDBOX_DIR  "/remove_dir2";
+    const sys_char *dir3 = SANDBOX_DIR  "/remove_dir3";
+    const sys_char *file1 = SANDBOX_DIR "/remove_dir_file";
 
     fs::create_directory(dir1);
     fs::create_directory(dir2);
@@ -2216,24 +2208,22 @@ define_test(remove_directory_removes_directories)
     assert_equal(fs::remove_directory(dir2, &err), true);
     assert_equal(fs::exists(dir2), 0); 
 
-#if Linux
     assert_equal(err.error_code, 0);
-#endif
 
     // not empty with subdirectories and more descendants
     assert_equal(fs::exists(dir3), 1); 
     assert_equal(fs::remove_directory(dir3, &err), true);
     assert_equal(fs::exists(dir3), 0); 
 
-#if Linux
     assert_equal(err.error_code, 0);
-#endif
 
     assert_equal(fs::exists(file1), 1); 
     assert_equal(fs::remove_directory(file1, &err), false); 
     assert_equal(fs::exists(file1), 1); 
 
-#if Linux
+#if Windows
+    assert_equal(err.error_code, ERROR_DIRECTORY);
+#else
     assert_equal(err.error_code, ENOTDIR);
 #endif
 }
@@ -2242,11 +2232,11 @@ define_test(remove_removes_anything)
 {
     error err{};
 
-    const char *dir1 = SANDBOX_DIR  "/remove1";
-    const char *dir2 = SANDBOX_DIR  "/remove2";
-    const char *dir3 = SANDBOX_DIR  "/remove3";
-    const char *file1 = SANDBOX_DIR "/remove_file";
-    const char *doesnotexist = SANDBOX_DIR "/doesnotexist";
+    const sys_char *dir1 = SANDBOX_DIR  "/remove1";
+    const sys_char *dir2 = SANDBOX_DIR  "/remove2";
+    const sys_char *dir3 = SANDBOX_DIR  "/remove3";
+    const sys_char *file1 = SANDBOX_DIR "/remove_file";
+    const sys_char *doesnotexist = SANDBOX_DIR "/doesnotexist";
 
     fs::create_directory(dir1);
     fs::create_directory(dir2);
@@ -2281,7 +2271,6 @@ define_test(remove_removes_anything)
     assert_equal(fs::exists(doesnotexist), 0); 
     assert_equal(fs::remove(doesnotexist, &err), true); 
 }
-#endif
 
 /*
 define_test(iterator_test1)
@@ -2797,7 +2786,6 @@ define_test(get_descendant_count_gets_children_count)
 #endif
 }
 
-#if Linux // TODO: remove
 define_test(get_executable_path_gets_executable_path)
 {
     // const char *actual = "/home/user/dev/git/fs/bin/tests/path_tests";
@@ -2805,7 +2793,12 @@ define_test(get_executable_path_gets_executable_path)
     error err{};
 
     assert_equal(fs::get_executable_path(&p, &err), true);
+
+#if Windows
+    assert_equal_str(fs::filename(&p), SYS_CHAR("path_tests.exe"));
+#else
     assert_equal_str(fs::filename(&p), SYS_CHAR("path_tests"));
+#endif
 
     // obviously this wont work on all systems
     // assert_equal_str(p, actual);
@@ -2818,15 +2811,19 @@ define_test(get_preference_path_gets_preference_path)
     fs::path pref_path{};
     error err{};
 
-    assert_equal(fs::get_preference_path(&pref_path, nullptr, nullptr, &err), true);
+    // on Windows, the drive letter might be omitted.
 
-    // assert_equal_str(pref_path, SYS_CHAR("/home/user/.local/share"));
+    // on Windows, this might be C:\Users\<user>\AppData\Roaming
+    // on Linux,   this might be /home/<user>/.local/share
+    assert_equal(fs::get_preference_path(&pref_path, &err), true);
 
-    assert_equal(fs::get_preference_path(&pref_path, "path_tests", nullptr, &err), true);
-    // assert_equal_str(pref_path, SYS_CHAR("/home/user/.local/share/path_tests"));
+    // on Windows, this might be C:\Users\<user>\AppData\Roaming\path_tests
+    // on Linux,   this might be /home/<user>/.local/share/path_tests
+    assert_equal(fs::get_preference_path(&pref_path, "path_tests", &err), true);
 
+    // on Windows, this might be C:\Users\<user>\AppData\Roaming\org\path_tests
+    // on Linux,   this might be /home/<user>/.local/share/org/path_tests
     assert_equal(fs::get_preference_path(&pref_path, "path_tests", "org", &err), true);
-    // assert_equal_str(pref_path, SYS_CHAR("/home/user/.local/share/org/path_tests"));
 
     fs::free(&pref_path);
 }
@@ -2838,14 +2835,16 @@ define_test(get_temporary_path_gets_temporary_path)
 
     assert_equal(fs::get_temporary_path(&tmp_path, &err), true);
 
-#if Linux
+#if Windows
+    // could still be different if variables are defined or tests are run as SYSTEM (why?)
+    // assert_equal_str(tmp_path, SYS_CHAR(R"(C:\TEMP)"));
+#else
     // could still be different if variables are defined
     assert_equal_str(tmp_path, SYS_CHAR("/tmp"));
 #endif
 
     fs::free(&tmp_path);
 }
-#endif // if Linux
 
 static fs::path old_current_dir;
 

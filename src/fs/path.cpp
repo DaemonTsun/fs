@@ -1371,8 +1371,6 @@ void fs::_longest_existing_path(fs::const_fs_string pth, fs::path *out)
 // https://en.cppreference.com/w/cpp/filesystem/path
 void fs::normalize(fs::path *pth)
 {
-    // TODO: account for windows bs
-
     if (pth == nullptr)
         return;
 
@@ -2798,13 +2796,20 @@ bool fs::_remove_directory(fs::const_fs_string pth, error *err)
 bool fs::_remove(fs::const_fs_string pth, error *err)
 {
     fs::filesystem_type fstype;
+    error _tmp{};
 
-    if (!fs::_get_filesystem_type(pth, &fstype, false, err))
+    if (!fs::_get_filesystem_type(pth, &fstype, false, &_tmp))
     {
-        if (errno == ENOENT)
-            return true; // don't care about nonexisting things
+        if (err) *err = _tmp;
+        bool doesntexist = false;
 
-        return false;
+#if Windows
+        doesntexist = (_tmp.error_code == ERROR_FILE_NOT_FOUND || _tmp.error_code == ERROR_PATH_NOT_FOUND);
+#else
+        doesntexist = (_tmp.error_code == ENOENT);
+#endif
+
+        return doesntexist; // don't care about nonexisting things
     }
 
     switch (fstype)
@@ -2964,7 +2969,7 @@ freely, subject to the following restrictions:
    misrepresented as being the original software.
 3. This notice may not be removed or altered from any source distribution.
 */
-bool fs::get_preference_path(fs::path *out, const char *app, const char *org, error *err)
+bool fs::_get_preference_path(fs::path *out, const_fs_string app, const_fs_string org, error *err)
 {
     // THIS IS ALTERED.
 #if Linux
@@ -3016,101 +3021,75 @@ bool fs::get_preference_path(fs::path *out, const char *app, const char *org, er
 
     return true;
 #elif Windows
-    // TODO: implement below
-    return false;
-#if 0
-    char *retval = nullptr;
+    // we could use SHGetFolderPath but I'd like to avoid linking Shell32.lib
+    // for 1 function.
+    u32 sz = ::GetEnvironmentVariable(SYS_CHAR("homepath"),
+                                      out->data,
+                                      (DWORD)out->reserved_size);
 
-    WCHAR path[MAX_PATH];
-    WCHAR *worg = NULL;
-    WCHAR *wapp = NULL;
-    size_t new_wpath_len = 0;
-    BOOL api_result = FALSE;
-
-    if (app == NULL)
-        app = "";
-
-    if (org == NULL)
-        org = "";
-
-    if (!SUCCEEDED(SHGetFolderPathW(NULL, CSIDL_APPDATA | CSIDL_FLAG_CREATE, NULL, 0, path))) {
-        WIN_SetError("could not locate our prefpath");
-        return NULL;
-    }
-
-    worg = WIN_UTF8ToStringW(org);
-
-    if (worg == NULL)
-        throw_error("out of memory");
-
-    wapp = WIN_UTF8ToStringW(app);
-
-    if (wapp == NULL)
+    if (sz > out->reserved_size)
     {
-        free(worg);
-        throw_error("out of memory");
+        // +20 because of "\AppData\Roaming\<org>\<app>\"
+        ::reserve(as_array_ptr(out), sz + app.size + org.size + 20);
+        sz = ::GetEnvironmentVariable(SYS_CHAR("homepath"),
+                                      out->data,
+                                      (DWORD)out->reserved_size);
     }
 
-    new_wpath_len = string_length(worg) + string_length(wapp) + string_length(path) + 3;
-
-    if ((new_wpath_len + 1) > MAX_PATH)
+    if (sz == 0)
     {
-        free(worg);
-        free(wapp);
-        WIN_SetError("path too long");
-        return NULL;
+        set_GetLastError_error(err);
+        return false;
     }
 
-    if (*worg)
-    {
-        wcslcat(path, L"\\", arraysize(path));
-        wcslcat(path, worg, arraysize(path));
-    }
+    out->size = sz;
 
-    free(worg);
+    fs::append_path(out, "AppData");
+    fs::append_path(out, "Roaming");
 
-    api_result = CreateDirectoryW(path, NULL);
-    
-    if (api_result == FALSE)
-    {
-        if (GetLastError() != ERROR_ALREADY_EXISTS)
-        {
-            free(wapp);
-            WIN_SetError("Couldn't create a prefpath.");
-            return NULL;
-        }
-    }
+    if (org.size > 0)
+        fs::append_path(out, org);
 
-    wcslcat(path, L"\\", arraysize(path));
-    wcslcat(path, wapp, arraysize(path));
-    free(wapp);
+    if (app.size > 0)
+        fs::append_path(out, app);
 
-    api_result = CreateDirectoryW(path, NULL);
+    if (!fs::create_directories(out, fs::permission::User, err))
+        return false;
 
-    if (api_result == FALSE)
-    {
-        if (GetLastError() != ERROR_ALREADY_EXISTS)
-        {
-            WIN_SetError("Couldn't create a prefpath.");
-            return NULL;
-        }
-    }
-
-    wcslcat(path, L"\\", arraysize(path));
-
-    retval = WIN_StringToUTF8W(path);
-#endif
-
+    return true;
 #else
 #error "unsupported platform"
 #endif
+}
+
+bool fs::get_preference_path(fs::path *out, error *err)
+{
+    return fs::_get_preference_path(out, empty_fs_string, empty_fs_string, err);
 }
 
 bool fs::get_temporary_path(fs::path *out, error *err)
 {
     assert(out != nullptr);
 
-#if Linux
+#if Windows
+    u32 sz = ::GetTempPath((DWORD)out->reserved_size, out->data);
+
+    if (sz > out->reserved_size)
+    {
+        ::reserve(as_array_ptr(out), sz);
+        sz = ::GetTempPath((DWORD)out->reserved_size, out->data);
+    }
+
+    if (sz == 0)
+    {
+        set_GetLastError_error(err);
+        return false;
+    }
+
+    out->size = sz;
+
+    return true;
+#else
     const char *envr = ::getenv("TMPDIR");
     if (envr == nullptr) envr = ::getenv("TMP");
     if (envr == nullptr) envr = ::getenv("TEMP");
@@ -3122,10 +3101,7 @@ bool fs::get_temporary_path(fs::path *out, error *err)
         fs::set_path(out, envr);
 
     return true;
-#else
-    // TODO: implement
 #endif
-    return false;
 }
 
 fs::path operator ""_path(const char    *pth, u64 size)

@@ -292,6 +292,8 @@ fs::fs_recursive_iterator_item *_recursive_iterate(fs::fs_recursive_iterator *it
 
         tprint(L"  recursed first entry %\n", subdir->find_data.cFileName);
     }
+    else
+        it->current_item._advance = true;
 
     tprint(L"  path_it: %\n", ::to_const_string(it->path_it));
 

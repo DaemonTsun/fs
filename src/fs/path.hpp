@@ -454,7 +454,43 @@ bool get_executable_directory_path(fs::path *out, error *err);
 
 // AppData, .local/share, etc
 // will also create the folder if it doesn't exist.
-bool get_preference_path(fs::path *out, const char *app = nullptr, const char *org = nullptr, error *err = nullptr);
+bool _get_preference_path(fs::path *out, const_fs_string app, const_fs_string org, error *err = nullptr);
+bool get_preference_path(fs::path *out, error *err = nullptr);
+
+template<typename T>
+auto get_preference_path(fs::path *out, T app, error *err = nullptr)
+-> decltype(fs::_get_preference_path(out, ::to_const_string(fs::get_platform_string(app)),
+                                          const_fs_string{SYS_CHAR(""), 0},
+                                          err))
+{
+    auto pth_str1 = fs::get_platform_string(app);
+    auto ret = fs::_get_preference_path(out, ::to_const_string(pth_str1), const_fs_string{SYS_CHAR(""), 0}, err);
+
+    if constexpr (needs_conversion(T))
+        fs::free(&pth_str1);
+
+    return ret;
+}
+
+template<typename T1, typename T2>
+auto get_preference_path(fs::path *out, T1 app, T2 org, error *err = nullptr)
+-> decltype(fs::_get_preference_path(out, ::to_const_string(fs::get_platform_string(app)),
+                                          ::to_const_string(fs::get_platform_string(org)),
+                                          err))
+{
+    auto pth_str1 = fs::get_platform_string(app);
+    auto pth_str2 = fs::get_platform_string(org);
+
+    auto ret = fs::_get_preference_path(out, ::to_const_string(pth_str1), ::to_const_string(pth_str2), err);
+
+    if constexpr (needs_conversion(T1))
+        fs::free(&pth_str1);
+
+    if constexpr (needs_conversion(T2))
+        fs::free(&pth_str2);
+
+    return ret;
+}
 
 // /tmp
 bool get_temporary_path(fs::path *out, error *err);
