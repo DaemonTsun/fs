@@ -63,7 +63,3 @@ jobs:
     - name: Test
       working-directory: ${{ steps.strings.outputs.build-output-dir }}
       run: ctest --build-config ${{ matrix.build_type }}
-    - name: make check
-      run: make check
-    - name: make distcheck
-      run: make distcheck
