@@ -1,13 +1,170 @@
 
 /* path.hpp
- TODO: write new docs
+
+Path and filesystem functions.
+
+All structs and functions in this library are in the fs namespace.
+
+fs::path is a struct similar in structure to a shl/string.
+Depending on the platform and compile flags, fs::path may hold plain
+characters (char) or wide characters (wchar_t), the type used can be obtained
+via fs::path_char_t or shl ::sys_char.
+
+::to_const_string works with fs::path and yields a const_fs_string (const_string_base<sys_char>)
+of the path.
 
 Note: fs::path has a size member, but because fs uses a lot of
 standard library functions / syscalls (e.g. stat), which do not
 check for size, a null character is required to terminate a
 fs::path.
 
- */
+Most functions accept strings of different character types, even
+character types encodings not native to the platform, e.g. wchar_t on
+Linux or char on a Unicode Windows.
+In this case, the strings will first be converted to the native format,
+using e.g. wcstombs or mbstowcs.
+
+Most functions returning a boolean will set the error code and message when
+returning false if an error occurred. An error code that is not 0 indicates an error.
+
+Functions:
+( * is a pointer, Path is usually fs::path, PathStr is anything that can be converted
+to a const_fs_string, FSInfo is fs::filesystem_info).
+
+init(*Path) initializes an empty Path.
+init(*Path, str) initializes Path to a copy of str. Does not normalize Path.
+init(*Path, *Path2) initializes Path to a copy of Path2.
+
+free(*Path) frees the memory of Path.
+
+hash(*Path) returns a hash of the Path string. Note that two equivalent paths may produce
+            different hashes. Use fs::are_equivalent(Path1, Path2) to check if two paths
+            are equivalent.
+
+set_path(*Path, str) sets Path to a copy of str. Does not normalize Path.
+set_path(*Path, *Path2) sets Path to a copy of Path2.
+
+get_filesystem_info(PathStr, *Out, FollowSymlinks = true, Flags = FS_QUERY_DEFAULT_FLAGS[, *err])
+    Queries filesystem information from PathStr. To get information about symlinks,
+    set FollowSymlinks to false.
+    The flags determine what information is queried and what information is written
+    to *Out, see fs/common.hpp for documentation on fs::filesystem_info and which
+    flags may be used.
+    Returns whether or not the function succeeded.
+
+get_filesystem_info(Handle, *Out, Flags[, *err])
+    Queries filesystem information about an open I/O Handle. 
+    The flags determine what information is queried and what information is written
+    to *Out, see fs/common.hpp for documentation on fs::filesystem_info and which
+    flags may be used.
+    Returns whether or not the function succeeded.
+
+get_filesystem_type(PathStr, *Out, FollowSymlinks = true[, *err])
+    Queries the filesystem type of the PathStr and writes the result to Out.
+    Returns whether or not the function succeeded.
+
+get_filesystem_type(Handle, *Out[, *err])
+    Queries the filesystem type of the I/O Handle and writes the result to Out.
+    Returns whether or not the function succeeded.
+
+get_filesystem_type(*FSInfo)
+    Returns the type of the filesystem_info FSInfo if the type was queried with
+    fs::get_filesystem_info.
+
+NOTE Windows: as of version 0.8, permissions are not yet implemented.
+get_permissions(PathStr, *Out, FollowSymlinks = true[, *err])
+    Queries the filesystem permissions of the PathStr and writes the result to Out.
+    Returns whether or not the function succeeded.
+
+get_permissions(Handle, *Out[, *err])
+    Queries the filesystem permissions of the I/O Handle and writes the result to Out.
+    Returns whether or not the function succeeded.
+
+get_permissions(*FSInfo)
+    Returns the permissions of the filesystem_info FSInfo if the permissions were queried with
+    fs::get_filesystem_info.
+
+set_permissions(PathStr, Perms, FollowSymlinks = true[, *err])
+    Sets the filesystem permissions of the PathStr to Perms.
+    Returns whether or not the function succeeded.
+
+set_permissions(Handle, Perms[, *err])
+    Sets the filesystem permissions of the PathStr to Perms.
+    Returns whether or not the function succeeded.
+
+exists(PathStr, FollowSymlinks = true[, *err])
+    Returns 1 if PathStr exists, 0 if PathStr does not exist and -1 if an error occurred.
+
+is_X(PathStr, FollowSymlinks = true[, *err]) (replace X with file, pipe, directory, symlink, ...)
+    Returns whether or not the type of the PathStr is X.
+
+is_X(Handle[, *err]) (replace X with file, pipe, directory, symlink, ...)
+    Returns whether or not the type of the I/O Handle is X.
+
+is_X_info(*FSinfo) (replace X with file, pipe, directory, symlink, ...)
+    Returns whether or not the type of the FSinfo is X, if FSinfo was queried with type.
+
+is_absolute(PathStr)
+    Returns whether or not PathStr is an absolute path.
+
+is_relative(PathStr)
+    Returns whether or not PathStr is a relative path.
+
+are_equivalent(PathStr1, PathStr2, FollowSymlinks = true[, *err])
+    Returns whether or not PathStr1 and PathStr2 refer to the same file (or directory, ...) on
+    the same filesystem.
+
+are_equivalent_infos(*FSInfo1, *FSInfo2)
+    Returns whether or not the filesystem_infos are equivalent.
+    Only works when both FSInfos were queried with FS_QUERY_ID.
+
+filename(ConstString)
+filename(*Path)
+    Returns the filename of Path, or an empty const_string if there is none.
+    Does not copy the filename and instead returns a slice to the memory within Path
+    which points to the filename.
+
+is_dot(PathStr)
+    Returns whether or not PathStr's filename is '.'. Specifically checks the filename, so
+    e.g. "/abc/." returns true.
+
+is_dot_dot(PathStr)
+    Returns whether or not PathStr's filename is '..'. Specifically checks the filename, so
+    e.g. "/abc/.." returns true.
+
+is_dot_or_dot_dot(PathStr)
+    Returns whether or not PathStr's filename is '.' or '..'. Specifically checks the filename, so
+    e.g. "/abc/." or "/def/.." return true.
+
+file_extension(ConstString)
+file_extension(*Path)
+    Returns the file extension of Path, or an empty const_string if there is none.
+    This returns the full filename for "dotfiles", i.e. files that have no name, only an
+    extension.
+    Returns an empty const_string for '.' and '..'.
+
+parent_path_segment(ConstString)
+parent_path_segment(*Path)
+    Returns the parent path segment of the Path, or an empty const_string if there is none.
+    Returns Path is Path is a root.
+    Does not copy the parent path segment and instead returns a slice to the memory within Path
+    which points to the parent path.
+    See tests/path_tests.cpp for a comprehensive list of examples.
+
+root(ConstString)
+root(*Path)
+    Returns the root of the Path, or an empty const_string if there is none.
+    Returns Path is Path is a root.
+    Does not copy the root and instead returns a slice to the memory within Path
+    which points to the root.
+    See tests/path_tests.cpp for a comprehensive list of examples.
+
+replace_filename(*Path, NewName)
+    If Path has a filename, replaces that filename with NewName.
+    NewName is anything that can be converted to a const_fs_string.
+
+TODO: path_segments, rest of docs
+*/
 
 #pragma once
 
@@ -219,11 +376,11 @@ bool is_symlink(io_handle h, error *err = nullptr);
 bool is_directory(io_handle h, error *err = nullptr);
 bool is_other(io_handle h, error *err = nullptr);
 
-bool _is_absolute(fs::const_fs_string pth, error *err);
-bool _is_relative(fs::const_fs_string pth, error *err);
+bool _is_absolute(fs::const_fs_string pth);
+bool _is_relative(fs::const_fs_string pth);
 
-template<typename T> auto is_absolute(T pth, error *err = nullptr) define_fs_conversion_body(fs::_is_absolute, pth, err)
-template<typename T> auto is_relative(T pth, error *err = nullptr) define_fs_conversion_body(fs::_is_relative, pth, err)
+template<typename T> auto is_absolute(T pth) define_fs_conversion_body(fs::_is_absolute, pth)
+template<typename T> auto is_relative(T pth) define_fs_conversion_body(fs::_is_relative, pth)
 
 bool are_equivalent_infos(const fs::filesystem_info *info1, const fs::filesystem_info *info2);
 
@@ -251,7 +408,7 @@ template<typename T> auto is_dot_or_dot_dot(T pth) define_fs_conversion_body(fs:
 
 // this differs from std::filesystem::path::extension:
 // filenames that have no stem (only an extension) are treated exactly like that:
-// no filename, only extension, and as such file_extension returns the full filename
+// no name, only extension, and as such file_extension returns the full filename
 // for filenames with no stem.
 //
 // . and .. are treated the same as std::filesystem::path::extension:

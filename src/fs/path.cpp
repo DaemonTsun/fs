@@ -930,7 +930,7 @@ bool fs::is_other(io_handle h, error *err)
     return typ == fs::filesystem_type::Unknown;
 }
 
-bool fs::_is_absolute(fs::const_fs_string pth, error *err)
+bool fs::_is_absolute(fs::const_fs_string pth)
 {
     // for relative or invalid paths, root is empty string
     auto rt = fs::root(pth);
@@ -938,9 +938,9 @@ bool fs::_is_absolute(fs::const_fs_string pth, error *err)
     return rt.size > 0;
 }
 
-bool fs::_is_relative(fs::const_fs_string pth, error *err)
+bool fs::_is_relative(fs::const_fs_string pth)
 {
-    return !fs::_is_absolute(pth, err);
+    return !fs::_is_absolute(pth);
 }
 
 bool fs::are_equivalent_infos(const fs::filesystem_info *info1, const fs::filesystem_info *info2)

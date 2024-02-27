@@ -1,4 +1,103 @@
 
+/* common.hpp
+
+Filesystem structs, enums, constants, etc.
+
+typedef path_char_t:
+    On Linux, char.
+    On Windows, wchar_t if UNICODE is set (default), char otherwise.
+
+constant path_char_t path_separator:
+    The default path separator used by the platform.
+
+enum fs::filesystem_type:
+    The type of filesystem entries, may be obtained with fs::get_filesystem_type
+    or in iterations of directories with for_path(item, path) { item->type }.
+    The values, and which values are available, depend on the platform, for
+    instance on Linux, filesystem_type::Socket names a valid filesystem_type,
+    on Windows, filesystem_type::Socket does not exist.
+    The following types exist on all platforms:
+        - Unknown
+        - File
+        - Directory
+        - Symlink
+
+enum fs::permission:
+    Bitmask flags for permissions, based on POSIX permissions.
+
+enum fs::iterate_option:
+    Bitmask flags that change the behavior of path iterators. Values:
+    None:           Does not follow symlinks and does not stop on errors.
+    FollowSymlinks: Follows directory symlinks.
+    StopOnError:    Stop on first error.
+    Fullpaths:      Yields full paths in item->path. Does consume more memory.
+    ChildrenFirst:  When recursively iterating, iterates all children of a
+                    directory before iterating the directory.
+                    Does nothing when not iterating recursively.
+    QueryType:      Whether or not to query type information.
+                    Because you get type information on dirent (Linux
+                    implementation) anyway, this flag does nothing on
+                    Linux.
+
+struct fs::filesystem_info:
+    A struct containing specific filesystem information about a given path.
+    May be obtained using fs::get_filesystem_info using flags to query
+    different types of information, such as attributes, unique identifier,
+    permissions, change and access times, etc..
+    On Linux, fs::filesystem_info is identical in structure to a statx struct.
+    On Windows, fs::filesystem_info contains different union members for
+    different operations.
+    fs::get_filesystem_info signature:
+
+    fs::get_filesystem_info(Path, *Out, FollowSymlinks, Flags[, err])
+
+    The underlying syscalls or operating functions depend on the Flags,
+    although on Linux this will just be statx, but on Windows different
+    functions will be called to fill the filesystem_info with data.
+    Depending on the flag, different fields of the struct will be written to,
+    meaning other fields or union members not written to should not be accessed.
+
+    The following flags are supported, writing to the following fields:
+
+    FS_QUERY_PERMISSIONS:
+        Queries the permissions of the given path.
+        On Linux, equivalent to STATX_MODE, writing to filesystem_info.stx_mode.
+        On Windows, as of 0.8, not implemented. TODO: implement
+
+    FS_QUERY_TYPE:
+        Queries the type of the given path.
+        On Linux, equivalent to STATX_TYPE, writing to filesystem_info.stx_mode
+        (stx_mode contains both access rights and the type, see statx documentation).
+        On Windows, does multiple checks on the given path and writes the type
+        to filesystem_info.detail.type (fs::filesystem_type).
+
+    FS_QUERY_ID:
+        Queries the unique file ID of the given path.
+        On Linux, equivalent to STATX_INO, writing to filesystem_info.stx_ino,
+        stx_dev_major and stx_dev_minor.
+        On Windows, uses GetFileInformationByHandle to set
+        filesystem_info.detail.id_info.VolumeSerialNumber and
+        filesystem_info.detail.id_info.FileId.
+
+    FS_QUERY_FILE_TIMES:
+        Queries the last access time, modification time, change time and
+        creation time of the given path.
+        On Linux, equivalent to STATX_BTIME | STATX_ATIME | STATX_MTIME | STATX_CTIME,
+        Writing to filesystem_info.stx_btime, stx_atime, stx_mtime and stx_ctime.
+        On Windows, uses GetFileInformationByHandleEx to query the file times
+        and sets filesystem_info.detail.file_times.creation_time, .last_access_time,
+        .last_write_time and .change_time.
+        
+    FS_QUERY_DEFAULT_FLAGS:
+        The default flag when omitting specific flags, querying some or all
+        information available.
+        On Linux, equivalent to STATX_BASIC_STATS | STATX_BTIME, setting
+        most fields in the fs::filesystem_info struct.
+        On Windows, calls GetFileInformationByHandleEx with FileBasicInfo, setting
+        filesystem_info.detail.basic_info.
+
+ */
+
 #pragma once
 
 #include "shl/string.hpp"
@@ -51,7 +150,7 @@ struct filesystem_info
 {
     union _info_detail
     {
-        // FILE_BASIC_INFO         basic_info;     // FileBasicInfo, includes times
+        FILE_BASIC_INFO         basic_info;     // FileBasicInfo, includes times
         FILE_ATTRIBUTE_TAG_INFO attribute_info; // FileAttributeTagInfo
         FILE_ID_INFO            id_info;        // FileIdInfo
         windows_file_times      file_times;
@@ -173,3 +272,4 @@ enum class iterate_option : u8
 
 enum_flag(iterate_option);
 }
+
