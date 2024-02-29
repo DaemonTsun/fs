@@ -10,6 +10,8 @@ Depending on the platform and compile flags, fs::path may hold plain
 characters (char) or wide characters (wchar_t), the type used can be obtained
 via fs::path_char_t or shl ::sys_char.
 
+TODO: examples
+
 ::to_const_string works with fs::path and yields a const_fs_string (const_string_base<sys_char>)
 of the path.
 
@@ -27,7 +29,9 @@ using e.g. wcstombs or mbstowcs.
 Most functions returning a boolean will set the error code and message when
 returning false if an error occurred. An error code that is not 0 indicates an error.
 
+----------
 Functions:
+----------
 ( * is a pointer, Path is usually fs::path, PathStr is anything that can be converted
 to a const_fs_string, FSInfo is fs::filesystem_info).
 
@@ -163,7 +167,156 @@ replace_filename(*Path, NewName)
     If Path has a filename, replaces that filename with NewName.
     NewName is anything that can be converted to a const_fs_string.
 
-TODO: path_segments, rest of docs
+path_segments(PathStr, *OutArray)
+path_segments(*Path, *OutArray)
+    Fills OutArray (a shl array<const_fs_string>) with every "segment" in the path.
+    The segments are slices into Path, no copies of Path are made.
+    A segment is either the root, a directory or the filename. Filename extensions
+    are not a segment. The root is a single segment, even if it contains multiple
+    path separators.
+    See tests/path_tests.cpp for a comprehensive list of examples.
+
+* The following functions ending in "_path" create a new fs::path object (or
+write to an existing one).
+
+parent_path(PathStr)
+    Returns a new fs::path that is the parent path of PathStr.
+
+parent_path(PathStr, *OutPath)
+    Sets the fs::path OutPath to the parent path of PathStr.
+
+longest_existing_path(PathStr)
+    Returns a new fs::path that is the longest path that exists (and is accessible)
+    of PathStr.
+
+longest_existing_path(PathStr, *OutPath)
+    Sets the fs::path OutPath to the longest path that exists (and is accessible)
+    of PathStr.
+
+normalize(*Path)
+    Normalizes the path. Normalization follows rules loosely following
+    the algorithm described in https://en.cppreference.com/w/cpp/filesystem/path :
+    - An empty path stays an empty path
+    - When possible, replace non-native directory separators with the native
+      directory separators (read: replace / with \ on Windows)
+    - Remove ./
+    - Remove <xyz>/..[/]
+    - Remove any ..[/] directly after root
+    - Remove trailing directory separators
+    - If after all these steps the path ends up empty, set path to "."
+
+    This function does not call any operating system functions to check the
+    existence, validity or accessibility of the path, i.e. all operations
+    in this function are done on the Path data, not on the filesystem.
+    See tests/path_tests.cpp for a comprehensive list of examples.
+
+absolute_path(PathStr[, *err])
+    Returns a new fs::path that is the absolute path of PathStr.
+
+absolute_path(PathStr, *OutPath[, *err])
+    Sets the fs::path OutPath to the absolute path of PathStr.
+    Returns whether or not the function succeeded.
+    
+canonical_path(PathStr[, *err])
+    Returns a new fs::path that is the canonical path of PathStr.
+    A canonical path is a path that contains no relative segments (. or ..) and
+    no symlinks. PathStr must be an accessible and existing path, canonical_path
+    does not work on paths that do not exist.
+
+canonical_path(PathStr, *OutPath[, *err])
+    Sets the fs::path OutPath to the canonical path of PathStr.
+    A canonical path is a path that contains no relative segments (. or ..) and
+    no symlinks. PathStr must be an accessible and existing path, canonical_path
+    does not work on paths that do not exist.
+    Returns whether or not the function succeeded.
+
+weakly_canonical_path(PathStr[, *err])
+    Returns a new fs::path that is the canonical path of PathStr.
+    A canonical path is a path that contains no relative segments (. or ..) and
+    no symlinks. Unlike canonical_path, PathStr does not need to exist.
+
+weakly_canonical_path(PathStr, *OutPath[, *err])
+    Sets the fs::path OutPath to the canonical path of PathStr.
+    A canonical path is a path that contains no relative segments (. or ..) and
+    no symlinks. Unlike canonical_path, PathStr does not need to exist.
+    Returns whether or not the function succeeded.
+
+get_symlink_target(PathStr, *OutPath[, *err])
+    Sets the fs::path OutPath to the target of the symlink that PathStr points
+    to.
+    Returns whether or not the function succeeded.
+
+get_current_path(*OutPath[, *err])
+    Sets the fs::path OutPath to the current working directory.
+    Returns whether or not the function succeeded.
+
+set_current_path(PathStr[, *err])
+    Sets the current working directory to PathStr.
+    Returns whether or not the function succeeded.
+
+append_path(*Path, StrSegment)
+    Appends StrSegment to Path, inserting a fs::path_separator before StrSegment if
+    Path does not end in a path separator.
+    If StrSegment is absolute, sets Path to StrSegment.
+    See tests/path_tests.cpp for a comprehensive list of examples.
+
+concat_path(*Path, StrSegment)
+    Concatenates StrSegment to the end of Path, regardless of either contents.
+
+relative_path(FromPathStr, ToPathStr, *OutPath)
+    Sets OutPath to the relative path from FromPathStr to ToPathStr.
+    See tests/path_tests.cpp for a comprehensive list of examples.
+
+-------------------------------
+Filesystem modifying functions:
+-------------------------------
+
+touch(PathStr, Permissions = User[, *err])
+    Creates a file at PathStr with permissions Permissions. If a file already exists
+    at PathStr, its access and modification times are set to the current timestamp.
+    Returns whether or not the function succeeded.
+
+copy_file(FromPathStr, ToPathStr, Options = fs::copy_file_option::OverwriteExisting[, *err])
+    Copies a _file_ from FromPathStr to ToPathStr. Option determines how the
+    function behaves, specifically with existing ToPathStr files.
+    fs::copy_file_option::None does not overwrite existing files and will report such as an error.
+    fs::copy_file_option::OverwriteExisting (default) overwrites existing files.
+    fs::copy_file_option::SkipExisting does not overwrite existing files silently (no error).
+    fs::copy_file_option::UpdateExisting overwrites existing files only if FromPathStr has a
+                                         newer _modification_ time than ToPathStr.
+    Returns whether or not the function succeeded.
+    See tests/path_tests.cpp for a comprehensive list of examples.
+
+copy_directory(FromPathStr, ToPathStr, MaxDepth, Options = fs::copy_file_option::OverwriteExisting[, *err])
+    (Recursively) copies a directory from FromPathStr to ToPathStr.
+    MaxDepth determines the deepest subdirectories to be copied:
+    -1 MaxDepth = unlimited subdirectories,
+    0 = only the root directory, no subdirectories,
+    1 = only the root directory and its immediate subdirectories, ...
+    Options determines how the function handles file collisions, see copy_file for details.
+    Returns whether or not the function succeeded.
+    See tests/path_tests.cpp for a comprehensive list of examples.
+
+copy(FromPathStr, ToPathStr, MaxDepth, Options = fs::copy_file_option::OverwriteExisting[, *err])
+    Copies files and directories from FromPathStr to ToPathStr.
+    Same options as copy_file and copy_directory.
+    Returns whether or not the function succeeded.
+    See tests/path_tests.cpp for a comprehensive list of examples.
+
+create_directory(PathStr, Permissions = User[, *err])
+    Creates a directory at PathStr with permissions Permissions.
+    Returns whether or not the function succeeded, also returns true if a directory
+    already exists at PathStr.
+    Fails when attempting to create a directory whose parent does not exist (i.e. when
+    attempting to create multiple directories), to do this use create_directories instead.
+
+create_directories(PathStr, Permissions = User[, *err])
+    Creates a directory at PathStr and all its parents with permissions Permissions.
+    Returns whether or not the function succeeded, also returns true if a directory
+    already exists at PathStr.
+
+TODO: create_hard_link, ...
+
 */
 
 #pragma once
@@ -406,13 +559,14 @@ template<typename T> auto is_dot(T pth) define_fs_conversion_body(fs::_is_dot, p
 template<typename T> auto is_dot_dot(T pth) define_fs_conversion_body(fs::_is_dot_dot, pth)
 template<typename T> auto is_dot_or_dot_dot(T pth) define_fs_conversion_body(fs::_is_dot_or_dot_dot, pth)
 
-// this differs from std::filesystem::path::extension:
-// filenames that have no stem (only an extension) are treated exactly like that:
-// no name, only extension, and as such file_extension returns the full filename
-// for filenames with no stem.
-//
-// . and .. are treated the same as std::filesystem::path::extension:
-// file_extension will return empty strings (not nullptr) in these cases.
+/* this differs from std::filesystem::path::extension:
+filenames that have no stem (only an extension) are treated exactly like that:
+no name, only extension, and as such file_extension returns the full filename
+for filenames with no stem.
+
+. and .. are treated the same as std::filesystem::path::extension:
+file_extension will return empty strings (not nullptr) in these cases.
+*/
 fs::const_fs_string file_extension(fs::const_fs_string pth);
 fs::const_fs_string file_extension(const fs::path *pth);
 fs::const_fs_string parent_path_segment(fs::const_fs_string pth);
@@ -496,17 +650,6 @@ auto relative_path(T1 from_path, T2 to_path, fs::path *out)
 
 bool _touch(fs::const_fs_string pth, fs::permission perms, error *err);
 template<typename T> auto touch(T pth, fs::permission perms = fs::permission::User, error *err = nullptr) define_fs_conversion_body(fs::_touch, pth, perms, err)
-
-enum class copy_file_option
-{
-    None,               // reports an error when destination exists.
-    OverwriteExisting,  // (default) overwrites existing destination.
-    UpdateExisting,     // overwrites existing destination ONLY if destination is older than source,
-                        // but does not report an error in either case.
-                        // looks at MODIFICATION time.
-    SkipExisting        // skips any existing destination files.
-    // UpdateOnly? might be useful
-};
 
 bool _copy_file(fs::const_fs_string from, fs::const_fs_string to, fs::copy_file_option opt, error *err);
 

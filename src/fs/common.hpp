@@ -25,6 +25,14 @@ enum fs::filesystem_type:
 enum fs::permission:
     Bitmask flags for permissions, based on POSIX permissions.
 
+enum fs::copy_file_option:
+    None:              Reports an error when destination exists.
+    OverwriteExisting: (default) overwrites existing destination.
+    UpdateExisting:    Overwrites existing destination ONLY if destination is older than source,
+                       but does not report an error in either case.
+                       Looks at MODIFICATION time.
+    SkipExisting:      Skips any existing destination files.
+
 enum fs::iterate_option:
     Bitmask flags that change the behavior of path iterators. Values:
     None:           Does not follow symlinks and does not stop on errors.
@@ -254,6 +262,17 @@ enum_flag(permission);
 
 // this will either be const_string or const_wstring
 typedef const_string_base<fs::path_char_t> const_fs_string;
+
+enum class copy_file_option
+{
+    None,               // reports an error when destination exists.
+    OverwriteExisting,  // (default) overwrites existing destination.
+    UpdateExisting,     // overwrites existing destination ONLY if destination is older than source,
+                        // but does not report an error in either case.
+                        // looks at MODIFICATION time.
+    SkipExisting        // skips any existing destination files.
+    // TODO: UpdateOnly? might be useful
+};
 
 enum class iterate_option : u8
 {
