@@ -1,16 +1,27 @@
 
 /* path.hpp
 
+v0.8
 Path and filesystem functions.
 
 All structs and functions in this library are in the fs namespace.
 
-fs::path is a struct similar in structure to a shl/string.
+fs::path is a struct similar in structure to a shl string.
 Depending on the platform and compile flags, fs::path may hold plain
 characters (char) or wide characters (wchar_t), the type used can be obtained
-via fs::path_char_t or shl ::sys_char.
+via fs::path_char_t or shl sys_char.
 
-TODO: examples
+fs::path is used to represent filesystem paths and run filesystem operations
+on.
+
+Example: Creating a file named "myfile.txt" in the home directory.
+
+    fs::path p{};
+    fs::get_home_path(&p);
+
+    fs::append(&p, "myfile.txt");
+    fs::touch(&p);
+    fs::free(&p);
 
 ::to_const_string works with fs::path and yields a const_fs_string (const_string_base<sys_char>)
 of the path.
@@ -28,6 +39,62 @@ using e.g. wcstombs or mbstowcs.
 
 Most functions returning a boolean will set the error code and message when
 returning false if an error occurred. An error code that is not 0 indicates an error.
+
+Test cases for every function are located at tests/path_tests.cpp. Refer to them
+to see how each function is used.
+
+----------
+Iterating:
+----------
+
+There are multiple macros defined in fs/impl/iterator.hpp (included in this file)
+for iterating paths with different options. tests/path_tests.cpp lists multiple
+examples on how these are used.
+
+The most basic for_path macro iterates a directory, e.g.:
+    my_dir
+    |- file1
+    |- file2
+    |- my_dir2
+       |- file3
+
+        for_path(it, "my_dir")
+            printf("%s\n", it->path.c_str);
+
+    Prints the following:
+        file1
+        file2
+        my_dir2
+
+
+    Recursive iterating:
+
+        for_recursive_path(it, "my_dir")
+            printf("%s\n", it->path.c_str);
+
+    Prints the following:
+        my_dir/file1
+        my_dir/file2
+        my_dir/my_dir2
+        my_dir/my_dir2/file3
+
+
+For non-recursive iterating, the iteration item ("it" in for_path(it, ...)) has
+the following members:
+
+    fs::filesystem_type type;
+    fs::const_fs_string path;
+
+    as well as platform-specific members. See fs/impl/iterator.hpp for details.
+
+Recursive iteration items have additional members:
+
+    u32 depth;    // recursion depth, starts at 0
+    bool recurse; // whether or not to recurse into the current item
+    
+for_path and for_recursive_path take optional 3rd and 4th parameters:
+fs::iterate_option and error.
+See fs/common.hpp for iteration options.
 
 ----------
 Functions:
@@ -279,20 +346,24 @@ touch(PathStr, Permissions = User[, *err])
 copy_file(FromPathStr, ToPathStr, Options = fs::copy_file_option::OverwriteExisting[, *err])
     Copies a _file_ from FromPathStr to ToPathStr. Option determines how the
     function behaves, specifically with existing ToPathStr files.
+
     fs::copy_file_option::None does not overwrite existing files and will report such as an error.
     fs::copy_file_option::OverwriteExisting (default) overwrites existing files.
     fs::copy_file_option::SkipExisting does not overwrite existing files silently (no error).
     fs::copy_file_option::UpdateExisting overwrites existing files only if FromPathStr has a
                                          newer _modification_ time than ToPathStr.
+                                         
     Returns whether or not the function succeeded.
     See tests/path_tests.cpp for a comprehensive list of examples.
 
 copy_directory(FromPathStr, ToPathStr, MaxDepth, Options = fs::copy_file_option::OverwriteExisting[, *err])
     (Recursively) copies a directory from FromPathStr to ToPathStr.
     MaxDepth determines the deepest subdirectories to be copied:
+
     -1 MaxDepth = unlimited subdirectories,
     0 = only the root directory, no subdirectories,
     1 = only the root directory and its immediate subdirectories, ...
+
     Options determines how the function handles file collisions, see copy_file for details.
     Returns whether or not the function succeeded.
     See tests/path_tests.cpp for a comprehensive list of examples.
@@ -315,8 +386,110 @@ create_directories(PathStr, Permissions = User[, *err])
     Returns whether or not the function succeeded, also returns true if a directory
     already exists at PathStr.
 
-TODO: create_hard_link, ...
+create_hard_link(TargetPathStr, LinkPathStr[, *err])
+    Creates a link at LinkPathStr which is a hard link to TargetPathStr.
+    Returns whether or not the function succeeded.
 
+create_symlink(TargetPathStr, LinkPathStr[, *err])
+    Creates a link at LinkPathStr which is a symbolic link to TargetPathStr.
+    Returns whether or not the function succeeded.
+
+move(FromPathStr, ToPathStr[, *err])
+    Moves (renames) a file or directory from FromPathStr to ToPathStr.
+    Overwrites existing files.
+    Returns whether or not the function succeeded.
+
+remove_file(PathStr[, *err])
+    Removes the _file_ at PathStr. On Linux, also removes symbolic links.
+    Returns whether or not the function succeeded.
+
+remove_symlink(PathStr[, *err])
+    Removes the symlink (not its target) at PathStr.
+    Returns whether or not the function succeeded.
+
+remove_empty_directory(PathStr[, *err])
+    Removes an empty directory at PathStr. Fails if the directory is not empty.
+    Returns whether or not the function succeeded.
+
+remove_directory(PathStr[, *err])
+    Removes a directory and all its descendants. Stops on the first error.
+    Returns whether or not the function succeeded.
+
+remove(PathStr[, *err])
+    Removes a file, symlink or directory (and all its descendants) at PathStr.
+    Returns whether or not the function succeeded.
+
+get_children_names(PathStr, *OutPathArray[, *err])
+    Appends the names of all direct children of the directory at PathStr
+    to OutPathArray. The OutPathArray holds fs::paths, and as such the paths
+    must be freed.
+    Does not include . or .. .
+    Returns the number of items added, or -1 on error.
+
+get_children_fullpaths(PathStr, *OutPathArray[, *err])
+    Appends the full paths of all direct children of the directory at PathStr
+    to OutPathArray. The OutPathArray holds fs::paths, and as such the paths
+    must be freed.
+    Does not include . or .. .
+    Returns the number of items added, or -1 on error.
+
+get_all_descendants_paths(PathStr, *OutPathArray[, *err])
+    Appends the relative (to PathStr) paths of all descendants of the
+    directory at PathStr to OutPathArray. The OutPathArray holds fs::paths,
+    and as such the paths must be freed.
+    Does not include . or .. .
+    Returns the number of items added, or -1 on error.
+
+get_all_descendants_fullpaths(PathStr, *OutPathArray[, *err])
+    Appends the full paths of all descendants of the directory at PathStr
+    to OutPathArray. The OutPathArray holds fs::paths, and as such the
+    paths must be freed.
+    Does not include . or .. .
+    Returns the number of items added, or -1 on error.
+
+get_children_count(PathStr[, *err])
+    Returns the number of direct children of the directory at PathStr, or -1 on error.
+    Does not include . or .. .
+
+get_descendant_count(PathStr[, *err])
+    Returns the number of all descendants of the directory at PathStr, or -1 on error.
+    Does not include . or .. .
+
+--------------
+Special paths:
+--------------
+
+get_home_path(*OutPath[, *err])
+    Sets OutPath to the home directory of the user executing the process.
+    Returns whether or not the function succeeded.
+
+get_executable_path(*OutPath[, *err])
+    Sets OutPath to the full path of the executing executable, including the
+    executable name.
+    Returns whether or not the function succeeded.
+
+get_executable_directory_path(*OutPath[, *err])
+    Sets OutPath to the full path of the folder where the executing
+    executable is in.
+    Returns whether or not the function succeeded.
+
+get_preference_path(*OutPath[, AppString, OrgString, *err])
+    Sets OutPath to the system specific app preference path, optionally
+    including the application name AppString and the organization or company
+    name OrgString.
+    The directory will be created if it does not exist.
+    Returns whether or not the function succeeded.
+
+    Preference path is e.g. /home/<user>/.local/share/[org/][app/]
+                         or C:/Users/<user>/AppData/Roaming/[org/][app/]
+
+get_temporary_path(*OutPath[, *err])
+    Sets OutPath to a temporary path as provided by the operating system.
+    Returns whether or not the function succeeded.
+
+// For future:
+// TODO: resolve_variables(Str[, *err])
+// TODO: to_path(str, resolve_variables = true[, *err])
 */
 
 #pragma once
@@ -750,10 +923,13 @@ template<typename T> auto get_descendant_count(T pth, error *err = nullptr)
 // getting special paths
 ////////////////////////
 
+// user home directory
+bool get_home_path(fs::path *out, error *err = nullptr);
+
 // location of the executable
-bool get_executable_path(fs::path *out, error *err);
+bool get_executable_path(fs::path *out, error *err = nullptr);
 // convenience, basically parent_path of get_executable_path
-bool get_executable_directory_path(fs::path *out, error *err);
+bool get_executable_directory_path(fs::path *out, error *err = nullptr);
 
 // AppData, .local/share, etc
 // will also create the folder if it doesn't exist.
@@ -798,9 +974,5 @@ auto get_preference_path(fs::path *out, T1 app, T2 org, error *err = nullptr)
 // /tmp
 bool get_temporary_path(fs::path *out, error *err);
 }
-
-// these allocate memory
-fs::path operator ""_path(const char    *, u64);
-fs::path operator ""_path(const wchar_t *, u64);
 
 #include "fs/impl/iterator.hpp"

@@ -16,6 +16,7 @@ enum fs::filesystem_type:
     The values, and which values are available, depend on the platform, for
     instance on Linux, filesystem_type::Socket names a valid filesystem_type,
     on Windows, filesystem_type::Socket does not exist.
+
     The following types exist on all platforms:
         - Unknown
         - File
@@ -26,6 +27,8 @@ enum fs::permission:
     Bitmask flags for permissions, based on POSIX permissions.
 
 enum fs::copy_file_option:
+    Enum to determine how to copy files:
+
     None:              Reports an error when destination exists.
     OverwriteExisting: (default) overwrites existing destination.
     UpdateExisting:    Overwrites existing destination ONLY if destination is older than source,
@@ -35,6 +38,7 @@ enum fs::copy_file_option:
 
 enum fs::iterate_option:
     Bitmask flags that change the behavior of path iterators. Values:
+
     None:           Does not follow symlinks and does not stop on errors.
     FollowSymlinks: Follows directory symlinks.
     StopOnError:    Stop on first error.
@@ -52,9 +56,11 @@ struct fs::filesystem_info:
     May be obtained using fs::get_filesystem_info using flags to query
     different types of information, such as attributes, unique identifier,
     permissions, change and access times, etc..
+
     On Linux, fs::filesystem_info is identical in structure to a statx struct.
     On Windows, fs::filesystem_info contains different union members for
     different operations.
+
     fs::get_filesystem_info signature:
 
     fs::get_filesystem_info(Path, *Out, FollowSymlinks, Flags[, err])

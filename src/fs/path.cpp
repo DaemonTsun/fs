@@ -1,6 +1,4 @@
 
-// v1.1
-
 #include <assert.h>
 #include "shl/print.hpp"
 
@@ -2880,9 +2878,10 @@ bool fs::_remove(fs::const_fs_string pth, error *err)
     {
     case fs::filesystem_type::Directory:
         return fs::remove_directory(pth, err);
+    case fs::filesystem_type::Symlink:
+        return fs::remove_symlink(pth, err);
     case fs::filesystem_type::Unknown:
     case fs::filesystem_type::File:
-    case fs::filesystem_type::Symlink:
     case fs::filesystem_type::Pipe:
     case fs::filesystem_type::CharacterFile:
     default:
@@ -2980,6 +2979,44 @@ s64 fs::_get_descendant_count(fs::const_fs_string pth, fs::iterate_option opts, 
     return count;
 }
 
+bool fs::get_home_path(fs::path *out, error *err)
+{
+#if Windows
+    // we could use SHGetFolderPath but I'd like to avoid linking Shell32.lib
+    // for 1 function.
+    u32 sz = ::GetEnvironmentVariable(SYS_CHAR("userprofile"),
+                                      out->data,
+                                      (DWORD)out->reserved_size);
+
+    if (sz > out->reserved_size)
+    {
+        ::reserve(as_array_ptr(out), sz + 1);
+        sz = ::GetEnvironmentVariable(SYS_CHAR("userprofile"),
+                                      out->data,
+                                      (DWORD)out->reserved_size);
+    }
+
+    if (sz == 0)
+    {
+        set_GetLastError_error(err);
+        return false;
+    }
+
+    out->size = sz;
+
+    return true;
+#else
+    const char *envr = ::getenv("HOME");
+
+    if (envr == nullptr)
+        return false;
+
+    fs::set_path(out, envr);
+
+    return true;
+#endif
+}
+
 bool fs::get_executable_path(fs::path *out, error *err)
 {
     assert(out != nullptr);
@@ -2997,8 +3034,6 @@ bool fs::get_executable_path(fs::path *out, error *err)
 
     fs::set_path(out, pth);
     return true;
-#else
-    #error "unsupported"
 #endif
 }
 
@@ -3045,7 +3080,7 @@ bool fs::_get_preference_path(fs::path *out, const_fs_string app, const_fs_strin
     if (envr == nullptr)
     {
         // You end up with "$HOME/.local/share/Name"
-        envr = getenv("HOME");
+        envr = ::getenv("HOME");
 
         if (envr == nullptr)
         {
@@ -3080,17 +3115,14 @@ bool fs::_get_preference_path(fs::path *out, const_fs_string app, const_fs_strin
 
     return true;
 #elif Windows
-    // we could use SHGetFolderPath but I'd like to avoid linking Shell32.lib
-    // for 1 function.
-    u32 sz = ::GetEnvironmentVariable(SYS_CHAR("homepath"),
+    u32 sz = ::GetEnvironmentVariable(SYS_CHAR("appdata"),
                                       out->data,
                                       (DWORD)out->reserved_size);
 
     if (sz > out->reserved_size)
     {
-        // +20 because of "\AppData\Roaming\<org>\<app>\"
-        ::reserve(as_array_ptr(out), sz + app.size + org.size + 20);
-        sz = ::GetEnvironmentVariable(SYS_CHAR("homepath"),
+        ::reserve(as_array_ptr(out), sz + 1);
+        sz = ::GetEnvironmentVariable(SYS_CHAR("appdata"),
                                       out->data,
                                       (DWORD)out->reserved_size);
     }
@@ -3100,11 +3132,8 @@ bool fs::_get_preference_path(fs::path *out, const_fs_string app, const_fs_strin
         set_GetLastError_error(err);
         return false;
     }
-
+    
     out->size = sz;
-
-    fs::append_path(out, "AppData");
-    fs::append_path(out, "Roaming");
 
     if (org.size > 0)
         fs::append_path(out, org);
@@ -3116,8 +3145,6 @@ bool fs::_get_preference_path(fs::path *out, const_fs_string app, const_fs_strin
         return false;
 
     return true;
-#else
-#error "unsupported platform"
 #endif
 }
 
@@ -3161,18 +3188,4 @@ bool fs::get_temporary_path(fs::path *out, error *err)
 
     return true;
 #endif
-}
-
-fs::path operator ""_path(const char    *pth, u64 size)
-{
-    fs::path ret;
-    fs::init(&ret, ::to_const_string(pth, size));
-    return ret;
-}
-
-fs::path operator ""_path(const wchar_t *pth, u64 size)
-{
-    fs::path ret;
-    fs::init(&ret, ::to_const_string(pth, size));
-    return ret;
 }

@@ -65,15 +65,6 @@ define_test(set_path_sets_path)
     fs::free(&pth);
 }
 
-define_test(literal_path_sets_path)
-{
-    fs::path pth = "/abc/def"_path;
-    
-    assert_equal_str(pth.data, SYS_CHAR("/abc/def"));
-
-    fs::free(&pth);
-}
-
 define_test(is_fs_type_tests)
 {
     fs::path p{};
@@ -355,10 +346,12 @@ define_test(exists_yields_error_when_unauthorized)
 
 define_test(is_absolute_returns_true_if_path_is_absolute)
 {
+    fs::path p{};
+
 #if Windows
-    fs::path p = R"=(C:\Windows\notepad.exe)="_path;
+    fs::set_path(&p, LR"=(C:\Windows\notepad.exe)=");
 #else
-    fs::path p = "/etc/passwd"_path;
+    fs::set_path(&p, "/etc/passwd");
 #endif
 
     assert_equal(fs::is_absolute(&p), true);
@@ -368,10 +361,12 @@ define_test(is_absolute_returns_true_if_path_is_absolute)
 
 define_test(is_absolute_returns_false_if_path_is_not_absolute)
 {
+    fs::path p{};
+
 #if Windows
-    fs::path p = R"=(..\notepad.exe)="_path;
+    fs::set_path(&p, LR"=(..\notepad.exe)=");
 #else
-    fs::path p = "../passwd"_path;
+    fs::set_path(&p, "../passwd");
 #endif
 
     assert_equal(fs::is_absolute(&p), false);
@@ -381,10 +376,12 @@ define_test(is_absolute_returns_false_if_path_is_not_absolute)
 
 define_test(is_relative_returns_true_if_path_is_relative)
 {
+    fs::path p{};
+
 #if Windows
-    fs::path p = R"=(..\notepad.exe)="_path;
+    fs::set_path(&p, LR"=(..\notepad.exe)=");
 #else
-    fs::path p = "../passwd"_path;
+    fs::set_path(&p, "../passwd");
 #endif
 
     assert_equal(fs::is_relative(&p), true);
@@ -394,10 +391,12 @@ define_test(is_relative_returns_true_if_path_is_relative)
 
 define_test(is_relative_returns_false_if_path_is_not_relative)
 {
+    fs::path p{};
+
 #if Windows
-    fs::path p = R"=(C:\Windows\notepad.exe)="_path;
+    fs::set_path(&p, LR"=(C:\Windows\notepad.exe)=");
 #else
-    fs::path p = "/etc/passwd"_path;
+    fs::set_path(&p, "/etc/passwd");
 #endif
 
     assert_equal(fs::is_relative(&p), false);
@@ -407,12 +406,15 @@ define_test(is_relative_returns_false_if_path_is_not_relative)
 
 define_test(are_equivalent_returns_true_for_same_path)
 {
+    fs::path p1{};
+    fs::path p2{};
+
 #if Windows
-    fs::path p1 = R"=(C:\Windows\notepad.exe)="_path;
-    fs::path p2 = R"=(C:\Windows\notepad.exe)="_path;
+    fs::set_path(&p1, LR"=(C:\Windows\notepad.exe)=");
+    fs::set_path(&p2, LR"=(C:\Windows\notepad.exe)=");
 #else
-    fs::path p1 = "/etc/passwd"_path;
-    fs::path p2 = "/etc/passwd"_path;
+    fs::set_path(&p1, "/etc/passwd");
+    fs::set_path(&p2, "/etc/passwd");
 #endif
 
     assert_equal(fs::are_equivalent(&p1, &p2), true);
@@ -423,12 +425,15 @@ define_test(are_equivalent_returns_true_for_same_path)
 
 define_test(are_equivalent_returns_true_for_equivalent_paths)
 {
+    fs::path p1{};
+    fs::path p2{};
+
 #if Windows
-    fs::path p1 = R"=(C:\Windows\..\Windows\notepad.exe)="_path;
-    fs::path p2 = R"=(C:\Windows\notepad.exe)="_path;
+    fs::set_path(&p1, LR"=(C:\Windows\..\Windows\notepad.exe)=");
+    fs::set_path(&p2, LR"=(C:\Windows\notepad.exe)=");
 #else
-    fs::path p1 = "/etc/passwd"_path;
-    fs::path p2 = "/etc/../etc/passwd"_path;
+    fs::set_path(&p1, "/etc/passwd");
+    fs::set_path(&p2, "/etc/../etc/passwd");
 #endif
 
     assert_equal(fs::are_equivalent(&p1, &p2), true);
@@ -439,12 +444,15 @@ define_test(are_equivalent_returns_true_for_equivalent_paths)
 
 define_test(are_equivalent_returns_false_for_different_existing_paths)
 {
+    fs::path p1{};
+    fs::path p2{};
+
 #if Windows
-    fs::path p1 = R"=(C:\Windows\notepad.exe)="_path;
-    fs::path p2 = R"=(C:\Windows\regedit.exe)="_path;
+    fs::set_path(&p1, LR"=(C:\Windows\notepad.exe)=");
+    fs::set_path(&p2, LR"=(C:\Windows\regedit.exe)=");
 #else
-    fs::path p1 = "/etc/passwd"_path;
-    fs::path p2 = "/etc/profile"_path;
+    fs::set_path(&p1, "/etc/passwd");
+    fs::set_path(&p2, "/etc/profile");
 #endif
 
     error err{};
@@ -458,12 +466,15 @@ define_test(are_equivalent_returns_false_for_different_existing_paths)
 
 define_test(are_equivalent_returns_false_if_only_one_path_doesnt_exist)
 {
+    fs::path p1{};
+    fs::path p2{};
+
 #if Windows
-    fs::path p1 = R"=(C:\Windows\notepad.exe)="_path;
-    fs::path p2 = R"=(C:\Windows\notepad2.exe)="_path;
+    fs::set_path(&p1, LR"=(C:\Windows\notepad.exe)=");
+    fs::set_path(&p2, LR"=(C:\Windows\notepad2.exe)=");
 #else
-    fs::path p1 = "/etc/passwd"_path;
-    fs::path p2 = "/etc/passwd2"_path;
+    fs::set_path(&p1, "/etc/passwd");
+    fs::set_path(&p2, "/etc/passwd2");
 #endif
 
     error err{};
@@ -2724,6 +2735,21 @@ define_test(get_descendant_count_gets_children_count)
     assert_equal(fs::get_descendant_count(SANDBOX_TEST_DIR_NO_PERMISSION, &err), -1);
     assert_equal(err.error_code, EACCES);
 #endif
+}
+
+define_test(get_home_path_gets_home_path)
+{
+    // const char *actual = "/home/user";
+    fs::path p{};
+    error err{};
+
+    assert_equal(fs::get_home_path(&p, &err), true);
+    assert_equal(err.error_code, 0);
+
+    // obviously this wont work on all systems
+    // assert_equal_str(p, actual);
+
+    fs::free(&p);
 }
 
 define_test(get_executable_path_gets_executable_path)
