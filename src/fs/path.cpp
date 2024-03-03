@@ -1,6 +1,5 @@
 
 #include <assert.h>
-#include "shl/print.hpp"
 
 #include "shl/string.hpp"
 #include "shl/platform.hpp"
@@ -63,17 +62,6 @@ bool _get_windows_handle_from_path(fs::const_fs_string pth, bool follow_symlinks
                      OPEN_EXISTING,
                      flags,
                      nullptr);
-
-    /*
-    if (ret != INVALID_HANDLE_VALUE)
-        break;
-
-    if (GetLastError() != ERROR_PIPE_BUSY)
-        break;
-
-    if (!WaitNamedPipe(pth.c_str, 10000))
-        break;
-    */
 
     if (ret == INVALID_HANDLE_VALUE)
     {
@@ -384,6 +372,17 @@ void fs::set_path(fs::path *pth, const fs::path *new_path)
     assert(pth != new_path);
 
     ::set_string(as_string_ptr(pth), to_const_string(new_path));
+}
+
+fs::path fs::_new_path(fs::const_fs_string pth, bool resolve_variables, bool variable_aliases)
+{
+    fs::path ret{};
+    fs::set_path(&ret, pth);
+
+    if (resolve_variables)
+        ::resolve_environment_variables(as_string_ptr(&ret), variable_aliases);
+
+    return ret;
 }
 
 bool fs::operator==(const fs::path &lhs, const fs::path &rhs)
@@ -2822,10 +2821,7 @@ bool fs::_remove_directory(fs::const_fs_string pth, error *err)
         case fs::filesystem_type::Symlink:
         {
             if (!fs::remove_symlink(item->path, err))
-            {
-                tprint(L"could not remove %\n", item->path.c_str);
                 return false;
-            }
 
             break;
         }

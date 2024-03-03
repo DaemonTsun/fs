@@ -23,6 +23,16 @@ Example: Creating a file named "myfile.txt" in the home directory.
     fs::touch(&p);
     fs::free(&p);
 
+
+For convenience, the new_path function creates a new path and optionally resolves
+environment variables, e.g.:
+
+    fs::path p = fs::new_path("$HOME/myfile.txt");
+    ...
+    fs::free(&p);
+
+NOTE: new_path always allocates a new path, so free the variable before reassigning.
+
 ::to_const_string works with fs::path and yields a const_fs_string (const_string_base<sys_char>)
 of the path.
 
@@ -106,14 +116,22 @@ init(*Path) initializes an empty Path.
 init(*Path, str) initializes Path to a copy of str. Does not normalize Path.
 init(*Path, *Path2) initializes Path to a copy of Path2.
 
+set_path(*Path, str) sets Path to a copy of str. Does not normalize Path.
+set_path(*Path, *Path2) sets Path to a copy of Path2.
+
+new_path(PathStr, ResolveVariables = true, VariableAliases = true)
+    Returns a new fs::path which contains a copy of PathStr.
+    If ResolveVariables is true, resolves any environment variables denoted as
+    "$Var", e.g. "$HOST.txt".
+    If VariableAliases is true, also replaces some variables that are not
+    environment variables with the contents of certain other environment
+    variables. See shl/environment.hpp for details.
+
 free(*Path) frees the memory of Path.
 
 hash(*Path) returns a hash of the Path string. Note that two equivalent paths may produce
             different hashes. Use fs::are_equivalent(Path1, Path2) to check if two paths
             are equivalent.
-
-set_path(*Path, str) sets Path to a copy of str. Does not normalize Path.
-set_path(*Path, *Path2) sets Path to a copy of Path2.
 
 get_filesystem_info(PathStr, *Out, FollowSymlinks = true, Flags = FS_QUERY_DEFAULT_FLAGS[, *err])
     Queries filesystem information from PathStr. To get information about symlinks,
@@ -486,10 +504,6 @@ get_preference_path(*OutPath[, AppString, OrgString, *err])
 get_temporary_path(*OutPath[, *err])
     Sets OutPath to a temporary path as provided by the operating system.
     Returns whether or not the function succeeded.
-
-// For future:
-// TODO: resolve_variables(Str[, *err])
-// TODO: to_path(str, resolve_variables = true[, *err])
 */
 
 #pragma once
@@ -619,6 +633,12 @@ void set_path(fs::path *pth, const wchar_t *new_path, u64 size);
 void set_path(fs::path *pth, const_string   new_path);
 void set_path(fs::path *pth, const_wstring  new_path);
 void set_path(fs::path *pth, const fs::path *new_path);
+
+fs::path _new_path(fs::const_fs_string pth, bool resolve_variables, bool variable_aliases);
+
+template<typename T>
+auto new_path(T pth, bool resolve_variables = true, bool variable_aliases = true)
+    define_fs_conversion_body(fs::_new_path, pth, resolve_variables, variable_aliases)
 
 bool operator==(const fs::path &lhs, const fs::path &rhs);
 

@@ -1,6 +1,7 @@
 
 #include <t1/t1.hpp>
 #include "shl/platform.hpp"
+#include "shl/environment.hpp"
 
 #if Linux
 #include <sys/stat.h>
@@ -61,6 +62,25 @@ define_test(set_path_sets_path)
     fs::set_path(&pth, "/abc/def"); assert_equal_str(pth.data, SYS_CHAR("/abc/def"));
     fs::set_path(&pth, L"/abc///:def"); assert_equal_str(pth.data, SYS_CHAR("/abc///:def"));
     fs::set_path(&pth, L"C:/abc///:def"); assert_equal_str(pth.data, SYS_CHAR("C:/abc///:def"));
+
+    fs::free(&pth);
+}
+
+define_test(new_path_creates_new_path)
+{
+    fs::path pth = fs::new_path("/home/etc");
+    
+    assert_equal_str(pth, SYS_CHAR("/home/etc"));
+
+    fs::free(&pth);
+}
+
+define_test(new_path_creates_new_path_resolves_environment_variables)
+{
+    set_environment_variable(SYS_CHAR("MYPATHVAR"), SYS_CHAR("this is the value"));
+    fs::path pth = fs::new_path("$MYPATHVAR/abc");
+    
+    assert_equal_str(pth, SYS_CHAR("this is the value/abc"));
 
     fs::free(&pth);
 }
