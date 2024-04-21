@@ -7,6 +7,10 @@
 #include <sys/stat.h>
 #include <unistd.h>
 #include <errno.h>
+
+#define _ignore_return_value2(Name) [[maybe_unused]] auto _##Name = 
+#define _ignore_return_value(Name) _ignore_return_value2(Name)
+#define ignore_return_value _ignore_return_value(__LINE__) 
 #endif
 
 #include "shl/string.hpp"
@@ -2884,22 +2888,22 @@ void _setup()
 
     fs::set_current_path(SANDBOX_DIR);
 #else
-    umask(0); // if this is not set to 0 mkdir might not set correct permissions
-    mkdir(SANDBOX_DIR, 0777);
-    mkdir(SANDBOX_TEST_DIR, 0777);
+    ignore_return_value umask(0); // if this is not set to 0 mkdir might not set correct permissions
+    ignore_return_value mkdir(SANDBOX_DIR, 0777);
+    ignore_return_value mkdir(SANDBOX_TEST_DIR, 0777);
     FILE *f = fopen(SANDBOX_TEST_FILE, "w");
     assert(f != nullptr);
-    fclose(f);
-    symlink(SANDBOX_TEST_FILE, SANDBOX_TEST_SYMLINK);
-    symlink(SANDBOX_DIR "/symlink_dest", SANDBOX_TEST_SYMLINK_NO_TARGET);
+    ignore_return_value fclose(f);
+    ignore_return_value symlink(SANDBOX_TEST_FILE, SANDBOX_TEST_SYMLINK);
+    ignore_return_value symlink(SANDBOX_DIR "/symlink_dest", SANDBOX_TEST_SYMLINK_NO_TARGET);
  
-    mkfifo(SANDBOX_TEST_PIPE, 0644);
+    ignore_return_value mkfifo(SANDBOX_TEST_PIPE, 0644);
 
-    mkdir(SANDBOX_TEST_DIR2, 0777);
+    ignore_return_value mkdir(SANDBOX_TEST_DIR2, 0777);
     f = fopen(SANDBOX_TEST_FILE2, "w"); assert(f != nullptr); fclose(f);
-    mkdir(SANDBOX_TEST_DIR_NO_PERMISSION, 0777);
+    ignore_return_value mkdir(SANDBOX_TEST_DIR_NO_PERMISSION, 0777);
     f = fopen(SANDBOX_TEST_FILE_IN_NOPERM_DIR, "w"); assert(f != nullptr); fclose(f);
-    chmod(SANDBOX_TEST_DIR_NO_PERMISSION, 0000);
+    ignore_return_value chmod(SANDBOX_TEST_DIR_NO_PERMISSION, 0000);
 
     fs::set_current_path(SANDBOX_DIR);
 #endif
@@ -2920,7 +2924,7 @@ void _cleanup()
 
     fs::free(&old_current_dir);
 #else
-    chmod(SANDBOX_TEST_DIR_NO_PERMISSION, 0777);
+    ignore_return_value chmod(SANDBOX_TEST_DIR_NO_PERMISSION, 0777);
     fs::set_current_path(&old_current_dir);
     error err{};
     if (!fs::remove_directory(SANDBOX_DIR, &err))
