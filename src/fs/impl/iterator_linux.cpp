@@ -6,13 +6,13 @@
 #include <unistd.h>
 #include <fcntl.h>
 
-#include <assert.h>
 #include <string.h>
 #include <errno.h>
 #include <stddef.h> // offsetof
 
 #include "shl/fixed_array.hpp"
 #include "shl/scratch_buffer.hpp"
+#include "shl/assert.hpp"
 #include "fs/path.hpp"
 
 #define as_array_ptr(x)     (::array<fs::path_char_t>*)(x)

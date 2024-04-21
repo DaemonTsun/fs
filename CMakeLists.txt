@@ -7,7 +7,7 @@ find_package(better REQUIRED PATHS ext/better-cmake/cmake)
 project(fs)
 project_author("DaemonTsun")
 
-set(TEST_SOURCE_DIR ${ROOT}/tests)
+set(TEST_SOURCE_DIR "${ROOT}/tests")
 
 # library
 add_lib(fs STATIC
@@ -20,7 +20,7 @@ add_lib(fs STATIC
         @Linux pthread
 
     EXT
-        LIB shl 0.9.1 "${ROOT}/ext/shl" INCLUDE LINK GIT_SUBMODULE
+        LIB shl 0.9.3 "${ROOT}/ext/shl" INCLUDE LINK GIT_SUBMODULE
 
     TESTS "${TEST_SOURCE_DIR}"
     )

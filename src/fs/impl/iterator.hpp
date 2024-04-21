@@ -87,7 +87,7 @@ fs::fs_iterator_item *_iterate(fs::fs_iterator *it, fs::iterate_option opt = fs:
 // recursive
 struct fs_recursive_iterator_item : public fs_iterator_item
 {
-    u32 depth;
+    s32 depth;
     bool recurse;
     bool _advance; // used internally
 };

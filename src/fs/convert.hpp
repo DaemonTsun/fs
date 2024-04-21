@@ -15,7 +15,8 @@ template<typename T>
 struct converted_string
 {
     T *data;
-    u64 size;
+    s64 size;
+    s64 buffer_size;
 };
 
 void free(fs::converted_string<char> *str);
@@ -44,10 +45,10 @@ template<> struct _needs_conversion<wstring>        { static constexpr bool valu
 #endif
 #define needs_conversion(C) fs::_needs_conversion<typename remove_const(typename remove_pointer(C))>::value
 
-fs::converted_string<char>    convert_string(const wchar_t *wcstring, u64 wchar_count);
+fs::converted_string<char>    convert_string(const wchar_t *cstring, s64 wchar_count);
 fs::converted_string<char>    convert_string(const wchar_t *cstring);
 fs::converted_string<char>    convert_string(const_wstring  cstring);
-fs::converted_string<wchar_t> convert_string(const char  *cstring, u64 char_count);
+fs::converted_string<wchar_t> convert_string(const char  *cstring, s64 char_count);
 fs::converted_string<wchar_t> convert_string(const char  *cstring);
 fs::converted_string<wchar_t> convert_string(const_string cstring);
 }

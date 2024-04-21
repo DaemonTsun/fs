@@ -1,6 +1,5 @@
 
-#include <assert.h>
-
+#include "shl/assert.hpp"
 #include "shl/string.hpp"
 #include "shl/platform.hpp"
 
@@ -11,24 +10,69 @@
 #include <direct.h>
 #else
 // ---------- LINUX ----------
-#include <sys/stat.h>
-#include <sys/syscall.h>
-#include <unistd.h> // syscall and faccessat
+#include <unistd.h> // readlink
 #include <string.h> // strerror
 #include <errno.h>
 #include <fcntl.h>
 
+#include "shl/impl/linux/syscalls.hpp"
+#include "shl/impl/linux/statx.hpp"
+
 // some syscalls
-// from sys/sendfile.h
-int _sendfile(int out_fd, int in_fd, off_t *offset, size_t count)
+
+static sys_int _faccessat2(int fd, const char *path, int mode, int flags)
 {
-    return ::syscall(SYS_sendfile, out_fd, in_fd, offset, count);
+    return (sys_int)::linux_syscall4(SYS_faccessat2,
+        (void*)(sys_int)fd,
+        (void*)path,
+        (void*)(sys_int)mode,
+        (void*)(sys_int)flags);
 }
 
-// from stdio.h
-int _rename(const char *oldpath, const char *newpath)
+static sys_int _sendfile(int out_fd, int in_fd, off_t *offset, s64 count)
 {
-    return ::syscall(SYS_rename, oldpath, newpath);
+    return (sys_int)::linux_syscall4(SYS_sendfile,
+        (void*)(sys_int)out_fd,
+        (void*)(sys_int)in_fd,
+        (void*)offset,
+        (void*)count);
+}
+
+static sys_int _rename(const char *oldpath, const char *newpath)
+{
+    return (sys_int)::linux_syscall2(SYS_rename, (void*)oldpath, (void*)newpath);
+}
+
+static sys_int _fchmod(int fd, int mode)
+{
+    return (sys_int)::linux_syscall2(SYS_fchmod,
+        (void*)(sys_int)fd,
+        (void*)(sys_int)mode);
+}
+
+static sys_int _fchmodat(int fd, const char *path, int mode, int flags)
+{
+    return (sys_int)::linux_syscall4(SYS_fchmodat,
+        (void*)(sys_int)fd,
+        (void*)path,
+        (void*)(sys_int)mode,
+        (void*)(sys_int)flags);
+}
+
+static sys_int _utimensat(int fd, const char *path, void *times, int flags)
+{
+    return (sys_int)::linux_syscall4(SYS_utimensat,
+        (void*)(sys_int)fd,
+        (void*)path,
+        (void*)times,
+        (void*)(sys_int)flags);
+}
+
+static sys_int _mkdir(const char *path, int flags)
+{
+    return (sys_int)::linux_syscall2(SYS_mkdir,
+        (void*)path,
+        (void*)(sys_int)flags);
 }
 #endif
 
@@ -178,7 +222,7 @@ bool operator>=(statx_timestamp lhs, statx_timestamp rhs) { return !(lhs < rhs);
 inline fs::path _converted_string_to_path(fs::platform_converted_string str)
 {
     assert(str.data != nullptr);
-    assert(str.size != (size_t)-1);
+    assert(str.size >= 0);
     return fs::path{.data = str.data, .size = str.size, .reserved_size = str.size};
 }
 
@@ -202,7 +246,7 @@ fs::const_fs_string to_const_string(const fs::path_char_t *path)
     return fs::const_fs_string{path, string_length(path)};
 }
 
-fs::const_fs_string to_const_string(const fs::path_char_t *path, u64 size)
+fs::const_fs_string to_const_string(const fs::path_char_t *path, s64 size)
 {
     assert(path != nullptr);
     return fs::const_fs_string{path, size};
@@ -248,7 +292,7 @@ void fs::init(fs::path *path, const char    *str)
     fs::init(path, ::to_const_string(str));
 }
 
-void fs::init(fs::path *path, const char    *str, u64 size)
+void fs::init(fs::path *path, const char    *str, s64 size)
 {
     fs::init(path, ::to_const_string(str, size));
 }
@@ -258,12 +302,12 @@ void fs::init(fs::path *path, const wchar_t *str)
     fs::init(path, ::to_const_string(str));
 }
 
-void fs::init(fs::path *path, const wchar_t *str, u64 size)
+void fs::init(fs::path *path, const wchar_t *str, s64 size)
 {
     fs::init(path, ::to_const_string(str, size));
 }
 
-void _path_init(fs::path *path, const fs::path_char_t *str, u64 size)
+void _path_init(fs::path *path, const fs::path_char_t *str, s64 size)
 {
     ::init(as_string_ptr(path), str, size);
 }
@@ -279,7 +323,7 @@ void _init(fs::path *path, const_string_base<C> str)
         fs::platform_converted_string converted = fs::convert_string(str.c_str, str.size);
 
         assert(converted.data != nullptr);
-        assert(converted.size != (size_t)-1);
+        assert(converted.size >= 0);
 
         ::init(as_string_ptr(path), converted.data, converted.size);
 
@@ -318,7 +362,7 @@ void fs::set_path(fs::path *pth, const char    *new_path)
     fs::set_path(pth, ::to_const_string(new_path));
 }
 
-void fs::set_path(fs::path *pth, const char    *new_path, u64 size)
+void fs::set_path(fs::path *pth, const char    *new_path, s64 size)
 {
     fs::set_path(pth, ::to_const_string(new_path, size));
 }
@@ -328,7 +372,7 @@ void fs::set_path(fs::path *pth, const wchar_t *new_path)
     fs::set_path(pth, ::to_const_string(new_path));
 }
 
-void fs::set_path(fs::path *pth, const wchar_t *new_path, u64 size)
+void fs::set_path(fs::path *pth, const wchar_t *new_path, s64 size)
 {
     fs::set_path(pth, ::to_const_string(new_path, size));
 }
@@ -343,7 +387,7 @@ void _set_path(fs::path *pth, const_string_base<C> new_path)
         fs::platform_converted_string converted = fs::convert_string(new_path.c_str, new_path.size);
 
         assert(converted.data != nullptr);
-        assert(converted.size != (size_t)-1);
+        assert(converted.size >= 0);
 
         ::set_string(as_string_ptr(pth), converted.data, converted.size);
 
@@ -460,9 +504,9 @@ bool fs::get_filesystem_info(io_handle h, fs::filesystem_info *out, int flags, e
 
     return true;
 #else
-    if (::statx(h, "", AT_EMPTY_PATH, flags /* mask */, (struct statx*)out) != 0)
+    if (sys_int code = ::statx(h, "", AT_EMPTY_PATH, flags /* mask */, (struct statx*)out); code < 0)
     {
-        set_errno_error(err);
+        set_error_by_code(err, -code);
         return false;
     }
     
@@ -493,12 +537,13 @@ bool fs::_get_filesystem_info(fs::const_fs_string pth, fs::filesystem_info *out,
     if (!follow_symlinks)
         statx_flags |= AT_SYMLINK_NOFOLLOW;
 
-    if (::statx(AT_FDCWD, pth.c_str, statx_flags, flags /* mask */, (struct statx*)out) == 0)
-        return true;
-    
-    set_errno_error(err);
+    if (sys_int code = ::statx(AT_FDCWD, pth.c_str, statx_flags, flags /* mask */, (struct statx*)out); code < 0)
+    {
+        set_error_by_code(err, -code);
+        return false;
+    }
 
-    return false;
+    return true;
 #endif
 }
 
@@ -527,17 +572,20 @@ int fs::_exists(fs::const_fs_string pth, bool follow_symlinks, error *err)
     return 1;
 #else
     int flags = 0;
+    sys_int ret = 0;
 
     if (!follow_symlinks)
         flags |= AT_SYMLINK_NOFOLLOW;
 
-    if (::faccessat(AT_FDCWD, pth.c_str, F_OK, flags) == 0)
+    ret = _faccessat2(AT_FDCWD, pth.c_str, F_OK, flags);
+
+    if (ret == 0)
         return 1;
 
-    if (errno == ENOENT)
+    if (-ret == ENOENT)
         return 0;
 
-    set_errno_error(err);
+    set_error_by_code(err, -ret);
 
     return -1;
 #endif
@@ -707,9 +755,9 @@ bool fs::set_permissions(io_handle h, fs::permission perms, error *err)
     // TODO: implement, see get_permissions
     return false;
 #else
-    if (::fchmod(h, (::mode_t)perms) == -1)
+    if (sys_int code = ::_fchmod(h, (int)perms); code < 0)
     {
-        set_errno_error(err);
+        set_error_by_code(err, -code);
         return false;
     }
 
@@ -728,9 +776,9 @@ bool fs::_set_permissions(fs::const_fs_string pth, fs::permission perms, bool fo
     if (!follow_symlinks)
         flags |= AT_SYMLINK_NOFOLLOW;
 
-    if (::fchmodat(AT_FDCWD, pth.c_str, (::mode_t)perms, flags) == -1)
+    if (sys_int code = ::_fchmodat(AT_FDCWD, pth.c_str, (::mode_t)perms, flags); code < 0)
     {
-        set_errno_error(err);
+        set_error_by_code(err, -code);
         return false;
     }
 
@@ -1076,7 +1124,7 @@ fs::const_fs_string fs::parent_path_segment(fs::const_fs_string pth)
         else
             return empty_fs_string;
     }
-    else if ((u64)last_sep < rt.size)
+    else if ((s64)last_sep < rt.size)
         return rt;
 #else
     s64 last_sep = ::last_index_of(pth, fs::path_separator);
@@ -1091,7 +1139,7 @@ fs::const_fs_string fs::parent_path_segment(fs::const_fs_string pth)
         return fs::const_fs_string{pth.c_str, 1};
 #endif
 
-    return fs::const_fs_string{pth.c_str, (u64)last_sep};
+    return fs::const_fs_string{pth.c_str, last_sep};
 }
 
 fs::const_fs_string fs::parent_path_segment(const fs::path *pth)
@@ -1126,7 +1174,7 @@ fs::const_fs_string fs::root(fs::const_fs_string pth)
 
     // e.g. C:/abc -> C:/
     if (_parse_drive_letter(pth.c_str, (s64)pth.size, 0, &i))
-        return fs::const_fs_string{pth.c_str, (u64)i};
+        return fs::const_fs_string{pth.c_str, i};
 
     // if path is not / or drive letter, path must begin with
     // two path separators (UNC path), otherwise it has no root.
@@ -1161,21 +1209,21 @@ fs::const_fs_string fs::root(fs::const_fs_string pth)
     if (!ok2)
     {
         _include_last_sep(seg1);
-        return fs::const_fs_string{pth.c_str, (u64)len};
+        return fs::const_fs_string{pth.c_str, len};
     }
 
     // if its not . or ?, we can safely just return the first two segments
     if (!_is_special_unc(seg1))
     {
         _include_last_sep(seg2);
-        return fs::const_fs_string{pth.c_str, (u64)len};
+        return fs::const_fs_string{pth.c_str, len};
     }
 
     // not "UNC" UNC path
     if (compare_strings(seg2, SYS_CHAR("UNC")) != 0)
     {
         _include_last_sep(seg2);
-        return fs::const_fs_string{pth.c_str, (u64)len};
+        return fs::const_fs_string{pth.c_str, len};
     }
 
     offset += seg2.size + 1;
@@ -1184,7 +1232,7 @@ fs::const_fs_string fs::root(fs::const_fs_string pth)
     if (!ok3)
     {
         _include_last_sep(seg2);
-        return fs::const_fs_string{pth.c_str, (u64)len};
+        return fs::const_fs_string{pth.c_str, len};
     }
 
     offset += seg1.size + 1;
@@ -1193,11 +1241,11 @@ fs::const_fs_string fs::root(fs::const_fs_string pth)
     if (!ok4)
     {
         _include_last_sep(seg1);
-        return fs::const_fs_string{pth.c_str, (u64)len};
+        return fs::const_fs_string{pth.c_str, len};
     }
 
     _include_last_sep(seg2);
-    return fs::const_fs_string{pth.c_str, (u64)len};
+    return fs::const_fs_string{pth.c_str, len};
 
 #undef _include_last_sep
 #else
@@ -1221,8 +1269,8 @@ void fs::_replace_filename(fs::path *out, fs::const_fs_string newname)
 
     auto parent_seg = fs::parent_path_segment(out);
     auto rt = fs::root(out);
-    u64 start = 0;
-    u64 cutoff = newname.size;
+    s64 start = 0;
+    s64 cutoff = newname.size;
 
     if (parent_seg == rt)
     {
@@ -1272,8 +1320,8 @@ void fs::path_segments(fs::const_fs_string pth, array<fs::const_fs_string> *out)
     if (seg.size > 0)
         ::add_at_end(out, seg);
 
-    u64 start = seg.size;
-    u64 i = start;
+    s64 start = seg.size;
+    s64 i = start;
 
     while (i < pth.size)
     {
@@ -1345,7 +1393,7 @@ void fs::_longest_existing_path(fs::const_fs_string pth, fs::path *out)
 
     fs::set_path(out, pth);
 
-    u64 i = 0;
+    s64 i = 0;
 
     fs::const_fs_string rt = fs::root(out);
 
@@ -1375,20 +1423,20 @@ void fs::normalize(fs::path *pth)
         return;
 
 #if Windows
-    for (u64 di = 0; di < pth->size; ++di)
+    for (s64 di = 0; di < pth->size; ++di)
         if (pth->data[di] == SYS_CHAR('/'))
             pth->data[di] = fs::path_separator;
 #endif
 
-    u64 _start = 0;
+    s64 _start = 0;
     auto rt = fs::root(pth);
 
 #if Windows
     _start = (rt.size != 1 ? rt.size : 0);
 #endif
 
-    u64 i = _start;
-    u64 j = 0;
+    s64 i = _start;
+    s64 j = 0;
 
     // Simplify multiple separators into one
     // e.g. /a/////b -> /a/b
@@ -1442,14 +1490,14 @@ void fs::normalize(fs::path *pth)
 
     // remove <dir>/..[/]
 
-    u64 up_start = _start;
+    s64 up_start = _start;
 #if Windows
     if (up_start > 0 && _is_path_separator(rt[up_start - 1]))
         up_start -= 1;
 #endif
 
     i = up_start;
-    u64 filename_start = 0;
+    s64 filename_start = 0;
 
     // 3 to account for "/.."
     while (pth->size > 3 && (i < pth->size - 3))
@@ -2003,8 +2051,8 @@ void fs::append_path(fs::path *out, const fs::path *to_append)
         return;
     }
 
-    u64 append_from = 0;
-    u64 extra_size_needed = to_append->size + 1;
+    s64 append_from = 0;
+    s64 extra_size_needed = to_append->size + 1;
     bool add_separator = false;
 
     fs::path_char_t end_of_out = out->data[out->size - 1];
@@ -2105,7 +2153,7 @@ void fs::_relative_path(fs::const_fs_string from, fs::const_fs_string to, fs::pa
     fs::path_segments(from, &from_segs);
     fs::path_segments(to,   &to_segs);
 
-    u64 i = 0;
+    s64 i = 0;
 
     while (i < from_segs.size && i < to_segs.size)
     {
@@ -2122,7 +2170,7 @@ void fs::_relative_path(fs::const_fs_string from, fs::const_fs_string to, fs::pa
     }
 
     s64 n = 0;
-    u64 j = i;
+    s64 j = i;
     
     while (j < from_segs.size)
     {
@@ -2207,9 +2255,9 @@ bool fs::_touch(fs::const_fs_string pth, fs::permission perms, error *err)
     defer { ::close(fd); };
 
     // passing nullptr sets change & mod time to current time
-    if (::futimens(fd, nullptr) == -1)
+    if (sys_int code = ::_utimensat(fd, nullptr, nullptr, 0); code < 0)
     {
-        set_errno_error(err);
+        set_error_by_code(err, -code);
         return false;
     }
 
@@ -2382,9 +2430,9 @@ bool fs::_copy_file(fs::const_fs_string from, fs::const_fs_string to, fs::copy_f
     
     defer { ::close(to_fd); };
 
-    if (::_sendfile(to_fd, from_fd, nullptr, from_info.stx_size) == -1)
+    if (sys_int code = ::_sendfile(to_fd, from_fd, nullptr, from_info.stx_size); code < 0)
     {
-        set_errno_error(err);
+        set_error_by_code(err, -code);
         return false;
     }
 
@@ -2470,8 +2518,8 @@ bool _copy_directory(fs::const_fs_string from, fs::const_fs_string to, int max_d
 
     fs::free(&from_abs);
 
-    u64 base_length = path_it.size;
-    u64 attachment_length = from.size + 1;
+    s64 base_length = path_it.size;
+    s64 attachment_length = from.size + 1;
 
     defer { fs::free(&path_it); };
 
@@ -2550,13 +2598,14 @@ bool fs::_create_directory(fs::const_fs_string pth, fs::permission perms, error 
 
     // continued at the bottom
 #else
-    if (::mkdir(pth.c_str, (::mode_t)perms) != -1)
+    sys_int code = _mkdir(pth.c_str, (int)perms);
+
+    if (code == 0)
         return true;
 
-    int _errcode = errno;
-    set_error(err, _errcode, ::strerror(_errcode));
+    set_error_by_code(err, -code);
 
-    if (_errcode != EEXIST)
+    if (-code != EEXIST)
         return false;
 
     // continued at the bottom
@@ -2580,13 +2629,13 @@ bool fs::_create_directories(fs::const_fs_string pth, fs::permission perms, erro
     fs::path_segments(pth, &segs);
     defer { ::free(&segs); };
 
-    u64 i = 0;
+    s64 i = 0;
 
     // find the first segment after longest_part that doesn't exist
     if (longest_part.size > 0)
     while (i < segs.size)
     {
-        u64 offset = (segs[i].c_str - pth.c_str);
+        s64 offset = (segs[i].c_str - pth.c_str);
 
         if (offset > longest_part.size)
             break;
@@ -2696,9 +2745,9 @@ bool fs::_move(fs::const_fs_string src, fs::const_fs_string dest, error *err)
 
     return true;
 #else
-    if (::_rename(src.c_str, dest.c_str) == -1)
+    if (sys_int code = ::_rename(src.c_str, dest.c_str); code < 0)
     {
-        set_errno_error(err);
+        set_error_by_code(err, -code);
         return false;
     }
 
@@ -3089,7 +3138,7 @@ bool fs::_get_preference_path(fs::path *out, const_fs_string app, const_fs_strin
     else
         append = "/";
 
-    u64 len = ::string_length(envr);
+    s64 len = ::string_length(envr);
 
     assert(len > 0);
     if (envr[len - 1] == fs::path_separator)

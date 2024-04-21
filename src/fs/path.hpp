@@ -513,6 +513,7 @@ get_temporary_path(*OutPath[, *err])
 #include "shl/platform.hpp"
 #include "shl/error.hpp"
 #include "shl/type_functions.hpp"
+#include "shl/allocator.hpp"
 
 #include "fs/common.hpp"
 #include "fs/convert.hpp"
@@ -524,8 +525,9 @@ struct path
     typedef fs::path_char_t value_type;
 
     value_type *data;
-    u64 size;
-    u64 reserved_size;
+    s64 size;
+    s64 reserved_size;
+    ::allocator allocator;
 
     operator const value_type*() const;
 
@@ -534,8 +536,8 @@ struct path
 }
 
 fs::const_fs_string to_const_string(const fs::path_char_t *path);
-fs::const_fs_string to_const_string(const fs::path_char_t *path, u64 size);
-template<u64 N> fs::const_fs_string to_const_string(const fs::path_char_t path[N]) { return fs::const_fs_string{path, N}; }
+fs::const_fs_string to_const_string(const fs::path_char_t *path, s64 size);
+template<u64 N> fs::const_fs_string to_const_string(const fs::path_char_t path[N]) { return fs::const_fs_string{path, (s64)N}; }
 fs::const_fs_string to_const_string(const fs::path *path);
 fs::const_fs_string to_const_string(const fs::path &path);
 fs::const_fs_string to_const_string(fs::const_fs_string path);
@@ -617,9 +619,9 @@ auto get_platform_string(T str)
 
 void init(fs::path *path);
 void init(fs::path *path, const char    *str);
-void init(fs::path *path, const char    *str, u64 size);
+void init(fs::path *path, const char    *str, s64 size);
 void init(fs::path *path, const wchar_t *str);
-void init(fs::path *path, const wchar_t *str, u64 size);
+void init(fs::path *path, const wchar_t *str, s64 size);
 void init(fs::path *path, const_string   str);
 void init(fs::path *path, const_wstring  str);
 void init(fs::path *path, const fs::path *other);
@@ -627,9 +629,9 @@ void init(fs::path *path, const fs::path *other);
 void free(fs::path *path);
 
 void set_path(fs::path *pth, const char    *new_path);
-void set_path(fs::path *pth, const char    *new_path, u64 size);
+void set_path(fs::path *pth, const char    *new_path, s64 size);
 void set_path(fs::path *pth, const wchar_t *new_path);
-void set_path(fs::path *pth, const wchar_t *new_path, u64 size);
+void set_path(fs::path *pth, const wchar_t *new_path, s64 size);
 void set_path(fs::path *pth, const_string   new_path);
 void set_path(fs::path *pth, const_wstring  new_path);
 void set_path(fs::path *pth, const fs::path *new_path);
