@@ -2,7 +2,6 @@
 #include "shl/platform.hpp"
 
 #if Linux
-#include <sys/syscall.h>
 #include <unistd.h>
 #include <fcntl.h>
 
@@ -15,28 +14,33 @@
 #include "shl/assert.hpp"
 #include "fs/path.hpp"
 
+#include "shl/impl/linux/syscalls.hpp"
+
 #define as_array_ptr(x)     (::array<fs::path_char_t>*)(x)
 #define as_string_ptr(x)    (::string_base<fs::path_char_t>*)(x)
 
-ssize_t getdents64(int fd, void *buf, size_t buf_size)
+sys_int _getdents64(int fd, void *buf, s64 buf_size)
 {
-    return syscall(SYS_getdents64, fd, buf, buf_size);
+    return (sys_int)linux_syscall3(SYS_getdents64,
+                                   (void*)(sys_int)fd,
+                                   buf,
+                                   (void*)(sys_int)buf_size);
 }
 
 bool _get_next_dirents(fs::fs_iterator_detail *detail, error *err)
 {
-    int errcode = 0;
+    s64 errcode = 0;
 
     while (detail->buffer.size < DIRENT_ALLOC_MAX_SIZE)
     {
-        detail->dirent_size = ::getdents64(detail->fd, detail->buffer.data, detail->buffer.size);
+        detail->dirent_size = ::_getdents64(detail->fd, detail->buffer.data, detail->buffer.size);
 
-        if (detail->dirent_size != -1)
+        if (detail->dirent_size >= 0)
             break;
 
-        errcode = errno;
+        errcode = -detail->dirent_size;
 
-        if (errcode != EINVAL)
+        if (errcode != EINVAL) // EINVAL = buffer too small
             break;
 
         ::grow_by(&detail->buffer, DIRENT_ALLOC_GROWTH_FACTOR);
@@ -44,7 +48,7 @@ bool _get_next_dirents(fs::fs_iterator_detail *detail, error *err)
 
     if (detail->dirent_size < 0)
     {
-        set_error(err, errcode, ::strerror(errcode));
+        set_error_by_code(err, errcode);
         return false;
     }
 
