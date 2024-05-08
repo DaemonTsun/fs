@@ -9,6 +9,8 @@ project_author("DaemonTsun")
 
 set(TEST_SOURCE_DIR "${ROOT}/tests")
 
+set_default(fs_COMPILE_DEFINITIONS Default)
+
 # library
 add_lib(fs STATIC
     VERSION 0.8
@@ -16,8 +18,8 @@ add_lib(fs STATIC
     GENERATE_TARGET_HEADER "${ROOT}/src/fs/fs_info.hpp"
     CPP_VERSION 20
     CPP_WARNINGS ALL SANE FATAL
-    LIBRARIES
-        @Linux pthread
+
+    COMPILE_DEFINITIONS ${fs_COMPILE_DEFINITIONS}
 
     EXT
         LIB shl 0.9.3 "${ROOT}/ext/shl" INCLUDE LINK GIT_SUBMODULE

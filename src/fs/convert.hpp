@@ -28,7 +28,7 @@ typedef fs::converted_string<fs::path_char_t> platform_converted_string;
 template<typename T> struct _needs_conversion { };
 template<> struct _needs_conversion<fs::path> { static constexpr bool value = false; };
 
-#if Windows
+#if Windows && defined(UNICODE)
 template<> struct _needs_conversion<char>           { static constexpr bool value = true;  };
 template<> struct _needs_conversion<const_string>   { static constexpr bool value = true;  };
 template<> struct _needs_conversion<string>         { static constexpr bool value = true;  };
