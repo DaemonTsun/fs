@@ -662,6 +662,14 @@ template<typename T>
 auto get_filesystem_type(T pth, fs::filesystem_type *out, bool follow_symlinks = true, error *err = nullptr)
     define_fs_conversion_body(fs::_get_filesystem_type, pth, out, follow_symlinks, err);
 
+s64 get_file_size(const fs::filesystem_info *info);
+
+bool get_file_size(io_handle h, s64 *out, error *err = nullptr);
+bool _get_file_size(fs::const_fs_string pth, s64 *out, bool follow_symlinks, error *err);
+template<typename T>
+auto get_file_size(T pth, s64 *out, bool follow_symlinks = true, error *err = nullptr)
+    define_fs_conversion_body(fs::_get_file_size, pth, out, follow_symlinks, err);
+
 fs::permission get_permissions(const fs::filesystem_info *info);
 
 bool get_permissions(io_handle h, fs::permission *out, error *err = nullptr);

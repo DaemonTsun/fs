@@ -93,6 +93,11 @@ struct fs::filesystem_info:
         filesystem_info.detail.id_info.VolumeSerialNumber and
         filesystem_info.detail.id_info.FileId.
 
+    FS_QUERY_SIZE:
+        Queries the size of a file or pipe.
+        If the given path does not exist or is not a file or pipe, the size
+        will be undefined.
+
     FS_QUERY_FILE_TIMES:
         Queries the last access time, modification time, change time and
         creation time of the given path.
@@ -170,6 +175,7 @@ struct filesystem_info
         windows_file_times      file_times;
         int                     permissions;
         fs::filesystem_type     type;
+        s64                     size;
     } detail;
 };
 
@@ -178,6 +184,7 @@ struct filesystem_info
 #define FS_QUERY_TYPE           0x1001
 #define FS_QUERY_ID             0x1002
 #define FS_QUERY_FILE_TIMES     0x1003
+#define FS_QUERY_SIZE           0x1004
 
 #else
 // Linux and others
@@ -228,6 +235,7 @@ struct filesystem_info
 #define FS_QUERY_TYPE           0x001 // STATX_TYPE
 #define FS_QUERY_PERMISSIONS    0x002 // STATX_MODE
 #define FS_QUERY_ID             0x100 // STATX_INO
+#define FS_QUERY_SIZE           0x200 // STATX_SIZE
 #define FS_QUERY_FILE_TIMES     0x8e0 // STATX_BTIME | STATX_ATIME | STATX_MTIME | STATX_CTIME
 
 enum class filesystem_type : u16

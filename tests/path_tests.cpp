@@ -230,6 +230,27 @@ define_test(get_filesystem_type_test)
 #endif
 }
 
+define_test(get_file_size_test)
+{
+    s64 size;
+    error err{};
+
+    // directory
+    const sys_char *p = nullptr;
+
+    p = SANDBOX_TEST_FILE;
+    assert_equal(fs::get_file_size(p, &size), true);
+    assert_equal(size, 0);
+
+    assert_equal(fs::get_file_size(SANDBOX_DIR "/doesnotexist", &size, false, &err), false);
+
+#if Windows
+    assert_equal(err.error_code, ERROR_FILE_NOT_FOUND);
+#else
+    assert_equal(err.error_code, ENOENT);
+#endif
+}
+
 #if Linux
 define_test(get_permissions_gets_permissions)
 {

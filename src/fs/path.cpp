@@ -486,6 +486,11 @@ bool fs::get_filesystem_info(io_handle h, fs::filesystem_info *out, int flags, e
             copy_memory(&binfo, &out->detail.file_times, sizeof(windows_file_times));
             return true;
         }
+        case FS_QUERY_SIZE:
+        {
+            out->detail.size = io_size(h, err);
+            return out->detail.size >= 0;
+        }
         default:
             return false;
         }
@@ -696,6 +701,47 @@ bool fs::_get_filesystem_type(fs::const_fs_string pth, fs::filesystem_type *out,
 
     return true;
 #endif
+}
+
+s64 fs::get_file_size(const fs::filesystem_info *info)
+{
+    assert(info != nullptr);
+
+#if Windows
+    return info->detail.size;
+#elif Linux
+    return info->stx_size;
+#else
+    return -1;
+#endif
+}
+
+bool fs::get_file_size(io_handle h, s64 *out, error *err)
+{
+    assert(out != nullptr);
+
+    fs::filesystem_info info;
+
+    if (!fs::get_filesystem_info(h, &info, FS_QUERY_SIZE, err))
+        return false;
+
+    *out = fs::get_file_size(&info);
+
+    return true;
+}
+
+bool fs::_get_file_size(fs::const_fs_string pth, s64 *out, bool follow_symlinks, error *err)
+{
+    assert(out != nullptr);
+
+    fs::filesystem_info info;
+
+    if (!fs::_get_filesystem_info(pth, &info, follow_symlinks, FS_QUERY_SIZE, err))
+        return false;
+
+    *out = fs::get_file_size(&info);
+
+    return true;
 }
 
 fs::permission fs::get_permissions(const fs::filesystem_info *info)
