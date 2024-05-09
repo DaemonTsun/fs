@@ -98,6 +98,7 @@ bool fs::_init(fs::fs_iterator *it, fs::const_fs_string pth, error *err)
     if (!fs::canonical_path(pth, &it->path_it, err))
         return false;
     
+    tprint("%", it->path_it.data);
     // * necessary for FindFirstFile(Ex) pattern
     fs::append_path(&it->path_it, SYS_CHAR("*"));
 
