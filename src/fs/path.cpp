@@ -1663,7 +1663,7 @@ bool fs::_canonical_path(fs::const_fs_string pth, fs::path *out, error *err)
 
     if (ret > out->size)
     {
-        ::reserve(as_array_ptr(out), ret);
+        ::string_reserve(as_string_ptr(out), ret);
         ret = (u32)GetFinalPathNameByHandle(h, out->data, (DWORD)out->reserved_size, 0);
     }
 
@@ -1677,10 +1677,9 @@ bool fs::_canonical_path(fs::const_fs_string pth, fs::path *out, error *err)
     out->size = ret;
 
     if (::begins_with(to_const_string(out), SYS_CHAR(R"(\\?\)")))
-    {
         ::remove_elements(as_array_ptr(out), 0, 4);
-        out->data[out->size] = PC_NUL;
-    }
+
+    out->data[out->size] = PC_NUL;
 
     if (!CloseWindowsPathHandle(h, err))
         return false;
