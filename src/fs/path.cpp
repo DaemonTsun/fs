@@ -10,70 +10,12 @@
 #include <direct.h>
 #else
 // ---------- LINUX ----------
-#include <unistd.h> // readlink
 #include <string.h> // strerror
 #include <errno.h>
-#include <fcntl.h>
 
 #include "shl/impl/linux/syscalls.hpp"
+#include "shl/impl/linux/fs.hpp"
 #include "shl/impl/linux/statx.hpp"
-
-// some syscalls
-
-static sys_int _faccessat2(int fd, const char *path, int mode, int flags)
-{
-    return (sys_int)::linux_syscall4(SYS_faccessat2,
-        (void*)(sys_int)fd,
-        (void*)path,
-        (void*)(sys_int)mode,
-        (void*)(sys_int)flags);
-}
-
-static sys_int _sendfile(int out_fd, int in_fd, off_t *offset, s64 count)
-{
-    return (sys_int)::linux_syscall4(SYS_sendfile,
-        (void*)(sys_int)out_fd,
-        (void*)(sys_int)in_fd,
-        (void*)offset,
-        (void*)count);
-}
-
-static sys_int _rename(const char *oldpath, const char *newpath)
-{
-    return (sys_int)::linux_syscall2(SYS_rename, (void*)oldpath, (void*)newpath);
-}
-
-static sys_int _fchmod(int fd, int mode)
-{
-    return (sys_int)::linux_syscall2(SYS_fchmod,
-        (void*)(sys_int)fd,
-        (void*)(sys_int)mode);
-}
-
-static sys_int _fchmodat(int fd, const char *path, int mode, int flags)
-{
-    return (sys_int)::linux_syscall4(SYS_fchmodat,
-        (void*)(sys_int)fd,
-        (void*)path,
-        (void*)(sys_int)mode,
-        (void*)(sys_int)flags);
-}
-
-static sys_int _utimensat(int fd, const char *path, void *times, int flags)
-{
-    return (sys_int)::linux_syscall4(SYS_utimensat,
-        (void*)(sys_int)fd,
-        (void*)path,
-        (void*)times,
-        (void*)(sys_int)flags);
-}
-
-static sys_int _mkdir(const char *path, int flags)
-{
-    return (sys_int)::linux_syscall2(SYS_mkdir,
-        (void*)path,
-        (void*)(sys_int)flags);
-}
 #endif
 
 #include <stdlib.h>
@@ -225,7 +167,6 @@ inline fs::path _converted_string_to_path(fs::platform_converted_string str)
     assert(str.size >= 0);
     return fs::path{.data = str.data, .size = str.size, .reserved_size = str.size};
 }
-
 
 inline bool _is_dot_filename(fs::const_fs_string str)
 {
@@ -582,7 +523,7 @@ int fs::_exists(fs::const_fs_string pth, bool follow_symlinks, error *err)
     if (!follow_symlinks)
         flags |= AT_SYMLINK_NOFOLLOW;
 
-    ret = _faccessat2(AT_FDCWD, pth.c_str, F_OK, flags);
+    ret = faccessat2(AT_FDCWD, pth.c_str, F_OK, flags);
 
     if (ret == 0)
         return 1;
@@ -801,7 +742,7 @@ bool fs::set_permissions(io_handle h, fs::permission perms, error *err)
     // TODO: implement, see get_permissions
     return false;
 #else
-    if (sys_int code = ::_fchmod(h, (int)perms); code < 0)
+    if (sys_int code = ::fchmod(h, (int)perms); code < 0)
     {
         set_error_by_code(err, -code);
         return false;
@@ -822,7 +763,7 @@ bool fs::_set_permissions(fs::const_fs_string pth, fs::permission perms, bool fo
     if (!follow_symlinks)
         flags |= AT_SYMLINK_NOFOLLOW;
 
-    if (sys_int code = ::_fchmodat(AT_FDCWD, pth.c_str, (::mode_t)perms, flags); code < 0)
+    if (sys_int code = ::fchmodat(AT_FDCWD, pth.c_str, (int)perms, flags); code < 0)
     {
         set_error_by_code(err, -code);
         return false;
@@ -1126,6 +1067,7 @@ fs::const_fs_string fs::file_extension(fs::const_fs_string pth)
 {
     auto fname = fs::filename(pth);
 
+    // This is different from std::filesystem;
     // to conform to std::filesystem, simply check if first character
     // of the filename is a '.'.
 
@@ -1918,7 +1860,7 @@ bool fs::_get_symlink_target(fs::const_fs_string pth, fs::path *out, error *err)
     ::init(&buf);
     defer { ::free(&buf); };
 
-    ssize_t retsize = 0;
+    s64 retsize = 0;
 
     // PATH_ALLOC_MAX_SIZE is much bigger than MAX_PATH
     while (buf.size < PATH_ALLOC_MAX_SIZE)
@@ -1927,7 +1869,7 @@ bool fs::_get_symlink_target(fs::const_fs_string pth, fs::path *out, error *err)
 
         if (retsize < 0)
         {
-            set_errno_error(err);
+            set_error_by_code(err, -retsize);
             return false;
         }
 
@@ -1943,7 +1885,7 @@ bool fs::_get_symlink_target(fs::const_fs_string pth, fs::path *out, error *err)
 
     if (buf.size >= PATH_ALLOC_MAX_SIZE)
     {
-        set_error(err, EINVAL, ::strerror(EINVAL));
+        set_error_by_code(err, EINVAL);
         return false;
     }
 
@@ -1989,13 +1931,13 @@ bool fs::get_current_path(fs::path *out, error *err)
 
     return true;
 #else
-    fs::path_char_t *ret = ::getcwd(out->data, out->reserved_size);
+    s64 ret = ::getcwd(out->data, out->reserved_size);
 
-    while (ret == nullptr && (errno == ERANGE))
+    while (-ret == ERANGE)
     {
         if (outs->reserved_size >= PATH_ALLOC_MAX_SIZE)
         {
-            set_errno_error(err);
+            set_error_by_code(err, -ret);
             return false;
         }
 
@@ -2003,9 +1945,9 @@ bool fs::get_current_path(fs::path *out, error *err)
         ret = ::getcwd(out->data, out->reserved_size);
     }
 
-    if (ret == nullptr)
+    if (ret < 0)
     {
-        set_errno_error(err);
+        set_error_by_code(err, -ret);
         return false;
     }
 
@@ -2024,9 +1966,9 @@ bool fs::_set_current_path(fs::const_fs_string pth, error *err)
         return false;
     }
 #else
-    if (::chdir(pth.c_str) == -1)
+    if (sys_int code = ::chdir(pth.c_str); code < 0)
     {
-        set_errno_error(err);
+        set_error_by_code(err, -code);
         return false;
     }
 #endif
@@ -2290,18 +2232,18 @@ bool fs::_touch(fs::const_fs_string pth, fs::permission perms, error *err)
 
     return true;
 #else
-    int fd = ::open(pth.c_str, O_CREAT | O_WRONLY, (::mode_t)perms);
+    int fd = (int)::open(pth.c_str, O_CREAT | O_WRONLY, (int)perms);
 
-    if (fd == -1)
+    if (fd < 0)
     {
-        set_errno_error(err);
+        set_error_by_code(err, -fd);
         return false;
     }
 
     defer { ::close(fd); };
 
     // passing nullptr sets change & mod time to current time
-    if (sys_int code = ::_utimensat(fd, nullptr, nullptr, 0); code < 0)
+    if (sys_int code = ::utimensat(fd, nullptr, nullptr, 0); code < 0)
     {
         set_error_by_code(err, -code);
         return false;
@@ -2419,11 +2361,11 @@ bool fs::_copy_file(fs::const_fs_string from, fs::const_fs_string to, fs::copy_f
     if (opt == fs::copy_file_option::UpdateExisting)
         statx_mask |= STATX_MTIME;
 
-    from_fd = ::open(from.c_str, open_from_flags);
+    from_fd = (int)::open(from.c_str, open_from_flags, 0);
 
-    if (from_fd == -1)
+    if (from_fd < 0)
     {
-        set_errno_error(err);
+        set_error_by_code(err, -from_fd);
         return false;
     }
 
@@ -2432,14 +2374,14 @@ bool fs::_copy_file(fs::const_fs_string from, fs::const_fs_string to, fs::copy_f
     if (!fs::get_filesystem_info(from_fd, &from_info, statx_mask, err))
         return false;
 
-    to_fd = ::open(to.c_str, open_to_flags, from_info.stx_mode);
+    to_fd = (int)::open(to.c_str, open_to_flags, from_info.stx_mode);
 
-    if (to_fd == -1)
+    if (to_fd < 0)
     {
         if ((opt == fs::copy_file_option::None)
-         || (errno != EEXIST))
+         || (-to_fd != EEXIST))
         {
-            set_errno_error(err);
+            set_error_by_code(err, -to_fd);
             return false;
         }
 
@@ -2447,12 +2389,12 @@ bool fs::_copy_file(fs::const_fs_string from, fs::const_fs_string to, fs::copy_f
             return true;
 
         // check change time
-        int tmp_fd = ::open(to.c_str, O_RDONLY);
+        int tmp_fd = (int)::open(to.c_str, O_RDONLY, 0);
         fs::filesystem_info tmp_info{};
 
-        if (tmp_fd == -1)
+        if (tmp_fd < 0)
         {
-            set_errno_error(err);
+            set_error_by_code(err, -tmp_fd);
             return false;
         }
 
@@ -2465,18 +2407,18 @@ bool fs::_copy_file(fs::const_fs_string from, fs::const_fs_string to, fs::copy_f
             return true;
 
         open_to_flags &= (~O_EXCL);
-        to_fd = ::open(to.c_str, open_to_flags, from_info.stx_mode);
+        to_fd = (int)::open(to.c_str, open_to_flags, from_info.stx_mode);
 
-        if (to_fd == -1)
+        if (to_fd < 0)
         {
-            set_errno_error(err);
+            set_error_by_code(err, -to_fd);
             return false;
         }
     }
     
     defer { ::close(to_fd); };
 
-    if (sys_int code = ::_sendfile(to_fd, from_fd, nullptr, from_info.stx_size); code < 0)
+    if (sys_int code = ::sendfile(to_fd, from_fd, nullptr, from_info.stx_size); code < 0)
     {
         set_error_by_code(err, -code);
         return false;
@@ -2644,7 +2586,7 @@ bool fs::_create_directory(fs::const_fs_string pth, fs::permission perms, error 
 
     // continued at the bottom
 #else
-    sys_int code = _mkdir(pth.c_str, (int)perms);
+    sys_int code = ::mkdir(pth.c_str, (int)perms);
 
     if (code == 0)
         return true;
@@ -2718,9 +2660,9 @@ bool fs::_create_hard_link(fs::const_fs_string target, fs::const_fs_string link,
 
     return true;
 #else
-    if (::link(target.c_str, link.c_str) == -1)
+    if (sys_int code = ::link(target.c_str, link.c_str); code < 0)
     {
-        set_errno_error(err);
+        set_error_by_code(err, -code);
         return false;
     }
 
@@ -2744,9 +2686,9 @@ bool fs::_create_symlink(fs::const_fs_string target, fs::const_fs_string link, e
 
     return true;
 #else
-    if (::symlink(target.c_str, link.c_str) == -1)
+    if (sys_int code = ::symlink(target.c_str, link.c_str); code < 0)
     {
-        set_errno_error(err);
+        set_error_by_code(err, -code);
         return false;
     }
 
@@ -2791,7 +2733,7 @@ bool fs::_move(fs::const_fs_string src, fs::const_fs_string dest, error *err)
 
     return true;
 #else
-    if (sys_int code = ::_rename(src.c_str, dest.c_str); code < 0)
+    if (sys_int code = ::rename(src.c_str, dest.c_str); code < 0)
     {
         set_error_by_code(err, -code);
         return false;
@@ -2812,9 +2754,9 @@ bool fs::_remove_file(fs::const_fs_string pth, error *err)
 
     return true;
 #else
-    if (::unlink(pth.c_str) == -1)
+    if (sys_int code = ::unlink(pth.c_str); code < 0)
     {
-        set_errno_error(err);
+        set_error_by_code(err, -code);
         return false;
     }
 
@@ -2882,9 +2824,9 @@ bool fs::_remove_empty_directory(fs::const_fs_string pth, error *err)
 
     return true;
 #else
-    if (::rmdir(pth.c_str) == -1)
+    if (sys_int code = ::rmdir(pth.c_str); code < 0)
     {
-        set_errno_error(err);
+        set_error_by_code(err, -code);
         return false;
     }
 
@@ -3111,10 +3053,7 @@ bool fs::get_home_path(fs::path *out, error *err)
 bool fs::get_executable_path(fs::path *out, error *err)
 {
     assert(out != nullptr);
-#if Linux
-    return fs::get_symlink_target("/proc/self/exe"_cs, out, err);
-
-#elif Windows
+#if Windows
     sys_char pth[MAX_PATH] = {0};
 
     if (GetModuleFileName(NULL, pth, MAX_PATH) == 0)
@@ -3125,6 +3064,8 @@ bool fs::get_executable_path(fs::path *out, error *err)
 
     fs::set_path(out, pth);
     return true;
+#else
+    return fs::get_symlink_target("/proc/self/exe"_cs, out, err);
 #endif
 }
 

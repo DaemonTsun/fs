@@ -1,11 +1,8 @@
 
-#include <t1/t1.hpp>
 #include "shl/platform.hpp"
 #include "shl/environment.hpp"
 
 #if Linux
-#include <sys/stat.h>
-#include <unistd.h>
 #include <errno.h>
 
 #define _ignore_return_value2(Name) [[maybe_unused]] auto _##Name = 
@@ -20,6 +17,7 @@
 #include "shl/print.hpp"
 #include "shl/sort.hpp"
 #include "fs/path.hpp"
+#include <t1/t1.hpp>
 
 int path_comparer(const fs::path *a, const fs::path *b)
 {
@@ -2918,7 +2916,7 @@ void _setup()
     ignore_return_value symlink(SANDBOX_TEST_FILE, SANDBOX_TEST_SYMLINK);
     ignore_return_value symlink(SANDBOX_DIR "/symlink_dest", SANDBOX_TEST_SYMLINK_NO_TARGET);
  
-    ignore_return_value mkfifo(SANDBOX_TEST_PIPE, 0644);
+    ignore_return_value mknod(SANDBOX_TEST_PIPE, S_IFIFO | 0644, 0);
 
     ignore_return_value mkdir(SANDBOX_TEST_DIR2, 0777);
     f = fopen(SANDBOX_TEST_FILE2, "w"); assert(f != nullptr); fclose(f);

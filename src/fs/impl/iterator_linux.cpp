@@ -2,9 +2,6 @@
 #include "shl/platform.hpp"
 
 #if Linux
-#include <unistd.h>
-#include <fcntl.h>
-
 #include <string.h>
 #include <errno.h>
 #include <stddef.h> // offsetof
@@ -19,21 +16,13 @@
 #define as_array_ptr(x)     (::array<fs::path_char_t>*)(x)
 #define as_string_ptr(x)    (::string_base<fs::path_char_t>*)(x)
 
-sys_int _getdents64(int fd, void *buf, s64 buf_size)
-{
-    return (sys_int)linux_syscall3(SYS_getdents64,
-                                   (void*)(sys_int)fd,
-                                   buf,
-                                   (void*)(sys_int)buf_size);
-}
-
 bool _get_next_dirents(fs::fs_iterator_detail *detail, error *err)
 {
     s64 errcode = 0;
 
     while (detail->buffer.size < DIRENT_ALLOC_MAX_SIZE)
     {
-        detail->dirent_size = ::_getdents64(detail->fd, detail->buffer.data, detail->buffer.size);
+        detail->dirent_size = ::getdents64(detail->fd, detail->buffer.data, detail->buffer.size);
 
         if (detail->dirent_size >= 0)
             break;
@@ -69,11 +58,12 @@ bool fs::init(fs::fs_iterator_detail *detail, fs::const_fs_string pth, error *er
 
     ::init(&detail->buffer);
 
-    detail->fd = ::open(pth.c_str, O_RDONLY | O_DIRECTORY);
+    detail->fd = (int)::open(pth.c_str, O_RDONLY | O_DIRECTORY, 0);
 
-    if (detail->fd == -1)
+    if (detail->fd < 0)
     {
-        set_errno_error(err);
+        set_error_by_code(err, -detail->fd);
+        detail->fd = -1;
         return false;
     }
 
@@ -96,9 +86,9 @@ bool fs::free(fs::fs_iterator_detail *detail, error *err)
 
     if (detail->fd != -1)
     {
-        if (::close(detail->fd) != 0)
+        if (sys_int code = ::close(detail->fd); code < 0)
         {
-            set_errno_error(err);
+            set_error_by_code(err, -code);
             return false; 
         }
     }
