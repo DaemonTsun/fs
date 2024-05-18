@@ -7,7 +7,13 @@
 #include "shl/defer.hpp"
 
 #if Linux
-#include "shl/impl/linux/fs.hpp" // dirent64
+struct dirent64
+{
+    u64  inode;
+    s64  offset;
+    u16  record_size;
+    u8   type;
+};
 #endif
 
 namespace fs

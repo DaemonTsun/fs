@@ -1,8 +1,10 @@
 
+#include <t1/t1.hpp>
 #include "shl/platform.hpp"
 #include "shl/environment.hpp"
 
 #if Linux
+#include <sys/stat.h> // umask
 #include <errno.h>
 
 #define _ignore_return_value2(Name) [[maybe_unused]] auto _##Name = 
@@ -17,7 +19,6 @@
 #include "shl/print.hpp"
 #include "shl/sort.hpp"
 #include "fs/path.hpp"
-#include <t1/t1.hpp>
 
 int path_comparer(const fs::path *a, const fs::path *b)
 {

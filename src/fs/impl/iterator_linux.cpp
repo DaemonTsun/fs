@@ -12,6 +12,7 @@
 #include "fs/path.hpp"
 
 #include "shl/impl/linux/syscalls.hpp"
+#include "shl/impl/linux/fs.hpp"
 
 #define as_array_ptr(x)     (::array<fs::path_char_t>*)(x)
 #define as_string_ptr(x)    (::string_base<fs::path_char_t>*)(x)
