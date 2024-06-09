@@ -15,6 +15,7 @@
 
 #include "shl/impl/linux/syscalls.hpp"
 #include "shl/impl/linux/fs.hpp"
+#include "shl/impl/linux/io.hpp"
 #include "shl/impl/linux/statx.hpp"
 #endif
 
