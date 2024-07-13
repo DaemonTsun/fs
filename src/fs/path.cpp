@@ -376,11 +376,6 @@ bool fs::operator==(const fs::path &lhs, const fs::path &rhs)
     return ::compare_strings(::to_const_string(&lhs), ::to_const_string(&rhs)) == 0;
 }
 
-hash_t fs::hash(const fs::path *pth)
-{
-    return hash_data(pth->data, pth->size * sizeof(fs::path_char_t));
-}
-
 bool fs::get_filesystem_info(io_handle h, fs::filesystem_info *out, int flags, error *err)
 {
     assert(out != nullptr);
@@ -3221,3 +3216,9 @@ bool fs::get_temporary_path(fs::path *out, error *err)
     return true;
 #endif
 }
+
+hash_t hash(const fs::path *pth)
+{
+    return hash_data(pth->data, pth->size * sizeof(fs::path_char_t));
+}
+

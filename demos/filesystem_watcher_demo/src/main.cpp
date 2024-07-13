@@ -1,31 +1,38 @@
 
-#include <stdio.h>
-#include "shl/error.hpp"
-// #include "fs/filesystem_watcher.hpp"
+#include <stdio.h> // getchar
+#include "shl/print.hpp"
+#include "fs/filesystem_watcher.hpp"
 
-/*
-void callback(const char *path, fs::watcher_event_type event)
+void callback(fs::const_fs_string path, fs::watcher_event_type event)
 {
-    printf("%d %s\n", value(event), path);
+    tprint("% %\n", value(event), path);
 }
-*/
 
 int main(int argc, char **argv)
 {
-    return 0;
-}
-#if 0
-try
-{
+    if (argc < 2)
+    {
+        tprint("error: expecting command line argument files to watch\n");
+        return 1;
+    }
+
     fs::filesystem_watcher *watcher;
-    fs::create_filesystem_watcher(&watcher, callback);
+    error err{};
+    watcher = fs::filesystem_watcher_create(callback, &err);
+
+    if (err.error_code != 0)
+    {
+        tprint("error: %\n", err.what);
+        return 1;
+    }
 
     for (int i = 1; i < argc; ++i)
-        fs::watch_file(watcher, argv[i]);
-
-    fs::start_filesystem_watcher(watcher);
+        fs::filesystem_watcher_watch_file(watcher, to_const_string(argv[i]));
 
     char c = '\0';
+
+    tprint("Watcher started. Press 'u' to unwatch all files, 'w' to watch them again, 'q' to quit\n"
+           "or press any other key to display new events.");
 
     while (true)
     {
@@ -36,20 +43,46 @@ try
 
         // (un)watching the same file(s) multiple times does nothing
         if (c == 'w')
+        {
             for (int i = 1; i < argc; ++i)
-                fs::watch_file(watcher, argv[i]);
+            if (!fs::filesystem_watcher_watch_file(watcher, to_const_string(argv[i]), &err))
+            {
+                tprint("error: %\n", err.what);
+                break;
+            }
+
+            continue;
+        }
 
         if (c == 'u')
+        {
             for (int i = 1; i < argc; ++i)
-                fs::unwatch_file(watcher, argv[i]);
+            if (!fs::filesystem_watcher_unwatch_file(watcher, to_const_string(argv[i]), &err))
+            {
+                tprint("error: %\n", err.what);
+                break;
+            }
+
+            continue;
+        }
+
+        if (fs::filesystem_watcher_has_events(watcher, &err))
+            fs::filesystem_watcher_process_events(watcher, &err);
+
+        if (err.error_code != 0)
+        {
+            tprint("error: %\n", err.what);
+            break;
+        }
     }
 
-    fs::destroy_filesystem_watcher(watcher);
+    fs::filesystem_watcher_destroy(watcher, &err);
+
+    if (err.error_code != 0)
+    {
+        tprint("error: %\n", err.what);
+        return 1;
+    }
 
     return 0;
 }
-catch (error &e)
-{
-    fprintf(stderr, "%s\n", e.what);
-}
-#endif

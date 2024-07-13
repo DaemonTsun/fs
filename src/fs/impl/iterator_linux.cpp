@@ -3,14 +3,14 @@
 
 #if Linux
 #include <string.h>
-#include <errno.h>
-#include <stddef.h> // offsetof
 
 #include "shl/fixed_array.hpp"
 #include "shl/scratch_buffer.hpp"
 #include "shl/assert.hpp"
+#include "shl/macros.hpp" // offset_of
 #include "fs/path.hpp"
 
+#include "shl/impl/linux/error_codes.hpp" // error codes
 #include "shl/impl/linux/syscalls.hpp"
 #include "shl/impl/linux/fs.hpp"
 #include "shl/impl/linux/io.hpp"
@@ -147,7 +147,7 @@ fs::fs_iterator_item *_iterate(fs::fs_iterator *it, fs::iterate_option opts, err
 
     it->current_item.dirent = (dirent64*)(it->_detail.buffer.data + it->_detail.dirent_offset);
     fs::filesystem_type current_type = (fs::filesystem_type)(it->current_item.dirent->type << 12);
-    const char *name = ((char*)it->current_item.dirent) + offsetof(dirent64, type) + 1;
+    const char *name = ((char*)it->current_item.dirent) + offset_of(dirent64, type) + 1;
 
     // ignore . and ..
     while (fs::is_dot_or_dot_dot(name))
@@ -165,7 +165,7 @@ fs::fs_iterator_item *_iterate(fs::fs_iterator *it, fs::iterate_option opts, err
 
         it->current_item.dirent = (dirent64*)(it->_detail.buffer.data + it->_detail.dirent_offset);
         current_type = (fs::filesystem_type)(it->current_item.dirent->type << 12);
-        name = ((char*)it->current_item.dirent) + offsetof(dirent64, type) + 1;
+        name = ((char*)it->current_item.dirent) + offset_of(dirent64, type) + 1;
     }
 
     it->current_item.type = current_type;
@@ -408,7 +408,7 @@ fs::fs_recursive_iterator_item *_recursive_iterate(fs::fs_recursive_iterator *it
 
         dirent = (dirent64*)(detail->buffer.data + detail->dirent_offset);
         it->current_item.dirent = dirent;
-        name = ((char*)dirent) + offsetof(dirent64, type) + 1;
+        name = ((char*)dirent) + offset_of(dirent64, type) + 1;
         tprint("    detail idx %, size %, offset % - %\n", detail_idx, detail->dirent_size, detail->dirent_offset, name);
         current_type = (fs::filesystem_type)(dirent->type << 12);
 

@@ -4,11 +4,10 @@
 #if Windows
 #include <windows.h>
 
-#include <stddef.h> // offsetof
-
 // #include "shl/print.hpp"
 #define tprint(...)
 
+#include "shl/macros.hpp" // offset_of
 #include "shl/fixed_array.hpp"
 #include "shl/scratch_buffer.hpp"
 #include "shl/memory.hpp"

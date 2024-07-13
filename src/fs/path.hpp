@@ -644,8 +644,6 @@ auto new_path(T pth, bool resolve_variables = true, bool variable_aliases = true
 
 bool operator==(const fs::path &lhs, const fs::path &rhs);
 
-hash_t hash(const fs::path *pth);
-
 bool get_filesystem_info(io_handle h, fs::filesystem_info *out, int flags, error *err = nullptr);
 bool _get_filesystem_info(fs::const_fs_string pth, fs::filesystem_info *out, bool follow_symlinks, int flags, error *err);
 
@@ -1004,5 +1002,7 @@ auto get_preference_path(fs::path *out, T1 app, T2 org, error *err = nullptr)
 // /tmp
 bool get_temporary_path(fs::path *out, error *err);
 }
+
+hash_t hash(const fs::path *pth);
 
 #include "fs/impl/iterator.hpp"

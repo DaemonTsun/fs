@@ -1,133 +1,61 @@
 
-#if 0
+// TODO: refactor to use async instead of threads
 #include "shl/platform.hpp"
-
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
 #include "shl/assert.hpp"
+#include "fs/path.hpp"
 
-#include <unordered_map>
+#define WATCHER_EVENT_BUFFER_LENGTH 4096
 
 #if Windows
-#include <windows.h>
-#warning "filesystem watcher currently unsupported on windows"
-#else
-#include <pthread.h>
+#  include <windows.h>
+#  warning "filesystem watcher currently unsupported on windows"
+#elif Linux
+#  include "shl/impl/linux/inotify.hpp"
+#  include "shl/impl/linux/poll.hpp"
+#  include "shl/impl/linux/io.hpp"
 #endif
 
-#include "shl/hash.hpp"
+#include "shl/io.hpp"
+
+#include "shl/hash_table.hpp"
+#include "shl/thread.hpp"
 #include "shl/error.hpp"
 
-#include "fs/path.hpp"
 #include "fs/filesystem_watcher.hpp"
 
-// TODO: move this to some own lib or something
-// threads
-
-#if Windows
-typedef HANDLE thread_t;
-typedef void *(*thread_worker_t)(void*);
-
-struct _windows_thread_args
-{
-    thread_worker_t worker;
-    void *args;
-};
-
-unsigned long _windows_thread_wrapper(void *arg)
-{
-    auto *args = reinterpret_cast<_windows_thread_args*>(arg);
-    
-    args->worker(args->args);
-
-    return 0;
-}
-
-void create_thread(thread_t *thread, int *thread_id, thread_worker_t worker, void *arg)
-{
-    _windows_thread_args wrapper_args{worker, arg};
-    unsigned long _id = 0;
-    *thread = CreateThread(nullptr, 0, _windows_thread_wrapper, &wrapper_args, 0, &_id);
-
-    *thread_id = _id;
-}
-
-void *join_thread(thread_t thread)
-{
-    WaitForSingleObject(thread, INFINITE);
-    return nullptr;
-}
-
-#else
-typedef pthread_t thread_t;
-typedef void *(*thread_worker_t)(void*);
-
-void create_thread(thread_t *thread, int *thread_id, thread_worker_t worker, void *arg)
-{
-    *thread_id = pthread_create(thread, nullptr, worker, arg);
-}
-
-void *join_thread(thread_t thread)
-{
-    void *ret;
-    pthread_join(thread, &ret);
-    return ret;
-}
-
-#endif
-
-namespace std
-{
-    template <>
-    struct hash<fs::path>
-    {
-        std::size_t operator()(const fs::path &k) const
-        {
-            return fs::hash(&k);
-        }
-    };
-}
-
-struct watched_file
+struct _watched_file
 {
     fs::path path;
 #if Linux
-    int fd;
+    io_handle fd;
 #endif
 };
 
-struct watched_directory
+struct _watched_directory
 {
     fs::path path;
 #if Linux
-    int fd;
+    io_handle fd;
 #endif
 
-    std::unordered_map<fs::path, watched_file> watched_files;
+    hash_table<fs::path, _watched_file> watched_files;
     bool only_watch_files;
 };
 
 struct fs::filesystem_watcher
 {
-    thread_t  thread;
-    int       thread_id;
-    bool      running;
     watcher_callback_f callback;
-
-    std::unordered_map<fs::path, watched_directory> watched_directories;
+    hash_table<fs::path, _watched_directory> watched_directories;
+    fs::path iterator_path;
 
 #if Linux
-    int inotify_fd;
-    u32 timeout; // ms
+    io_handle inotify_fd;
 #endif
 };
 
-#define print_watcher_error(MSG, ...)\
-    fprintf(stderr, "filesystem_watcher %d: " MSG, __LINE__ __VA_OPT__(,) __VA_ARGS__);
-
 // linux specific watcher
 #if Linux
+/*
 #include <sys/types.h>
 #include <sys/inotify.h>
 #include <limits.h>
@@ -135,8 +63,7 @@ struct fs::filesystem_watcher
 #include <unistd.h>
 #include <poll.h>
 #include <fcntl.h>
-
-#define BUF_LEN (10 * (sizeof(inotify_event) + NAME_MAX + 1))
+*/
 
 fs::watcher_event_type mask_to_event(u32 mask)
 {
@@ -153,16 +80,14 @@ fs::watcher_event_type mask_to_event(u32 mask)
     return ret;
 }
 
-// _process_event and _watcher_process run in another thread
-void _process_event(fs::filesystem_watcher *watcher, inotify_event *event)
+void _process_event(fs::filesystem_watcher *watcher, fs::path *it, inotify_event *event)
 {
     fs::watcher_event_type type = fs::watcher_event_type::None;
-    const char *path = nullptr;
 
     // TODO: remove
-    if (event->mask == IN_IGNORED) return;
+    if (event->mask == IN_IGNORED)    return;
     if (event->mask == IN_Q_OVERFLOW) return;
-    if (event->mask == IN_UNMOUNT) return;
+    if (event->mask == IN_UNMOUNT)    return;
 
     /*
     if (event->mask & IN_ISDIR)         printf("IN_ISDIR ");
@@ -183,27 +108,24 @@ void _process_event(fs::filesystem_watcher *watcher, inotify_event *event)
         printf("   name = %s\n", event->name);
     */
 
-    for (auto &dp : watcher->watched_directories)
-    {
-        watched_directory *dir = &dp.second;
+    it->size = 0;
 
-        if (dir->fd == event->wd)
+    for_hash_table(pth, dir, &watcher->watched_directories)
+    {
+        if (dir->fd == event->watched_fd)
         {
             if (dir->only_watch_files)
             {
-                if (event->len <= 0)
+                if (event->name_length <= 0)
                     // we only care for modified files
                     continue;
 
-                fs::path fpath;
-                fs::append_path(&dir->path, event->name, &fpath);
+                fs::set_path(it, &dir->path);
+                fs::append_path(it, inotify_event_name(event));
 
-                auto it2 = dir->watched_files.find(fpath);
-                
-                if (it2 == dir->watched_files.end())
+                if (!contains(&dir->watched_files, it))
                     continue;
 
-                path = it2->second.path.c_str();
                 type = mask_to_event(event->mask);
             }
             else
@@ -213,250 +135,244 @@ void _process_event(fs::filesystem_watcher *watcher, inotify_event *event)
         }
         else
         {
-            watched_file *file = nullptr;
+            _watched_file *file = nullptr;
 
-            for (auto &fp : dir->watched_files)
-                if (fp.second.fd == event->wd)
-                {
-                    file = &fp.second;
-                    break;
-                }
+            for_hash_table(wf, &dir->watched_files)
+            if (wf->fd == event->watched_fd)
+            {
+                file = wf;
+                break;
+            }
 
             if (file == nullptr)
                 continue;
 
             // TODO: filter
             // fs::watcher_event_type type = mask_to_event(event->mask);
-            path = file->path.c_str();
+            fs::set_path(it, file->path);
             break;
         }
     }
 
-
-    if (type == fs::watcher_event_type::None || path == nullptr)
+    if (type == fs::watcher_event_type::None || it->size <= 0)
         return;
 
-    watcher->callback(path, type);
+    watcher->callback(to_const_string(it), type);
 }
-
-void *_watcher_process(void *threadarg)
-{
-    fs::filesystem_watcher *watcher = reinterpret_cast<fs::filesystem_watcher*>(threadarg);
-    u8 buffer[BUF_LEN];
-    s64 length;
-
-    while (watcher->running)
-    {
-        // poll for events
-        pollfd pfd;
-        pfd.fd = watcher->inotify_fd;
-        pfd.events = POLLIN;
-        pfd.revents = 0;
-
-        u32 ret = poll(&pfd, 1, watcher->timeout);
-
-        if (ret == 0)
-            continue;
-
-        if (ret < 0)
-        {
-            // dont throw in threads
-            print_watcher_error("poll failed %s\n", strerror(errno));
-            break;
-        }
-
-        length = read(watcher->inotify_fd, buffer, BUF_LEN);
-
-        if(length < 0)
-        {
-            print_watcher_error("inotify read failed\n");
-            break;
-        }
-
-        s64 i = 0;
-
-        while(i < length)
-        {
-            inotify_event *event = reinterpret_cast<inotify_event*>(buffer + i);
-
-            _process_event(watcher, event);
-
-            i += sizeof(inotify_event) + event->len;
-        }
-    }
-
-    return nullptr;
-}
-
-#elif Windows
-void *_watcher_process(void *threadarg)
-{
-    // fs::filesystem_watcher *watcher = reinterpret_cast<fs::filesystem_watcher*>(threadarg);
-    // TODO: implement
-
-    return nullptr;
-}
-
-#else
-// watcher process
-#error "Unsupported"
 #endif
 
-void fs::create_filesystem_watcher(fs::filesystem_watcher **out, fs::watcher_callback_f callback)
+fs::filesystem_watcher *fs::filesystem_watcher_create(fs::watcher_callback_f callback, error *err)
 {
-    assert(out != nullptr);
     assert(callback != nullptr);
+    fs::filesystem_watcher *ret = alloc<fs::filesystem_watcher>();
 
-    fs::filesystem_watcher *watcher = new fs::filesystem_watcher;
-
-    watcher->thread_id = -1;
-    watcher->running = false;
-
-    watcher->callback = callback;
+    fill_memory(ret, 0);
+    fs::init(&ret->iterator_path);
+    ret->callback = callback;
 
 #if Linux
-    watcher->inotify_fd = inotify_init1(O_NONBLOCK);
+    ret->inotify_fd = ::inotify_init1(IN_NONBLOCK);
 
-    if(watcher->inotify_fd < 0)
-        throw_error("could not initialize inotify: %s", strerror(errno));
-
-    watcher->timeout = 50; // ms
+    if (ret->inotify_fd < 0)
+    {
+        set_error_by_code(err, -ret->inotify_fd);
+        return nullptr;
+    }
 #endif
 
-    *out = watcher;
+    return ret;
 }
 
-void fs::watch_file(fs::filesystem_watcher *watcher, const char *path)
+bool fs::filesystem_watcher_destroy(fs::filesystem_watcher *watcher, error *err)
+{
+    assert(watcher != nullptr);
+
+    fs::free(&watcher->iterator_path);
+
+#if Linux
+    if (sys_int code = ::close(watcher->inotify_fd); code < 0)
+    {
+        set_error_by_code(err, -code);
+        return false;
+    }
+#endif
+
+    dealloc(watcher);
+
+    return true;
+}
+
+bool fs::filesystem_watcher_watch_file(fs::filesystem_watcher *watcher, fs::const_fs_string path, error *err)
 {
     // TODO: event filter
     assert(watcher != nullptr);
-    assert(path != nullptr);
 
 #if Linux
-    fs::path fpath(path);
+    fs::path fcanon{};
+    fs::canonical_path(path, &fcanon);
 
-    if (!fs::is_file(&fpath))
-        throw_error("could not watch file because path is not a file: '%s'", path);
-
-    fs::absolute_canonical_path(&fpath, &fpath);
-
-    fs::path parent_path;
-    fs::parent_path(&fpath, &parent_path);
-    fs::absolute_canonical_path(&parent_path, &parent_path);
+    fs::path parent_path{};
+    fs::set_path(&parent_path, fs::parent_path_segment(&fcanon));
     
-    auto it = watcher->watched_directories.find(parent_path);
-    watched_directory *watched_parent = nullptr;
+    _watched_directory *watched_parent = ::search(&watcher->watched_directories, &parent_path);
 
-    if (it != watcher->watched_directories.end())
-        watched_parent = &it->second;
-    else
+    if (watched_parent == nullptr)
     {
-        watched_parent = &watcher->watched_directories[parent_path];
+        sys_int ifd = ::inotify_add_watch(watcher->inotify_fd, parent_path.c_str(), IN_ALL_EVENTS);
+
+        if (ifd < 0)
+        {
+            set_error_by_code(err, -ifd);
+            fs::free(&parent_path);
+            fs::free(&fcanon);
+            return false;
+        }
+
+        watched_parent = ::add_element_by_key(&watcher->watched_directories, &parent_path);
+        assert(watched_parent != nullptr);
         watched_parent->path = parent_path;
         watched_parent->only_watch_files = true;
-        watched_parent->fd = inotify_add_watch(watcher->inotify_fd, parent_path.c_str(), IN_ALL_EVENTS);
-
-        if (watched_parent->fd < 0)
-            throw_error("could not watch parent directory '%s' of file '%s'", parent_path.c_str(), path);
+        watched_parent->fd = ifd;
     }
+    else
+        fs::free(&parent_path); // already stored in watched_parent->path
 
     assert(watched_parent != nullptr);
 
-    auto it2 = watched_parent->watched_files.find(fpath);
-    
-    if (it2 != watched_parent->watched_files.end())
-        return;
+    _watched_file *watched = ::search(&watched_parent->watched_files, &fcanon);
 
-    watched_file *watched = &watched_parent->watched_files[fpath];
-    watched->path = fpath;
-    watched->fd = inotify_add_watch(watcher->inotify_fd, path, IN_ALL_EVENTS);
+    if (watched != nullptr)
+    {
+        fs::free(&fcanon);
+        return true;
+    }
 
-    if (watched->fd < 0)
-        throw_error("could not watch file '%s': %s", path, strerror(errno));
+    sys_int ffd = ::inotify_add_watch(watcher->inotify_fd, fcanon.c_str(), IN_ALL_EVENTS);
+
+    if (ffd < 0)
+    {
+        set_error_by_code(err, -ffd);
+        fs::free(&fcanon);
+        return false;
+    }
+
+    watched = ::add_element_by_key(&watched_parent->watched_files, &fcanon);
+    assert(watched != nullptr);
+
+    watched->path = fcanon;
+    watched->fd = ffd;
+
+    return true;
 #elif Windows
 #else
     #error "Unsupported"
 #endif
 }
 
-void fs::unwatch_file(fs::filesystem_watcher *watcher, const char *path)
+bool fs::filesystem_watcher_unwatch_file(fs::filesystem_watcher *watcher, fs::const_fs_string path, error *err)
 {
     assert(watcher != nullptr);
-    assert(path != nullptr);
 
 #if Linux
-    fs::path fpath(path);
-    fs::absolute_canonical_path(&fpath, &fpath);
+    fs::path fcanon{};
+    fs::canonical_path(path, &fcanon);
+    defer { fs::free(&fcanon); };
 
-    fs::path parent_path;
-    fs::parent_path(&fpath, &parent_path);
-    fs::absolute_canonical_path(&parent_path, &parent_path);
+    fs::path parent_path{};
+    fs::set_path(&parent_path, fs::parent_path_segment(&fcanon));
+    defer { fs::free(&parent_path); };
 
-    auto it = watcher->watched_directories.find(parent_path);
+    _watched_directory *watched_parent = ::search(&watcher->watched_directories, &parent_path);
 
-    if (it == watcher->watched_directories.end())
-        return;
+    if (watched_parent == nullptr)
+        return false;
 
-    watched_directory *watched_parent = &it->second;
+    _watched_file *watched = ::search(&watched_parent->watched_files, &fcanon);
 
-    auto it2 = watched_parent->watched_files.find(fpath);
-    
-    if (it2 == watched_parent->watched_files.end())
-        return;
+    if (watched == nullptr)
+        return false;
 
-    watched_file *watched = &it2->second;
-    inotify_rm_watch(watcher->inotify_fd, watched->fd);
+    sys_int ret = inotify_rm_watch(watcher->inotify_fd, watched->fd);
 
-    watched_parent->watched_files.erase(it2);
+    if (ret < 0)
+    {
+        set_error_by_code(err, -ret);
+        return false;
+    }
+
+    remove_element_by_key(&watched_parent->watched_files, &fcanon);
 
     if (watched_parent->only_watch_files
-     && watched_parent->watched_files.empty())
+     && watched_parent->watched_files.size == 0)
     {
-        inotify_rm_watch(watcher->inotify_fd, watched_parent->fd);
-        watcher->watched_directories.erase(it);
+        ret = inotify_rm_watch(watcher->inotify_fd, watched_parent->fd);
+
+        if (ret < 0)
+        {
+            set_error_by_code(err, -ret);
+            return false;
+        }
+
+        remove_element_by_key(&watcher->watched_directories, &parent_path);
     }
+
+    return true;
 #elif Windows
 #else
     #error "Unsupported"
 #endif
 }
 
-void fs::start_filesystem_watcher(fs::filesystem_watcher *watcher)
+bool fs::filesystem_watcher_has_events(fs::filesystem_watcher *watcher, error *err)
 {
     assert(watcher != nullptr);
 
-    if (watcher->running)
-        return;
+    poll_fd pfd{};
+    pfd.fd = watcher->inotify_fd;
+    pfd.events = POLLIN;
 
-    create_thread(&watcher->thread, &watcher->thread_id, _watcher_process, watcher);
+    sys_int ret = ::poll(&pfd, 1, 0);
 
-    if(watcher->thread_id != 0)
-        throw_error("could not start watcher thread: %s", strerror(watcher->thread_id));
+    if (ret < 0)
+    {
+        set_error_by_code(err, -ret);
+        return false;
+    }
 
-    watcher->running = true;
+    // 0 = timeout
+    // >0 = number of events ready
+    return ret != 0;
 }
 
-void fs::stop_filesystem_watcher(fs::filesystem_watcher *watcher)
+bool fs::filesystem_watcher_process_events(fs::filesystem_watcher *watcher, error *err)
 {
     assert(watcher != nullptr);
-
-    if (!watcher->running)
-        return;
-
-    watcher->running = false;
-    join_thread(watcher->thread);
-}
-
-void fs::destroy_filesystem_watcher(fs::filesystem_watcher *watcher)
-{
-    assert(watcher != nullptr);
-
-    stop_filesystem_watcher(watcher);
 
 #if Linux
-    close(watcher->inotify_fd);
-#endif
+    u8 buffer[WATCHER_EVENT_BUFFER_LENGTH];
+    s64 length;
+    s64 i = 0;
 
-    delete watcher;
-}
+    length = ::read(watcher->inotify_fd, buffer, WATCHER_EVENT_BUFFER_LENGTH);
+
+    if (length < 0)
+    {
+        set_error_by_code(err, -length);
+        return false;
+    }
+
+    if (length == 0)
+        return true;
+
+    i = 0;
+
+    while(i < length)
+    {
+        inotify_event *event = (inotify_event*)(buffer + i);
+        _process_event(watcher, &watcher->iterator_path, event);
+        i += sizeof(inotify_event) + event->name_length;
+    }
+
+    return true;
 #endif
+}
