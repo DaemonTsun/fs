@@ -56,8 +56,7 @@ int main(int argc, char **argv)
 
         if (c == 'u')
         {
-            for (int i = 1; i < argc; ++i)
-            if (!fs::filesystem_watcher_unwatch_file(watcher, to_const_string(argv[i]), &err))
+            if (!fs::filesystem_watcher_unwatch_all(watcher, &err))
             {
                 tprint("error: %\n", err.what);
                 break;

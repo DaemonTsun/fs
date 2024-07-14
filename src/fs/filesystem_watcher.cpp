@@ -1,10 +1,8 @@
 
-// TODO: refactor to use async instead of threads
+#include "shl/print.hpp"
 #include "shl/platform.hpp"
 #include "shl/assert.hpp"
 #include "fs/path.hpp"
-
-#define WATCHER_EVENT_BUFFER_LENGTH 4096
 
 #if Windows
 #  include <windows.h>
@@ -13,6 +11,7 @@
 #  include "shl/impl/linux/inotify.hpp"
 #  include "shl/impl/linux/poll.hpp"
 #  include "shl/impl/linux/io.hpp"
+#  include "shl/impl/linux/error_codes.hpp"
 #endif
 
 #include "shl/io.hpp"
@@ -20,6 +19,7 @@
 #include "shl/hash_table.hpp"
 #include "shl/thread.hpp"
 #include "shl/error.hpp"
+#include "shl/scratch_buffer.hpp"
 
 #include "fs/filesystem_watcher.hpp"
 
@@ -42,11 +42,16 @@ struct _watched_directory
     bool only_watch_files;
 };
 
+#define WATCHER_BUFFER_SIZE          256
+#define WATCHER_BUFFER_GROWTH_FACTOR   4
+#define WATCHER_BUFFER_MAX_SIZE    65535
+
 struct fs::filesystem_watcher
 {
     watcher_callback_f callback;
     hash_table<fs::path, _watched_directory> watched_directories;
     fs::path iterator_path;
+    scratch_buffer<WATCHER_BUFFER_SIZE> event_buffer;
 
 #if Linux
     io_handle inotify_fd;
@@ -167,6 +172,8 @@ fs::filesystem_watcher *fs::filesystem_watcher_create(fs::watcher_callback_f cal
     fs::filesystem_watcher *ret = alloc<fs::filesystem_watcher>();
 
     fill_memory(ret, 0);
+    ::init(&ret->watched_directories);
+    ::init(&ret->event_buffer);
     fs::init(&ret->iterator_path);
     ret->callback = callback;
 
@@ -187,7 +194,10 @@ bool fs::filesystem_watcher_destroy(fs::filesystem_watcher *watcher, error *err)
 {
     assert(watcher != nullptr);
 
+    fs::filesystem_watcher_unwatch_all(watcher, err);
+    ::free(&watcher->watched_directories);
     fs::free(&watcher->iterator_path);
+    ::free(&watcher->event_buffer);
 
 #if Linux
     if (sys_int code = ::close(watcher->inotify_fd); code < 0)
@@ -230,6 +240,7 @@ bool fs::filesystem_watcher_watch_file(fs::filesystem_watcher *watcher, fs::cons
 
         watched_parent = ::add_element_by_key(&watcher->watched_directories, &parent_path);
         assert(watched_parent != nullptr);
+        ::init(&watched_parent->watched_files);
         watched_parent->path = parent_path;
         watched_parent->only_watch_files = true;
         watched_parent->fd = ifd;
@@ -300,6 +311,7 @@ bool fs::filesystem_watcher_unwatch_file(fs::filesystem_watcher *watcher, fs::co
         return false;
     }
 
+    fs::free(&watched->path);
     remove_element_by_key(&watched_parent->watched_files, &fcanon);
 
     if (watched_parent->only_watch_files
@@ -313,6 +325,7 @@ bool fs::filesystem_watcher_unwatch_file(fs::filesystem_watcher *watcher, fs::co
             return false;
         }
 
+        fs::free(&watched_parent->path);
         remove_element_by_key(&watcher->watched_directories, &parent_path);
     }
 
@@ -321,6 +334,46 @@ bool fs::filesystem_watcher_unwatch_file(fs::filesystem_watcher *watcher, fs::co
 #else
     #error "Unsupported"
 #endif
+}
+
+bool fs::filesystem_watcher_unwatch_all(fs::filesystem_watcher *watcher, error *err)
+{
+    assert(watcher != nullptr);
+
+    sys_int ret = 0;
+    bool ok = true;
+
+    for_hash_table(watched_dir, &watcher->watched_directories)
+    {
+        for_hash_table(watched, &watched_dir->watched_files)
+        {
+            ret = inotify_rm_watch(watcher->inotify_fd, watched->fd);
+
+            if (ret < 0)
+            {
+                ok = false;
+                set_error_by_code(err, -ret);
+            }
+
+            fs::free(&watched->path);
+        }
+
+        ::free(&watched_dir->watched_files);
+
+        ret = inotify_rm_watch(watcher->inotify_fd, watched_dir->fd);
+
+        if (ret < 0)
+        {
+            ok = false;
+            set_error_by_code(err, -ret);
+        }
+
+        fs::free(&watched_dir->path);
+    }
+
+    ::clear(&watcher->watched_directories);
+
+    return ok;
 }
 
 bool fs::filesystem_watcher_has_events(fs::filesystem_watcher *watcher, error *err)
@@ -349,11 +402,27 @@ bool fs::filesystem_watcher_process_events(fs::filesystem_watcher *watcher, erro
     assert(watcher != nullptr);
 
 #if Linux
-    u8 buffer[WATCHER_EVENT_BUFFER_LENGTH];
-    s64 length;
+    auto *buffer = &watcher->event_buffer;
+    s64 length = -1;
     s64 i = 0;
 
-    length = ::read(watcher->inotify_fd, buffer, WATCHER_EVENT_BUFFER_LENGTH);
+    do
+    {
+        length = ::read(watcher->inotify_fd, buffer->data, buffer->size);
+        
+        if (length == -EINVAL)
+        {
+            if (buffer->size >= WATCHER_BUFFER_MAX_SIZE)
+                break;
+
+            tprint("growing %\n", buffer->size);
+            ::grow_by(buffer, WATCHER_BUFFER_GROWTH_FACTOR);
+            continue;
+        }
+
+        break;
+    }
+    while (length == -EINVAL);
 
     if (length < 0)
     {
@@ -368,7 +437,7 @@ bool fs::filesystem_watcher_process_events(fs::filesystem_watcher *watcher, erro
 
     while(i < length)
     {
-        inotify_event *event = (inotify_event*)(buffer + i);
+        inotify_event *event = (inotify_event*)(buffer->data + i);
         _process_event(watcher, &watcher->iterator_path, event);
         i += sizeof(inotify_event) + event->name_length;
     }

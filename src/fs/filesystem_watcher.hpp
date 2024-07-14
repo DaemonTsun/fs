@@ -58,6 +58,7 @@ bool filesystem_watcher_destroy(fs::filesystem_watcher *watcher, error *err = nu
 
 bool filesystem_watcher_watch_file(fs::filesystem_watcher *watcher,   fs::const_fs_string path, error *err = nullptr);
 bool filesystem_watcher_unwatch_file(fs::filesystem_watcher *watcher, fs::const_fs_string path, error *err = nullptr);
+bool filesystem_watcher_unwatch_all(fs::filesystem_watcher *watcher, error *err = nullptr);
 
 // TODO: watch directory
 

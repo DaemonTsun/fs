@@ -22,6 +22,7 @@ bool _get_next_dirents(fs::fs_iterator_detail *detail, error *err)
 {
     s64 errcode = 0;
 
+    // isn't this wrong? if buffer size is above max size, it will never do anything
     while (detail->buffer.size < DIRENT_ALLOC_MAX_SIZE)
     {
         detail->dirent_size = ::getdents64(detail->fd, detail->buffer.data, detail->buffer.size);
