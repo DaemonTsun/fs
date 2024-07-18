@@ -8,6 +8,18 @@ void callback(fs::const_fs_string path, fs::watcher_event_type event)
     tprint("% %\n", value(event), path);
 }
 
+void print_error(error *err)
+{
+    if (err->error_code == 0)
+        return;
+
+#ifndef NDEBUG
+    tprint("[%:%] error %: %\n", err->file, (u64)err->line, err->error_code, err->what);
+#else
+    tprint("error %: %\n", err->error_code, err->what);
+#endif
+}
+
 int main(int argc, char **argv)
 {
     if (argc < 2)
@@ -65,12 +77,12 @@ int main(int argc, char **argv)
             continue;
         }
 
-        if (fs::filesystem_watcher_has_events(watcher, &err))
+        while (fs::filesystem_watcher_has_events(watcher, &err))
             fs::filesystem_watcher_process_events(watcher, &err);
 
         if (err.error_code != 0)
         {
-            tprint("error: %\n", err.what);
+            print_error(&err);
             break;
         }
     }
@@ -79,7 +91,7 @@ int main(int argc, char **argv)
 
     if (err.error_code != 0)
     {
-        tprint("error: %\n", err.what);
+        print_error(&err);
         return 1;
     }
 

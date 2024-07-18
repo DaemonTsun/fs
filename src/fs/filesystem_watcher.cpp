@@ -1,5 +1,5 @@
 
-//#include "shl/print.hpp"
+// #include "shl/print.hpp"
 #define tprint(...)
 
 #include "shl/platform.hpp"
@@ -41,9 +41,15 @@ struct _watched_file
     // TODO: filter
 };
 
+#if Windows
+#define WATCHER_BUFFER_SIZE        16384
+#define WATCHER_BUFFER_GROWTH_FACTOR   4
+#define WATCHER_BUFFER_MAX_SIZE 16777215
+#else
 #define WATCHER_BUFFER_SIZE          256
 #define WATCHER_BUFFER_GROWTH_FACTOR   4
 #define WATCHER_BUFFER_MAX_SIZE    65535
+#endif
 
 struct _watched_directory
 {
@@ -583,7 +589,9 @@ bool fs::filesystem_watcher_has_events(fs::filesystem_watcher *watcher, error *e
 
     for_hash_table(dir, &watcher->watched_directories)
     {
-        ok = WaitForSingleObject(dir->overlapped.hEvent, 0) == WAIT_OBJECT_0;
+        u32 ret = WaitForSingleObject(dir->overlapped.hEvent, 0);
+
+        ok = ret == WAIT_OBJECT_0;
 
         // tprint("%\n", ok);
 
@@ -621,29 +629,42 @@ bool fs::filesystem_watcher_process_events(fs::filesystem_watcher *watcher, erro
 #if Windows
     for_hash_table(dir, &watcher->watched_directories)
     {
+        ok = true;
         s32 ret = WaitForSingleObject(dir->overlapped.hEvent, 0);
 
-        tprint("%\n", ret);
+        tprint("single object ret: %\n", ret);
 
         if (ret != WAIT_OBJECT_0)
             continue;
 
-        GetOverlappedResult(dir->handle, &dir->overlapped, (LPDWORD)&bytes, false);
-        ResetEvent(&dir->overlapped.hEvent);
+        ok = GetOverlappedResult(dir->handle, &dir->overlapped, (LPDWORD)&bytes, false);
+
+        if (!ok)
+        {
+            set_GetLastError_error(err);
+            break;
+        }
+
+        ok = ResetEvent(dir->overlapped.hEvent);
+
+        if (!ok)
+        {
+            set_GetLastError_error(err);
+            break;
+        }
 
         auto *buffer = &dir->event_buffer;
 
-        // we call this here before checking the previous result to
-        // immediately start watching for new changes.
-        ok = ReadDirectoryChangesW(dir->handle,
-                                   buffer->data,
-                                   (DWORD)buffer->size,
-                                   false,
-                                   WATCH_EVENTS,
-                                   nullptr,
-                                   &dir->overlapped,
-                                   nullptr
-                                   );
+#define _start_next_ReadDirectoryChanges(Dir)\
+        ReadDirectoryChangesW((Dir)->handle,\
+                              (Dir)->event_buffer.data,\
+                              (DWORD)(Dir)->event_buffer.size,\
+                              false,\
+                              WATCH_EVENTS,\
+                              nullptr,\
+                              &(Dir)->overlapped,\
+                              nullptr\
+                              );
 
         
         if (bytes == 0)
@@ -657,13 +678,15 @@ bool fs::filesystem_watcher_process_events(fs::filesystem_watcher *watcher, erro
 
             tprint("growing %\n", buffer->size);
             ::grow_by(buffer, WATCHER_BUFFER_GROWTH_FACTOR);
-            continue;
-        }
+            ok = _start_next_ReadDirectoryChanges(dir);
 
-        if (!ok)
-        {
-            set_GetLastError_error(err);
-            break;
+            if (!ok)
+            {
+                set_GetLastError_error(err);
+                break;
+            }
+
+            continue;
         }
 
         s64 i = 0;
@@ -676,6 +699,13 @@ bool fs::filesystem_watcher_process_events(fs::filesystem_watcher *watcher, erro
 
             if (event->NextEntryOffset == 0)
                 break;
+        }
+
+        ok = _start_next_ReadDirectoryChanges(dir);
+        if (!ok)
+        {
+            set_GetLastError_error(err);
+            break;
         }
     }
 
