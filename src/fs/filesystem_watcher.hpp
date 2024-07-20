@@ -92,6 +92,20 @@ template<typename T>
 auto filesystem_watcher_watch_unwatch_directory(fs::filesystem_watcher *watcher, T pth, error *err = nullptr)
     define_fs_watcher_body(fs::_filesystem_watcher_unwatch_directory, watcher, pth, err)
 
+// unspecific
+bool _filesystem_watcher_watch(fs::filesystem_watcher *watcher,   fs::const_fs_string path, error *err);
+
+template<typename T>
+auto filesystem_watcher_watch(fs::filesystem_watcher *watcher, T pth, error *err = nullptr)
+    define_fs_watcher_body(fs::_filesystem_watcher_watch, watcher, pth, err)
+
+bool _filesystem_watcher_unwatch(fs::filesystem_watcher *watcher, fs::const_fs_string path, error *err);
+
+template<typename T>
+auto filesystem_watcher_watch_unwatch(fs::filesystem_watcher *watcher, T pth, error *err = nullptr)
+    define_fs_watcher_body(fs::_filesystem_watcher_unwatch, watcher, pth, err)
+
+// all
 bool filesystem_watcher_unwatch_all(fs::filesystem_watcher *watcher, error *err = nullptr);
 
 bool filesystem_watcher_has_events(fs::filesystem_watcher *watcher, error *err);

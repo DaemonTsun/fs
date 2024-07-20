@@ -620,6 +620,22 @@ bool fs::_filesystem_watcher_unwatch_directory(fs::filesystem_watcher *watcher, 
 #endif
 }
 
+bool fs::_filesystem_watcher_watch(fs::filesystem_watcher *watcher,   fs::const_fs_string path, error *err)
+{
+    if (fs::is_directory(path))
+        return fs::_filesystem_watcher_watch_directory(watcher, path, err);
+    else
+        return fs::_filesystem_watcher_watch_file(watcher, path, err);
+}
+
+bool fs::_filesystem_watcher_unwatch(fs::filesystem_watcher *watcher, fs::const_fs_string path, error *err)
+{
+    if (fs::is_directory(path))
+        return fs::_filesystem_watcher_unwatch_directory(watcher, path, err);
+    else
+        return fs::_filesystem_watcher_unwatch_file(watcher, path, err);
+}
+
 bool fs::filesystem_watcher_unwatch_all(fs::filesystem_watcher *watcher, error *err)
 {
     assert(watcher != nullptr);
