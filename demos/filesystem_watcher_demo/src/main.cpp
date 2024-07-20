@@ -39,7 +39,7 @@ int main(int argc, char **argv)
     }
 
     for (int i = 1; i < argc; ++i)
-        fs::filesystem_watcher_watch_file(watcher, to_const_string(argv[i]));
+        fs::filesystem_watcher_watch_directory(watcher, to_const_string(argv[i]));
 
     char c = '\0';
 
@@ -57,7 +57,7 @@ int main(int argc, char **argv)
         if (c == 'w')
         {
             for (int i = 1; i < argc; ++i)
-            if (!fs::filesystem_watcher_watch_file(watcher, to_const_string(argv[i]), &err))
+            if (!fs::filesystem_watcher_watch_directory(watcher, to_const_string(argv[i]), &err))
             {
                 tprint("error: %\n", err.what);
                 break;

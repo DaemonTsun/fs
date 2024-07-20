@@ -197,17 +197,18 @@ void _process_event(fs::filesystem_watcher *watcher, inotify_event *event)
         if (dir->fd != event->watched_fd)
             continue;
 
+        if (event->name_length <= 0)
+            continue;
+
         if (dir->only_watch_files)
         {
-            if (event->name_length <= 0)
-                // we only care for modified files
-                continue;
-
             _watched_file *file = ::search_by_hash(&dir->watched_files, ::hash(fname));
             found = file != nullptr;
 
             if (!found)
                 continue;
+
+            // TODO: check filter
 
             fs::set_path(it, &dir->path);
             fs::append_path(it, fname);
@@ -216,7 +217,10 @@ void _process_event(fs::filesystem_watcher *watcher, inotify_event *event)
         }
         else
         {
-            // TODO: directory events
+            // TODO: check filter
+            fs::set_path(it, &dir->path);
+            fs::append_path(it, fname);
+            found = true;
         }
     }
 
@@ -355,8 +359,10 @@ bool fs::_filesystem_watcher_watch_file(fs::filesystem_watcher *watcher, fs::con
 
 #elif Linux
     fs::path fcanon{};
-    fs::canonical_path(path, &fcanon);
     defer { fs::free(&fcanon); };
+
+    if (!fs::canonical_path(path, &fcanon, err))
+        return false;
 
     fs::path parent_path{};
     fs::set_path(&parent_path, fs::parent_path_segment(&fcanon));
@@ -470,8 +476,10 @@ bool fs::_filesystem_watcher_unwatch_file(fs::filesystem_watcher *watcher, fs::c
     return true;
 #elif Linux
     fs::path fcanon{};
-    fs::canonical_path(path, &fcanon);
     defer { fs::free(&fcanon); };
+
+    if (!fs::canonical_path(path, &fcanon, err))
+        return false;
 
     fs::path parent_path{};
     fs::set_path(&parent_path, fs::parent_path_segment(&fcanon));
@@ -487,21 +495,6 @@ bool fs::_filesystem_watcher_unwatch_file(fs::filesystem_watcher *watcher, fs::c
 
     if (watched == nullptr)
         return false;
-
-    /*
-
-    // could be -1 when watched but deleted
-    if (watched->fd >= 0)
-    {
-        ret = inotify_rm_watch(watcher->inotify_fd, watched->fd);
-
-        if (ret < 0)
-        {
-            set_error_by_code(err, -ret);
-            return false;
-        }
-    }
-    */
 
     fs::free(&watched->path);
     remove_element_by_hash(&watched_parent->watched_files, ::hash(fname));
@@ -521,13 +514,109 @@ bool fs::_filesystem_watcher_unwatch_file(fs::filesystem_watcher *watcher, fs::c
             }
         }
 
+        ::free(&watched_parent->watched_files);
         fs::free(&watched_parent->path);
         remove_element_by_key(&watcher->watched_directories, &parent_path);
     }
 
     return true;
-#else
-    #error "Unsupported"
+#endif
+}
+
+bool fs::_filesystem_watcher_watch_directory(fs::filesystem_watcher *watcher, fs::const_fs_string path, error *err)
+{
+    assert(watcher != nullptr);
+
+#if Windows
+    // TODO: implement
+    return false;
+
+#elif Linux
+    fs::path fcanon{};
+
+    if (!fs::canonical_path(path, &fcanon, err))
+        return false;
+
+    if (!fs::is_directory(&fcanon, true, err))
+    {
+        fs::free(&fcanon);
+        return false;
+    }
+    
+    _watched_directory *watched_dir = ::search(&watcher->watched_directories, &fcanon);
+
+    if (watched_dir == nullptr)
+    {
+        sys_int ifd = ::inotify_add_watch(watcher->inotify_fd, fcanon.c_str(), IN_ALL_EVENTS);
+
+        if (ifd < 0)
+        {
+            set_error_by_code(err, -ifd);
+            fs::free(&fcanon);
+            return false;
+        }
+
+        watched_dir = ::add_element_by_key(&watcher->watched_directories, &fcanon);
+        assert(watched_dir != nullptr);
+        ::init(&watched_dir->watched_files);
+        watched_dir->path = fcanon;
+        watched_dir->fd = ifd;
+    }
+    else
+        fs::free(&fcanon); // already stored in watched_parent->path
+
+    assert(watched_dir != nullptr);
+    watched_dir->only_watch_files = false;
+    // TODO: add filter
+
+    return true;
+#endif
+}
+
+bool fs::_filesystem_watcher_unwatch_directory(fs::filesystem_watcher *watcher, fs::const_fs_string path, error *err)
+{
+    assert(watcher != nullptr);
+
+#if Windows
+    // TODO: implement
+    return false;
+#elif Linux
+    fs::path fcanon{};
+
+    if (!fs::canonical_path(path, &fcanon, err))
+        return false;
+
+    defer { fs::free(&fcanon); };
+
+    if (!fs::is_directory(&fcanon, true, err))
+        return false;
+
+    _watched_directory *watched_dir = ::search(&watcher->watched_directories, &fcanon);
+
+    if (watched_dir == nullptr)
+        return false;
+
+    watched_dir->only_watch_files = true;
+
+    if (watched_dir->watched_files.size == 0)
+    {
+        if (watched_dir->fd >= 0)
+        {
+            sys_int ret = inotify_rm_watch(watcher->inotify_fd, watched_dir->fd);
+
+            if (ret < 0)
+            {
+                set_error_by_code(err, -ret);
+                return false;
+            }
+        }
+
+        ::free(&watched_dir->watched_files);
+        fs::free(&watched_dir->path);
+        remove_element_by_key(&watcher->watched_directories, &fcanon);
+    }
+
+    return true;
 #endif
 }
 
