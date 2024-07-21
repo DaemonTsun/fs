@@ -55,6 +55,8 @@ enum class watcher_event_type : u8
     Closed,
     AttributesChanged,
     */
+
+    All = Removed | Created | Modified | MovedFrom | MovedTo
 };
 
 ENUM_CLASS_FLAG_OPS(watcher_event_type);
@@ -67,11 +69,11 @@ fs::filesystem_watcher *filesystem_watcher_create(fs::watcher_callback_f callbac
 bool filesystem_watcher_destroy(fs::filesystem_watcher *watcher, error *err = nullptr);
 
 // file
-bool _filesystem_watcher_watch_file(fs::filesystem_watcher *watcher,   fs::const_fs_string path, error *err);
+bool _filesystem_watcher_watch_file(fs::filesystem_watcher *watcher, fs::const_fs_string path, fs::watcher_event_type filter, error *err);
 
 template<typename T>
-auto filesystem_watcher_watch_file(fs::filesystem_watcher *watcher, T pth, error *err = nullptr)
-    define_fs_watcher_body(fs::_filesystem_watcher_watch_file, watcher, pth, err)
+auto filesystem_watcher_watch_file(fs::filesystem_watcher *watcher, T pth, fs::watcher_event_type filter = fs::watcher_event_type::All, error *err = nullptr)
+    define_fs_watcher_body(fs::_filesystem_watcher_watch_file, watcher, pth, filter, err)
 
 bool _filesystem_watcher_unwatch_file(fs::filesystem_watcher *watcher, fs::const_fs_string path, error *err);
 
@@ -80,11 +82,11 @@ auto filesystem_watcher_watch_unwatch_file(fs::filesystem_watcher *watcher, T pt
     define_fs_watcher_body(fs::_filesystem_watcher_unwatch_file, watcher, pth, err)
 
 // directory
-bool _filesystem_watcher_watch_directory(fs::filesystem_watcher *watcher,   fs::const_fs_string path, error *err);
+bool _filesystem_watcher_watch_directory(fs::filesystem_watcher *watcher, fs::const_fs_string path, fs::watcher_event_type filter, error *err);
 
 template<typename T>
-auto filesystem_watcher_watch_directory(fs::filesystem_watcher *watcher, T pth, error *err = nullptr)
-    define_fs_watcher_body(fs::_filesystem_watcher_watch_directory, watcher, pth, err)
+auto filesystem_watcher_watch_directory(fs::filesystem_watcher *watcher, T pth, fs::watcher_event_type filter = fs::watcher_event_type::All, error *err = nullptr)
+    define_fs_watcher_body(fs::_filesystem_watcher_watch_directory, watcher, pth, filter, err)
 
 bool _filesystem_watcher_unwatch_directory(fs::filesystem_watcher *watcher, fs::const_fs_string path, error *err);
 
@@ -93,11 +95,11 @@ auto filesystem_watcher_watch_unwatch_directory(fs::filesystem_watcher *watcher,
     define_fs_watcher_body(fs::_filesystem_watcher_unwatch_directory, watcher, pth, err)
 
 // unspecific
-bool _filesystem_watcher_watch(fs::filesystem_watcher *watcher,   fs::const_fs_string path, error *err);
+bool _filesystem_watcher_watch(fs::filesystem_watcher *watcher, fs::const_fs_string path, fs::watcher_event_type filter, error *err);
 
 template<typename T>
-auto filesystem_watcher_watch(fs::filesystem_watcher *watcher, T pth, error *err = nullptr)
-    define_fs_watcher_body(fs::_filesystem_watcher_watch, watcher, pth, err)
+auto filesystem_watcher_watch(fs::filesystem_watcher *watcher, T pth, fs::watcher_event_type filter = fs::watcher_event_type::All, error *err = nullptr)
+    define_fs_watcher_body(fs::_filesystem_watcher_watch, watcher, pth, filter, err)
 
 bool _filesystem_watcher_unwatch(fs::filesystem_watcher *watcher, fs::const_fs_string path, error *err);
 

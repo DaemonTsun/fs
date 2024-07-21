@@ -38,7 +38,7 @@ struct _watched_file
     // io_handle fd;
 #endif
 
-    // TODO: filter
+    fs::watcher_event_type filter;
 };
 
 #if Windows
@@ -54,6 +54,8 @@ struct _watched_file
 struct _watched_directory
 {
     fs::path path;
+    bool only_watch_files;
+    fs::watcher_event_type filter;
     
 #if Windows
     hash_table<wstring, _watched_file> watched_files;
@@ -67,7 +69,6 @@ struct _watched_directory
        care about files, only_watch_files will be true.
     */
     io_handle fd;
-    bool only_watch_files;
 #endif
 };
 
@@ -157,6 +158,9 @@ fs::watcher_event_type mask_to_event(u32 mask)
 
 void _process_event(fs::filesystem_watcher *watcher, inotify_event *event)
 {
+    if (event->name_length <= 0)
+        return;
+
     fs::watcher_event_type type = mask_to_event(event->mask);
 
     // TODO: remove
@@ -197,19 +201,18 @@ void _process_event(fs::filesystem_watcher *watcher, inotify_event *event)
         if (dir->fd != event->watched_fd)
             continue;
 
-        if (event->name_length <= 0)
-            continue;
-
         if (dir->only_watch_files)
         {
             _watched_file *file = ::search_by_hash(&dir->watched_files, ::hash(fname));
-            found = file != nullptr;
 
-            if (!found)
+            if (file == nullptr)
                 continue;
 
-            // TODO: check filter
+            if ((file->filter & type) == fs::watcher_event_type::None)
+                continue;
 
+            found = true;
+            type &= file->filter;
             fs::set_path(it, &dir->path);
             fs::append_path(it, fname);
 
@@ -217,10 +220,13 @@ void _process_event(fs::filesystem_watcher *watcher, inotify_event *event)
         }
         else
         {
-            // TODO: check filter
+            if ((dir->filter & type) == fs::watcher_event_type::None)
+                continue;
+
+            found = true;
+            type &= dir->filter;
             fs::set_path(it, &dir->path);
             fs::append_path(it, fname);
-            found = true;
         }
     }
 
@@ -277,9 +283,8 @@ bool fs::filesystem_watcher_destroy(fs::filesystem_watcher *watcher, error *err)
     return true;
 }
 
-bool fs::_filesystem_watcher_watch_file(fs::filesystem_watcher *watcher, fs::const_fs_string path, error *err)
+bool fs::_filesystem_watcher_watch_file(fs::filesystem_watcher *watcher, fs::const_fs_string path, fs::watcher_event_type filter, error *err)
 {
-    // TODO: add event filter
     assert(watcher != nullptr);
 
 #if Windows
@@ -344,7 +349,7 @@ bool fs::_filesystem_watcher_watch_file(fs::filesystem_watcher *watcher, fs::con
 
     if (watched != nullptr)
     {
-        // TODO: update filter
+        watched->filter |= filter;
         ::free(&wfname);
         return true;
     }
@@ -352,8 +357,8 @@ bool fs::_filesystem_watcher_watch_file(fs::filesystem_watcher *watcher, fs::con
     watched = ::add_element_by_key(&watched_parent->watched_files, &wfname);
     assert(watched != nullptr);
 
-    // TODO: add filter
     watched->name = wfname;
+    watched->filter = filter;
 
     return true;
 
@@ -397,20 +402,9 @@ bool fs::_filesystem_watcher_watch_file(fs::filesystem_watcher *watcher, fs::con
 
     if (watched != nullptr)
     {
-        // TODO: update filter
+        watched->filter |= filter;
         return true;
     }
-
-    /* 
-    sys_int ffd = ::inotify_add_watch(watcher->inotify_fd, fcanon.c_str(), IN_ALL_EVENTS);
-
-    if (ffd < 0)
-    {
-        set_error_by_code(err, -ffd);
-        fs::free(&fcanon);
-        return false;
-    }
-    */
 
     fs::path fpname{};
     fs::set_path(&fpname, fname);
@@ -418,8 +412,7 @@ bool fs::_filesystem_watcher_watch_file(fs::filesystem_watcher *watcher, fs::con
     assert(watched != nullptr);
 
     watched->path = fpname;
-    // watched->fd = ffd;
-    // TODO: add filter
+    watched->filter = filter;
 
     return true;
 #endif
@@ -523,7 +516,7 @@ bool fs::_filesystem_watcher_unwatch_file(fs::filesystem_watcher *watcher, fs::c
 #endif
 }
 
-bool fs::_filesystem_watcher_watch_directory(fs::filesystem_watcher *watcher, fs::const_fs_string path, error *err)
+bool fs::_filesystem_watcher_watch_directory(fs::filesystem_watcher *watcher, fs::const_fs_string path, fs::watcher_event_type filter, error *err)
 {
     assert(watcher != nullptr);
 
@@ -561,13 +554,16 @@ bool fs::_filesystem_watcher_watch_directory(fs::filesystem_watcher *watcher, fs
         ::init(&watched_dir->watched_files);
         watched_dir->path = fcanon;
         watched_dir->fd = ifd;
+        watched_dir->filter = filter;
     }
     else
+    {
         fs::free(&fcanon); // already stored in watched_parent->path
+        watched_dir->filter |= filter;
+    }
 
     assert(watched_dir != nullptr);
     watched_dir->only_watch_files = false;
-    // TODO: add filter
 
     return true;
 #endif
@@ -620,12 +616,12 @@ bool fs::_filesystem_watcher_unwatch_directory(fs::filesystem_watcher *watcher, 
 #endif
 }
 
-bool fs::_filesystem_watcher_watch(fs::filesystem_watcher *watcher,   fs::const_fs_string path, error *err)
+bool fs::_filesystem_watcher_watch(fs::filesystem_watcher *watcher, fs::const_fs_string path, fs::watcher_event_type filter, error *err)
 {
     if (fs::is_directory(path))
-        return fs::_filesystem_watcher_watch_directory(watcher, path, err);
+        return fs::_filesystem_watcher_watch_directory(watcher, path, filter, err);
     else
-        return fs::_filesystem_watcher_watch_file(watcher, path, err);
+        return fs::_filesystem_watcher_watch_file(watcher, path, filter, err);
 }
 
 bool fs::_filesystem_watcher_unwatch(fs::filesystem_watcher *watcher, fs::const_fs_string path, error *err)
