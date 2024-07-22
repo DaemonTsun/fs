@@ -8,12 +8,9 @@ A replacement library for the standard filesystem library, because STDs are no g
 - `fs::get_home_path(*out)`, `fs::get_executable_path(*out)`, ...: Functions to obtain special filesystem paths.
 - `fs::copy(From, To, Options)`, `fs::create_directory(...)`, `fs::touch(Path)`: Filesystem manipulation functions.
 - `for_path(it, path)`, `for_recursive_path(it, path)`: no-nonsense filesystem iterators.
+- [`filesystem_watcher`](src/fs/filesystem_watcher.hpp): filesystem watcher for Windows and Linux with a plain interface.
 
 See [`path.hpp`](src/fs/path.hpp) for details and documentation.
-
-### Planned Features
-
-- `filesystem_watcher`: broken as of version 0.8
 
 ## Tree Demo
 
