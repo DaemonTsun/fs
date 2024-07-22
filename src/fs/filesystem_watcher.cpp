@@ -479,8 +479,9 @@ bool fs::_filesystem_watcher_unwatch_file(fs::filesystem_watcher *watcher, fs::c
     if (watched_parent == nullptr)
         return false;
 
-#if Windows
     fs::const_fs_string fname = fs::filename(path);
+
+#if Windows
     wstring wfname{};
     set_string(&wfname, fname);
     defer { ::free(&wfname); };
