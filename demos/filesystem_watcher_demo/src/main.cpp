@@ -3,9 +3,9 @@
 #include "shl/print.hpp"
 #include "fs/filesystem_watcher.hpp"
 
-void callback(fs::const_fs_string path, fs::watcher_event_type event)
+void callback(fs::watcher_event *e)
 {
-    tprint("% %\n", value(event), path);
+    tprint("% % %p\n", value(e->event), e->path, e->userdata);
 }
 
 void print_error(error *err)
@@ -31,6 +31,7 @@ int main(int argc, char **argv)
     fs::filesystem_watcher *watcher;
     error err{};
     watcher = fs::filesystem_watcher_create(callback, &err);
+    void *userdata = (void*)(0x13379001);
 
     if (err.error_code != 0)
     {
@@ -39,7 +40,7 @@ int main(int argc, char **argv)
     }
 
     for (int i = 1; i < argc; ++i)
-        fs::filesystem_watcher_watch(watcher, to_const_string(argv[i]), fs::watcher_event_type::All, &err);
+        fs::filesystem_watcher_watch(watcher, to_const_string(argv[i]), fs::watcher_event_type::All, userdata, &err);
 
     char c = '\0';
 
@@ -57,7 +58,7 @@ int main(int argc, char **argv)
         if (c == 'w')
         {
             for (int i = 1; i < argc; ++i)
-            if (!fs::filesystem_watcher_watch(watcher, to_const_string(argv[i]), fs::watcher_event_type::Created, &err))
+            if (!fs::filesystem_watcher_watch(watcher, to_const_string(argv[i]), fs::watcher_event_type::Created, userdata, &err))
             {
                 tprint("error: %\n", err.what);
                 break;

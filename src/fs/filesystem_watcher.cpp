@@ -38,6 +38,7 @@ struct _watched_file
     // io_handle fd;
 #endif
 
+    void *userdata;
     fs::watcher_event_type filter;
 };
 
@@ -54,6 +55,7 @@ struct _watched_file
 struct _watched_directory
 {
     fs::path path;
+    void *userdata;
     bool only_watch_files;
     fs::watcher_event_type filter;
     
@@ -109,10 +111,10 @@ fs::watcher_event_type mask_to_event(u32 mask)
 void _process_event(fs::filesystem_watcher *watcher, _watched_directory *dir, FILE_NOTIFY_INFORMATION *event)
 {
     fs::watcher_event_type type = mask_to_event(event->Action);
-
     fs::path *it = &watcher->iterator_path;
     it->size = 0;
     const_wstring fname{(wchar_t*)event->FileName, event->FileNameLength / sizeof(wchar_t)};
+    fs::watcher_event ev{};
 
     if (dir->only_watch_files)
     {
@@ -127,6 +129,7 @@ void _process_event(fs::filesystem_watcher *watcher, _watched_directory *dir, FI
         type &= file->filter;
         fs::set_path(it, dir->path);
         fs::append_path(it, fname);
+        ev.userdata = file->userdata;
     }
     else
     {
@@ -136,9 +139,12 @@ void _process_event(fs::filesystem_watcher *watcher, _watched_directory *dir, FI
         type &= dir->filter;
         fs::set_path(it, &dir->path);
         fs::append_path(it, fname);
+        ev.userdata = dir->userdata;
     }
 
-    watcher->callback(to_const_string(it), type);
+    ev.path = to_const_string(it);
+    ev.event = type;
+    watcher->callback(&ev);
 }
 #elif Linux
 static inline s64 _strlen_to_nullterm(const char *t)
@@ -200,6 +206,7 @@ void _process_event(fs::filesystem_watcher *watcher, inotify_event *event)
     fs::path *it = &watcher->iterator_path;
     it->size = 0;
     bool found = false;
+    fs::watcher_event ev{};
 
     fs::const_fs_string fname{inotify_event_name(event), _strlen_to_nullterm(inotify_event_name(event))};
 
@@ -222,6 +229,7 @@ void _process_event(fs::filesystem_watcher *watcher, inotify_event *event)
             type &= file->filter;
             fs::set_path(it, &dir->path);
             fs::append_path(it, fname);
+            ev.userdata = file->userdata;
             break;
         }
         else
@@ -233,6 +241,7 @@ void _process_event(fs::filesystem_watcher *watcher, inotify_event *event)
             type &= dir->filter;
             fs::set_path(it, &dir->path);
             fs::append_path(it, fname);
+            ev.userdata = dir->userdata;
             break;
         }
     }
@@ -240,8 +249,12 @@ void _process_event(fs::filesystem_watcher *watcher, inotify_event *event)
     if (type == fs::watcher_event_type::None || it->size <= 0)
         return;
 
-    if (found)
-        watcher->callback(to_const_string(it), type);
+    if (!found)
+        return;
+
+    ev.path = to_const_string(it);
+    ev.event = type;
+    watcher->callback(&ev);
 }
 #endif
 
@@ -348,7 +361,7 @@ static _watched_directory *_watch_directory(fs::filesystem_watcher *watcher, fs:
     return watched_parent;
 }
 
-bool fs::_filesystem_watcher_watch_file(fs::filesystem_watcher *watcher, fs::const_fs_string path, fs::watcher_event_type filter, error *err)
+bool fs::_filesystem_watcher_watch_file(fs::filesystem_watcher *watcher, fs::const_fs_string path, fs::watcher_event_type filter, void *userdata, error *err)
 {
     assert(watcher != nullptr);
 
@@ -389,6 +402,7 @@ bool fs::_filesystem_watcher_watch_file(fs::filesystem_watcher *watcher, fs::con
     if (watched != nullptr)
     {
         watched->filter |= filter;
+        watched->userdata = userdata;
         ::free(&wfname);
         return true;
     }
@@ -398,6 +412,7 @@ bool fs::_filesystem_watcher_watch_file(fs::filesystem_watcher *watcher, fs::con
 
     watched->name = wfname;
     watched->filter = filter;
+    watched->userdata = userdata;
 
     return true;
 
@@ -408,6 +423,7 @@ bool fs::_filesystem_watcher_watch_file(fs::filesystem_watcher *watcher, fs::con
     if (watched != nullptr)
     {
         watched->filter |= filter;
+        watched->userdata = userdata;
         return true;
     }
 
@@ -418,6 +434,7 @@ bool fs::_filesystem_watcher_watch_file(fs::filesystem_watcher *watcher, fs::con
 
     watched->path = fpname;
     watched->filter = filter;
+    watched->userdata = userdata;
 
     return true;
 #endif
@@ -516,7 +533,7 @@ bool fs::_filesystem_watcher_unwatch_file(fs::filesystem_watcher *watcher, fs::c
     return true;
 }
 
-bool fs::_filesystem_watcher_watch_directory(fs::filesystem_watcher *watcher, fs::const_fs_string path, fs::watcher_event_type filter, error *err)
+bool fs::_filesystem_watcher_watch_directory(fs::filesystem_watcher *watcher, fs::const_fs_string path, fs::watcher_event_type filter, void *userdata, error *err)
 {
     assert(watcher != nullptr);
 
@@ -553,6 +570,7 @@ bool fs::_filesystem_watcher_watch_directory(fs::filesystem_watcher *watcher, fs
 
     assert(watched_dir != nullptr);
     watched_dir->only_watch_files = false;
+    watched_dir->userdata = userdata;
 
     return true;
 }
@@ -588,12 +606,12 @@ bool fs::_filesystem_watcher_unwatch_directory(fs::filesystem_watcher *watcher, 
     return true;
 }
 
-bool fs::_filesystem_watcher_watch(fs::filesystem_watcher *watcher, fs::const_fs_string path, fs::watcher_event_type filter, error *err)
+bool fs::_filesystem_watcher_watch(fs::filesystem_watcher *watcher, fs::const_fs_string path, fs::watcher_event_type filter, void *userdata, error *err)
 {
     if (fs::is_directory(path))
-        return fs::_filesystem_watcher_watch_directory(watcher, path, filter, err);
+        return fs::_filesystem_watcher_watch_directory(watcher, path, filter, userdata, err);
     else
-        return fs::_filesystem_watcher_watch_file(watcher, path, filter, err);
+        return fs::_filesystem_watcher_watch_file(watcher, path, filter, userdata, err);
 }
 
 bool fs::_filesystem_watcher_unwatch(fs::filesystem_watcher *watcher, fs::const_fs_string path, error *err)
