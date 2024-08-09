@@ -3073,6 +3073,7 @@ bool fs::get_executable_directory_path(fs::path *out, error *err)
 
     auto seg = fs::parent_path_segment(out);
     out->size = seg.size;
+    out->data[out->size] = '\0';
     return true;
 }
 
