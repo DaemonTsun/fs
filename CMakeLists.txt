@@ -13,7 +13,7 @@ set_default(fs_COMPILE_DEFINITIONS Default)
 
 # library
 add_lib(fs STATIC
-    VERSION 0.8.2
+    VERSION 0.8.3
     SOURCES_DIR "${ROOT}/src/"
     GENERATE_TARGET_HEADER "${ROOT}/src/fs/fs_info.hpp"
     CPP_VERSION 20
@@ -22,7 +22,7 @@ add_lib(fs STATIC
     COMPILE_DEFINITIONS ${fs_COMPILE_DEFINITIONS}
 
     EXT
-        LIB shl 0.9.4 "${ROOT}/ext/shl" INCLUDE LINK GIT_SUBMODULE
+        LIB shl 0.10.0 "${ROOT}/ext/shl" INCLUDE LINK GIT_SUBMODULE
 
     TESTS "${TEST_SOURCE_DIR}"
     )

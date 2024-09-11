@@ -179,12 +179,17 @@ struct filesystem_info
     } detail;
 };
 
-#define FS_QUERY_DEFAULT_FLAGS  FileBasicInfo
-#define FS_QUERY_PERMISSIONS    0x1000
-#define FS_QUERY_TYPE           0x1001
-#define FS_QUERY_ID             0x1002
-#define FS_QUERY_FILE_TIMES     0x1003
-#define FS_QUERY_SIZE           0x1004
+enum class query_flag
+{
+    Permissions = 0x1000,
+    Type        = 0x1001,
+    Id          = 0x1002,
+    FileTimes   = 0x1003,
+    Size        = 0x1004
+};
+
+enum_flag(query_flag);
+constexpr const query_flag query_flag_default = (query_flag)FileBasicInfo;
 
 #else
 // Linux and others
@@ -230,13 +235,18 @@ struct filesystem_info
 	u64 _unused[14];
 };
 
+enum class query_flag
+{
+    Type        = 0x001, // STATX_TYPE
+    Permissions = 0x002, // STATX_MODE
+    Id          = 0x100, // STATX_INO
+    Size        = 0x200, // STATX_SIZE
+    FileTimes   = 0x8e0, // STATX_BTIME | STATX_ATIME | STATX_MTIME | STATX_CTIME
+};
+
+enum_flag(query_flags);
 // STATX_BASIC_STATS | STATX_BTIME
-#define FS_QUERY_DEFAULT_FLAGS  0xfff
-#define FS_QUERY_TYPE           0x001 // STATX_TYPE
-#define FS_QUERY_PERMISSIONS    0x002 // STATX_MODE
-#define FS_QUERY_ID             0x100 // STATX_INO
-#define FS_QUERY_SIZE           0x200 // STATX_SIZE
-#define FS_QUERY_FILE_TIMES     0x8e0 // STATX_BTIME | STATX_ATIME | STATX_MTIME | STATX_CTIME
+constexpr const query_flag query_flag_default = (query_flag)0xfff;
 
 enum class filesystem_type : u16
 {

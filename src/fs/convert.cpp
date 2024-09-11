@@ -5,6 +5,7 @@
 
 #include "fs/convert.hpp"
 
+#if 0
 void fs::free(fs::converted_string<char> *str)
 {
     ::dealloc(str->data, str->buffer_size);
@@ -62,3 +63,4 @@ fs::converted_string<wchar_t> fs::convert_string(const_string cstring)
 {
     return fs::convert_string(cstring.c_str, cstring.size);
 }
+#endif

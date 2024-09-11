@@ -24,14 +24,14 @@ Example: Creating a file named "myfile.txt" in the home directory.
     fs::free(&p);
 
 
-For convenience, the new_path function creates a new path and optionally resolves
+For convenience, the path_new function creates a new path and optionally resolves
 environment variables, e.g.:
 
-    fs::path p = fs::new_path("$HOME/myfile.txt");
+    fs::path p = fs::path_new("$HOME/myfile.txt");
     ...
     fs::free(&p);
 
-NOTE: new_path always allocates a new path, so free the variable before reassigning.
+NOTE: path_new always allocates a new path, so free the variable before reassigning.
 
 ::to_const_string works with fs::path and yields a const_fs_string (const_string_base<sys_char>)
 of the path.
@@ -116,10 +116,10 @@ init(*Path) initializes an empty Path.
 init(*Path, str) initializes Path to a copy of str. Does not normalize Path.
 init(*Path, *Path2) initializes Path to a copy of Path2.
 
-set_path(*Path, str) sets Path to a copy of str. Does not normalize Path.
-set_path(*Path, *Path2) sets Path to a copy of Path2.
+path_set(*Path, str) sets Path to a copy of str. Does not normalize Path.
+path_set(*Path, *Path2) sets Path to a copy of Path2.
 
-new_path(PathStr, ResolveVariables = true, VariableAliases = true)
+path_new(PathStr, ResolveVariables = true, VariableAliases = true)
     Returns a new fs::path which contains a copy of PathStr.
     If ResolveVariables is true, resolves any environment variables denoted as
     "$Var", e.g. "$HOST.txt".
@@ -133,7 +133,7 @@ hash(*Path) returns a hash of the Path string. Note that two equivalent paths ma
             different hashes. Use fs::are_equivalent(Path1, Path2) to check if two paths
             are equivalent.
 
-get_filesystem_info(PathStr, *Out, FollowSymlinks = true, Flags = FS_QUERY_DEFAULT_FLAGS[, *err])
+query_filesystem(PathStr, *Out, FollowSymlinks = true, Flags = FS_QUERY_DEFAULT_FLAGS[, *err])
     Queries filesystem information from PathStr. To get information about symlinks,
     set FollowSymlinks to false.
     The flags determine what information is queried and what information is written
@@ -141,7 +141,7 @@ get_filesystem_info(PathStr, *Out, FollowSymlinks = true, Flags = FS_QUERY_DEFAU
     flags may be used.
     Returns whether or not the function succeeded.
 
-get_filesystem_info(Handle, *Out, Flags[, *err])
+query_filesystem(Handle, *Out, Flags[, *err])
     Queries filesystem information about an open I/O Handle. 
     The flags determine what information is queried and what information is written
     to *Out, see fs/common.hpp for documentation on fs::filesystem_info and which
@@ -158,7 +158,7 @@ get_filesystem_type(Handle, *Out[, *err])
 
 get_filesystem_type(*FSInfo)
     Returns the type of the filesystem_info FSInfo if the type was queried with
-    fs::get_filesystem_info.
+    fs::query_filesystem.
 
 NOTE Windows: as of version 0.8, permissions are not yet implemented.
 get_permissions(PathStr, *Out, FollowSymlinks = true[, *err])
@@ -171,7 +171,7 @@ get_permissions(Handle, *Out[, *err])
 
 get_permissions(*FSInfo)
     Returns the permissions of the filesystem_info FSInfo if the permissions were queried with
-    fs::get_filesystem_info.
+    fs::query_filesystem.
 
 set_permissions(PathStr, Perms, FollowSymlinks = true[, *err])
     Sets the filesystem permissions of the PathStr to Perms.
@@ -549,14 +549,25 @@ namespace fs
 // This will allocate memory if needs_conversion(C) is true, in which case
 // it needs to be freed by calling fs::free(&return value of this function).
 template<typename C>
-fs::platform_converted_string _get_platform_string(::const_string_base<C> str)
+sys_string _get_platform_string(::const_string_base<C> str)
 {
+    sys_string ret{};
+
     if constexpr (needs_conversion(C))
-        return fs::convert_string(str);
+        string_set(&s, str);
     else
-        return fs::converted_string<C>{const_cast<C*>(str.c_str), str.size};
+    {
+        ret.data = const_cast<C*>(str.c_str);
+        ret.size = str.size;
+        ret.reserved_size = str.size;
+    }
+
+    return ret;
 }
 
+/* FYI: we do this auto -> decltype to get better compiler errors when passing
+        something to this function that has no to_const_string overload.
+*/
 template<typename T>
 auto get_platform_string(T str)
     -> decltype(fs::_get_platform_string(::to_const_string(str)))
@@ -573,15 +584,13 @@ auto get_platform_string(T str)
     {                                                                                                   \
         Func(::to_const_string(pth_str) __VA_OPT__(,) __VA_ARGS__);                                     \
                                                                                                         \
-        if constexpr (needs_conversion(T))                                                              \
-            fs::free(&pth_str);                                                                         \
+        if constexpr (needs_conversion(T)) free(&pth_str);                                              \
     }                                                                                                   \
     else                                                                                                \
     {                                                                                                   \
         auto ret = Func(::to_const_string(pth_str) __VA_OPT__(,) __VA_ARGS__);                          \
                                                                                                         \
-        if constexpr (needs_conversion(T))                                                              \
-            fs::free(&pth_str);                                                                         \
+        if constexpr (needs_conversion(T)) free(&pth_str);                                              \
                                                                                                         \
         return ret;                                                                                     \
     }                                                                                                   \
@@ -597,60 +606,58 @@ auto get_platform_string(T str)
     {                                                                                                                                           \
         Func(::to_const_string(pth_str1), ::to_const_string(pth_str2) __VA_OPT__(,) __VA_ARGS__);                                               \
                                                                                                                                                 \
-        if constexpr (needs_conversion(T1))                                                                                                     \
-            fs::free(&pth_str1);                                                                                                                \
-                                                                                                                                                \
-        if constexpr (needs_conversion(T2))                                                                                                     \
-            fs::free(&pth_str2);                                                                                                                \
+        if constexpr (needs_conversion(T1)) free(&pth_str1);                                                                                    \
+        if constexpr (needs_conversion(T2)) free(&pth_str2);                                                                                    \
     }                                                                                                                                           \
     else                                                                                                                                        \
     {                                                                                                                                           \
         auto ret = Func(::to_const_string(pth_str1), ::to_const_string(pth_str2) __VA_OPT__(,) __VA_ARGS__);                                    \
                                                                                                                                                 \
-        if constexpr (needs_conversion(T1))                                                                                                     \
-            fs::free(&pth_str1);                                                                                                                \
-                                                                                                                                                \
-        if constexpr (needs_conversion(T2))                                                                                                     \
-            fs::free(&pth_str2);                                                                                                                \
+        if constexpr (needs_conversion(T1)) free(&pth_str1);                                                                                    \
+        if constexpr (needs_conversion(T2)) free(&pth_str2);                                                                                    \
                                                                                                                                                 \
         return ret;                                                                                                                             \
     }                                                                                                                                           \
 }
 
 void init(fs::path *path);
-void init(fs::path *path, const char    *str);
-void init(fs::path *path, const char    *str, s64 size);
-void init(fs::path *path, const wchar_t *str);
-void init(fs::path *path, const wchar_t *str, s64 size);
-void init(fs::path *path, const_string   str);
-void init(fs::path *path, const_wstring  str);
+void init(fs::path *path, const c8  *str);
+void init(fs::path *path, const c8  *str, s64 size);
+void init(fs::path *path, const c16 *str);
+void init(fs::path *path, const c16 *str, s64 size);
+void init(fs::path *path, const c32 *str);
+void init(fs::path *path, const c32 *str, s64 size);
+void init(fs::path *path, const_string    str);
+void init(fs::path *path, const_u16string str);
+void init(fs::path *path, const_u32string str);
 void init(fs::path *path, const fs::path *other);
 
 void free(fs::path *path);
 
-void set_path(fs::path *pth, const char    *new_path);
-void set_path(fs::path *pth, const char    *new_path, s64 size);
-void set_path(fs::path *pth, const wchar_t *new_path);
-void set_path(fs::path *pth, const wchar_t *new_path, s64 size);
-void set_path(fs::path *pth, const_string   new_path);
-void set_path(fs::path *pth, const_wstring  new_path);
-void set_path(fs::path *pth, const fs::path *new_path);
+void path_set(fs::path *pth, const c8  *new_path);
+void path_set(fs::path *pth, const c8  *new_path, s64 size);
+void path_set(fs::path *pth, const c16 *new_path);
+void path_set(fs::path *pth, const c16 *new_path, s64 size);
+void path_set(fs::path *pth, const_string   new_path);
+void path_set(fs::path *pth, const_wstring  new_path);
+void path_set(fs::path *pth, const fs::path *new_path);
 
-fs::path _new_path(fs::const_fs_string pth, bool resolve_variables, bool variable_aliases);
+fs::path _path_new(fs::const_fs_string pth, bool resolve_variables, bool variable_aliases);
 
 template<typename T>
-auto new_path(T pth, bool resolve_variables = true, bool variable_aliases = true)
+auto path_new(T pth, bool resolve_variables = true, bool variable_aliases = true)
     define_fs_conversion_body(fs::_new_path, pth, resolve_variables, variable_aliases)
 
 bool operator==(const fs::path &lhs, const fs::path &rhs);
+bool operator!=(const fs::path &lhs, const fs::path &rhs);
 
-bool get_filesystem_info(io_handle h, fs::filesystem_info *out, int flags, error *err = nullptr);
-bool _get_filesystem_info(fs::const_fs_string pth, fs::filesystem_info *out, bool follow_symlinks, int flags, error *err);
+bool query_filesystem(io_handle h, fs::filesystem_info *out, int flags, error *err = nullptr);
+bool _query_filesystem(fs::const_fs_string pth, fs::filesystem_info *out, bool follow_symlinks, int flags, error *err);
 
 // type T is anything that can be converted to fs::const_fs_string
 template<typename T>
-auto get_filesystem_info(T pth, fs::filesystem_info *out, bool follow_symlinks = true, int flags = FS_QUERY_DEFAULT_FLAGS, error *err = nullptr)
-    define_fs_conversion_body(fs::_get_filesystem_info, pth, out, follow_symlinks, flags, err)
+auto query_filesystem(T pth, fs::filesystem_info *out, bool follow_symlinks = true, int flags = FS_QUERY_DEFAULT_FLAGS, error *err = nullptr)
+    define_fs_conversion_body(fs::_query_filesystem, pth, out, follow_symlinks, flags, err)
 
 fs::filesystem_type get_filesystem_type(const fs::filesystem_info *info);
 
@@ -700,17 +707,17 @@ bool is_directory_info(const fs::filesystem_info *info);
 bool is_other_info(const fs::filesystem_info *info);
 
 #define define_path_is_type_body(InfoFunc, Pth)\
-    -> decltype(fs::get_filesystem_info(Pth, (fs::filesystem_info*)nullptr, follow_symlinks, FS_QUERY_TYPE, err))\
+    -> decltype(fs::query_filesystem(Pth, (fs::filesystem_info*)nullptr, follow_symlinks, FS_QUERY_TYPE, err))\
 {\
     fs::filesystem_info info{};\
 \
-    if (!fs::get_filesystem_info(Pth, &info, follow_symlinks, FS_QUERY_TYPE, err))\
+    if (!fs::query_filesystem(Pth, &info, follow_symlinks, fs::query_flag::Type, err))\
         return false;\
 \
     return InfoFunc(&info);\
 }
 
-// T is anything that can be passed to get_filesystem_info, i.e. strings and paths
+// T is anything that can be passed to query_filesystem, i.e. strings and paths
 template<typename T> auto is_file(T pth, bool follow_symlinks = true, error *err = nullptr) define_path_is_type_body(fs::is_file_info, pth)
 template<typename T> auto is_pipe(T pth, bool follow_symlinks = true, error *err = nullptr) define_path_is_type_body(fs::is_pipe_info, pth)
 template<typename T> auto is_block_device(T pth, bool follow_symlinks = true, error *err = nullptr) define_path_is_type_body(fs::is_block_device_info, pth)

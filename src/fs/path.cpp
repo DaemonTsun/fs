@@ -299,28 +299,28 @@ void fs::free(fs::path *path)
     ::free(as_string_ptr(path));
 }
 
-void fs::set_path(fs::path *pth, const char    *new_path)
+void fs::path_set(fs::path *pth, const char    *new_path)
 {
-    fs::set_path(pth, ::to_const_string(new_path));
+    fs::path_set(pth, ::to_const_string(new_path));
 }
 
-void fs::set_path(fs::path *pth, const char    *new_path, s64 size)
+void fs::path_set(fs::path *pth, const char    *new_path, s64 size)
 {
-    fs::set_path(pth, ::to_const_string(new_path, size));
+    fs::path_set(pth, ::to_const_string(new_path, size));
 }
 
-void fs::set_path(fs::path *pth, const wchar_t *new_path)
+void fs::path_set(fs::path *pth, const wchar_t *new_path)
 {
-    fs::set_path(pth, ::to_const_string(new_path));
+    fs::path_set(pth, ::to_const_string(new_path));
 }
 
-void fs::set_path(fs::path *pth, const wchar_t *new_path, s64 size)
+void fs::path_set(fs::path *pth, const wchar_t *new_path, s64 size)
 {
-    fs::set_path(pth, ::to_const_string(new_path, size));
+    fs::path_set(pth, ::to_const_string(new_path, size));
 }
 
 template<typename C>
-void _set_path(fs::path *pth, const_string_base<C> new_path)
+void _path_set(fs::path *pth, const_string_base<C> new_path)
 {
     assert(pth != nullptr);
 
@@ -341,17 +341,17 @@ void _set_path(fs::path *pth, const_string_base<C> new_path)
     }
 }
 
-void fs::set_path(fs::path *pth, const_string   new_path)
+void fs::path_set(fs::path *pth, const_string   new_path)
 {
-    _set_path(pth, new_path);
+    _path_set(pth, new_path);
 }
 
-void fs::set_path(fs::path *pth, const_wstring  new_path)
+void fs::path_set(fs::path *pth, const_wstring  new_path)
 {
-    _set_path(pth, new_path);
+    _path_set(pth, new_path);
 }
 
-void fs::set_path(fs::path *pth, const fs::path *new_path)
+void fs::path_set(fs::path *pth, const fs::path *new_path)
 {
     assert(pth != nullptr);
     assert(new_path != nullptr);
@@ -360,10 +360,10 @@ void fs::set_path(fs::path *pth, const fs::path *new_path)
     ::set_string(as_string_ptr(pth), to_const_string(new_path));
 }
 
-fs::path fs::_new_path(fs::const_fs_string pth, bool resolve_variables, bool variable_aliases)
+fs::path fs::_path_new(fs::const_fs_string pth, bool resolve_variables, bool variable_aliases)
 {
     fs::path ret{};
-    fs::set_path(&ret, pth);
+    fs::path_set(&ret, pth);
 
     if (resolve_variables)
         ::resolve_environment_variables(as_string_ptr(&ret), variable_aliases);
@@ -376,7 +376,12 @@ bool fs::operator==(const fs::path &lhs, const fs::path &rhs)
     return ::compare_strings(::to_const_string(&lhs), ::to_const_string(&rhs)) == 0;
 }
 
-bool fs::get_filesystem_info(io_handle h, fs::filesystem_info *out, int flags, error *err)
+bool fs::operator!=(const fs::path &lhs, const fs::path &rhs)
+{
+    return lhs != rhs;
+}
+
+bool fs::query_filesystem(io_handle h, fs::filesystem_info *out, int flags, error *err)
 {
     assert(out != nullptr);
 
@@ -456,14 +461,14 @@ bool fs::get_filesystem_info(io_handle h, fs::filesystem_info *out, int flags, e
 #endif
 }
 
-bool fs::_get_filesystem_info(fs::const_fs_string pth, fs::filesystem_info *out, bool follow_symlinks, int flags, error *err)
+bool fs::_query_filesystem(fs::const_fs_string pth, fs::filesystem_info *out, bool follow_symlinks, int flags, error *err)
 {
     assert(out != nullptr);
 
 #if Windows
     GetWindowsHandleFromPath(h, pth, follow_symlinks, err);
 
-    if (!fs::get_filesystem_info(h, out, flags, err))
+    if (!fs::query_filesystem(h, out, flags, err))
     {
         CloseWindowsPathHandle(h);
         return false;
@@ -602,7 +607,7 @@ bool fs::get_filesystem_type(io_handle h, fs::filesystem_type *out, error *err)
 #else
     fs::filesystem_info info;
 
-    if (!fs::get_filesystem_info(h, &info, STATX_TYPE, err))
+    if (!fs::query_filesystem(h, &info, STATX_TYPE, err))
         return false;
 
     *out = (fs::filesystem_type)(info.stx_mode & S_IFMT);
@@ -631,7 +636,7 @@ bool fs::_get_filesystem_type(fs::const_fs_string pth, fs::filesystem_type *out,
 #else
     fs::filesystem_info info;
 
-    if (!fs::_get_filesystem_info(pth, &info, follow_symlinks, STATX_TYPE, err))
+    if (!fs::_query_filesystem(pth, &info, follow_symlinks, STATX_TYPE, err))
         return false;
 
     *out = (fs::filesystem_type)(info.stx_mode & S_IFMT);
@@ -659,7 +664,7 @@ bool fs::get_file_size(io_handle h, s64 *out, error *err)
 
     fs::filesystem_info info;
 
-    if (!fs::get_filesystem_info(h, &info, FS_QUERY_SIZE, err))
+    if (!fs::query_filesystem(h, &info, FS_QUERY_SIZE, err))
         return false;
 
     *out = fs::get_file_size(&info);
@@ -673,7 +678,7 @@ bool fs::_get_file_size(fs::const_fs_string pth, s64 *out, bool follow_symlinks,
 
     fs::filesystem_info info;
 
-    if (!fs::_get_filesystem_info(pth, &info, follow_symlinks, FS_QUERY_SIZE, err))
+    if (!fs::_query_filesystem(pth, &info, follow_symlinks, FS_QUERY_SIZE, err))
         return false;
 
     *out = fs::get_file_size(&info);
@@ -704,7 +709,7 @@ bool fs::get_permissions(io_handle h, fs::permission *out, error *err)
 #else
     fs::filesystem_info info;
 
-    if (!fs::get_filesystem_info(h, &info, STATX_MODE, err))
+    if (!fs::query_filesystem(h, &info, STATX_MODE, err))
         return false;
 
     *out = (fs::permission)(info.stx_mode & ~S_IFMT);
@@ -723,7 +728,7 @@ bool fs::_get_permissions(fs::const_fs_string pth, fs::permission *out, bool fol
 #else
     fs::filesystem_info info;
 
-    if (!fs::_get_filesystem_info(pth, &info, follow_symlinks, STATX_MODE, err))
+    if (!fs::_query_filesystem(pth, &info, follow_symlinks, STATX_MODE, err))
         return false;
 
     *out = (fs::permission)(info.stx_mode & ~S_IFMT);
@@ -998,10 +1003,10 @@ bool fs::_are_equivalent(fs::const_fs_string pth1, fs::const_fs_string pth2, boo
 
     int info_flags = FS_QUERY_ID;
 
-    if (!fs::get_filesystem_info(pth1, &info1, follow_symlinks, info_flags, err))
+    if (!fs::query_filesystem(pth1, &info1, follow_symlinks, info_flags, err))
         return false;
 
-    if (!fs::get_filesystem_info(pth2, &info2, follow_symlinks, info_flags, err))
+    if (!fs::query_filesystem(pth2, &info2, follow_symlinks, info_flags, err))
         return false;
 
     return fs::are_equivalent_infos(&info1, &info2);
@@ -1375,7 +1380,7 @@ void fs::_longest_existing_path(fs::const_fs_string pth, fs::path *out)
 {
     assert(out != nullptr);
 
-    fs::set_path(out, pth);
+    fs::path_set(out, pth);
 
     s64 i = 0;
 
@@ -1627,7 +1632,7 @@ bool fs::_absolute_path(fs::const_fs_string pth, fs::path *out, error *err)
         fs::append_path(out, pth);
     }
     else
-        fs::set_path(out, pth);
+        fs::path_set(out, pth);
 
     return true;
 }
@@ -1717,7 +1722,7 @@ bool fs::_weakly_canonical_path(fs::const_fs_string pth, fs::path *out, error *e
 
     if (pth.size == 0)
     {
-        fs::set_path(out, pth);
+        fs::path_set(out, pth);
         return true;
     }
 
@@ -1745,7 +1750,7 @@ bool fs::_weakly_canonical_path(fs::const_fs_string pth, fs::path *out, error *e
 
     // existing slice must exist now
     fs::path old_path{};
-    fs::set_path(&old_path, out);
+    fs::path_set(&old_path, out);
     defer { fs::free(&old_path); };
     
     if (!fs::canonical_path(&existing_slice, out, err))
@@ -1848,7 +1853,7 @@ bool fs::_get_symlink_target(fs::const_fs_string pth, fs::path *out, error *err)
         targetpathlen -= 4;
     }
 
-    fs::set_path(out, targetpath, targetpathlen);
+    fs::path_set(out, targetpath, targetpathlen);
     return true;
 #else
     scratch_buffer<1024> buf{};
@@ -1884,7 +1889,7 @@ bool fs::_get_symlink_target(fs::const_fs_string pth, fs::path *out, error *err)
         return false;
     }
 
-    fs::set_path(out, buf.data, retsize);
+    fs::path_set(out, buf.data, retsize);
 
     return true;
 #endif
@@ -2024,13 +2029,13 @@ void fs::append_path(fs::path *out, const fs::path *to_append)
 
     if (out->size == 0)
     {
-        fs::set_path(out, to_append);
+        fs::path_set(out, to_append);
         return;
     }
 
     if (fs::is_absolute(to_append))
     {
-        fs::set_path(out, to_append);
+        fs::path_set(out, to_append);
         return;
     }
 
@@ -2119,7 +2124,7 @@ void fs::_relative_path(fs::const_fs_string from, fs::const_fs_string to, fs::pa
 {
     assert(out != nullptr);
 
-    fs::set_path(out, PC_LIT(""));
+    fs::path_set(out, PC_LIT(""));
 
     auto rt_from = fs::root(from);
     auto rt_to = fs::root(to);
@@ -2148,7 +2153,7 @@ void fs::_relative_path(fs::const_fs_string from, fs::const_fs_string to, fs::pa
 
     if (i == from_segs.size && i == to_segs.size)
     {
-        fs::set_path(out, PC_LIT("."));
+        fs::path_set(out, PC_LIT("."));
         return;
     }
 
@@ -2170,7 +2175,7 @@ void fs::_relative_path(fs::const_fs_string from, fs::const_fs_string to, fs::pa
 
     if (n == 0 && i >= to_segs.size)
     {
-        fs::set_path(out, PC_LIT("."));
+        fs::path_set(out, PC_LIT("."));
         return;
     }
 
@@ -2317,10 +2322,10 @@ bool fs::_copy_file(fs::const_fs_string from, fs::const_fs_string to, fs::copy_f
             fs::filesystem_info from_info;
             fs::filesystem_info to_info;
 
-            if (!fs::get_filesystem_info(from_handle, &from_info, FS_QUERY_FILE_TIMES, err))
+            if (!fs::query_filesystem(from_handle, &from_info, FS_QUERY_FILE_TIMES, err))
                 return false;
 
-            if (!fs::get_filesystem_info(to_handle, &to_info, FS_QUERY_FILE_TIMES, err))
+            if (!fs::query_filesystem(to_handle, &to_info, FS_QUERY_FILE_TIMES, err))
                 return false;
 
             if (to_info.detail.file_times.last_write_time >= from_info.detail.file_times.last_write_time)
@@ -2366,7 +2371,7 @@ bool fs::_copy_file(fs::const_fs_string from, fs::const_fs_string to, fs::copy_f
 
     defer { ::close(from_fd); };
 
-    if (!fs::get_filesystem_info(from_fd, &from_info, statx_mask, err))
+    if (!fs::query_filesystem(from_fd, &from_info, statx_mask, err))
         return false;
 
     to_fd = (int)::open(to.c_str, open_to_flags, from_info.stx_mode);
@@ -2395,7 +2400,7 @@ bool fs::_copy_file(fs::const_fs_string from, fs::const_fs_string to, fs::copy_f
 
         defer { ::close(tmp_fd); };
 
-        if (!fs::get_filesystem_info(tmp_fd, &tmp_info, STATX_MTIME, err))
+        if (!fs::query_filesystem(tmp_fd, &tmp_info, STATX_MTIME, err))
             return false;
 
         if (tmp_info.stx_mtime >= from_info.stx_mtime)
@@ -2459,7 +2464,7 @@ bool _copy_single_directory(fs::const_fs_string from, fs::const_fs_string to, fs
     fs::filesystem_info from_info;
 
     // TODO: symlinks?
-    if (!fs::get_filesystem_info(from, &from_info, true, flags, err))
+    if (!fs::query_filesystem(from, &from_info, true, flags, err))
         return false;
 
     fs::filesystem_type from_type = fs::get_filesystem_type(&from_info);
@@ -2928,7 +2933,7 @@ s64 fs::_get_children(fs::const_fs_string pth, array<fs::path> *children, fs::it
     {
         fs::path *cp = ::add_at_end(children);
         fs::init(cp);
-        fs::set_path(cp, child->path);
+        fs::path_set(cp, child->path);
         count += 1;
     }
 
@@ -2954,7 +2959,7 @@ s64 fs::_get_all_descendants(fs::const_fs_string pth, array<fs::path> *descendan
     {
         fs::path *cp = ::add_at_end(descendants);
         fs::init(cp);
-        fs::set_path(cp, desc->path);
+        fs::path_set(cp, desc->path);
         count += 1;
     }
 
@@ -3039,7 +3044,7 @@ bool fs::get_home_path(fs::path *out, error *err)
     if (envr == nullptr)
         return false;
 
-    fs::set_path(out, envr);
+    fs::path_set(out, envr);
 
     return true;
 #endif
@@ -3057,7 +3062,7 @@ bool fs::get_executable_path(fs::path *out, error *err)
         return false;
     }
 
-    fs::set_path(out, pth);
+    fs::path_set(out, pth);
     return true;
 #else
     return fs::get_symlink_target("/proc/self/exe"_cs, out, err);
@@ -3210,9 +3215,9 @@ bool fs::get_temporary_path(fs::path *out, error *err)
     if (envr == nullptr) envr = ::getenv("TEMPDIR");
 
     if (envr == nullptr)
-        fs::set_path(out, "/tmp");
+        fs::path_set(out, "/tmp");
     else
-        fs::set_path(out, envr);
+        fs::path_set(out, envr);
 
     return true;
 #endif
