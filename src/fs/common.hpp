@@ -53,7 +53,7 @@ enum fs::iterate_option:
 
 struct fs::filesystem_info:
     A struct containing specific filesystem information about a given path.
-    May be obtained using fs::get_filesystem_info using flags to query
+    May be obtained using fs::query_filesystem using flags to query
     different types of information, such as attributes, unique identifier,
     permissions, change and access times, etc..
 
@@ -61,9 +61,9 @@ struct fs::filesystem_info:
     On Windows, fs::filesystem_info contains different union members for
     different operations.
 
-    fs::get_filesystem_info signature:
+    fs::query_filesystem signature:
 
-    fs::get_filesystem_info(Path, *Out, FollowSymlinks, Flags[, err])
+    fs::query_filesystem(Path, *Out, FollowSymlinks, Flags[, err])
 
     The underlying syscalls or operating functions depend on the Flags,
     although on Linux this will just be statx, but on Windows different
@@ -244,7 +244,7 @@ enum class query_flag
     FileTimes   = 0x8e0, // STATX_BTIME | STATX_ATIME | STATX_MTIME | STATX_CTIME
 };
 
-enum_flag(query_flags);
+enum_flag(query_flag);
 // STATX_BASIC_STATS | STATX_BTIME
 constexpr const query_flag query_flag_default = (query_flag)0xfff;
 

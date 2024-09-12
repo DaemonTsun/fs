@@ -9,9 +9,9 @@ int main(int argc, char **argv)
     defer { fs::free(&target); };
 
     if (argc < 2)
-        fs::set_path(&target, ".");
+        fs::path_set(&target, ".");
     else
-        fs::set_path(&target, argv[1]);
+        fs::path_set(&target, argv[1]);
 
     u64 file_count = 0;
     u64 dir_count  = 0;

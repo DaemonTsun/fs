@@ -13,7 +13,7 @@ set_default(fs_COMPILE_DEFINITIONS Default)
 
 # library
 add_lib(fs STATIC
-    VERSION 0.8.3
+    VERSION 0.9.0
     SOURCES_DIR "${ROOT}/src/"
     GENERATE_TARGET_HEADER "${ROOT}/src/fs/fs_info.hpp"
     CPP_VERSION 20

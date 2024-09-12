@@ -105,6 +105,7 @@ bool fs::_init(fs::fs_iterator *it, fs::const_fs_string pth, error *err)
 {
     assert(it != nullptr);
 
+    fill_memory(it, 0);
     it->target_path = pth;
     fs::init(&it->path_it, pth);
 
@@ -118,7 +119,7 @@ bool fs::_init(fs::fs_iterator *it, fs::const_fs_string pth, error *err)
     fs::free(&it->path_it);
     it->path_it = tmp;
 
-    fs::append_path(&it->path_it, ".");
+    fs::path_append(&it->path_it, ".");
 
     return true;
 }
@@ -232,9 +233,9 @@ bool fs::_init(fs::fs_recursive_iterator *it, fs::const_fs_string pth, fs::itera
             return false;
     }
     else
-        fs::set_path(&it->path_it, pth);
+        fs::path_set(&it->path_it, pth);
 
-    fs::append_path(&it->path_it, ".");
+    fs::path_append(&it->path_it, ".");
 
     return true;
 }
@@ -345,7 +346,7 @@ fs::fs_recursive_iterator_item *_recursive_iterate(fs::fs_recursive_iterator *it
             }
         }
         else
-            fs::append_path(&it->path_it, ".");
+            fs::path_append(&it->path_it, ".");
     }
 
     tprint("  path_it: %\n", ::to_const_string(it->path_it));

@@ -8,7 +8,7 @@ All structs and functions in this library are in the fs namespace.
 
 fs::path is a struct similar in structure to a shl string.
 Depending on the platform and compile flags, fs::path may hold plain
-characters (char) or wide characters (wchar_t), the type used can be obtained
+characters (char/c8) or wide characters (wchar_t/c16/c32), the type used can be obtained
 via fs::path_char_t or shl sys_char.
 
 fs::path is used to represent filesystem paths and run filesystem operations
@@ -19,7 +19,7 @@ Example: Creating a file named "myfile.txt" in the home directory.
     fs::path p{};
     fs::get_home_path(&p);
 
-    fs::append(&p, "myfile.txt");
+    fs::path_append(&p, "myfile.txt");
     fs::touch(&p);
     fs::free(&p);
 
@@ -133,7 +133,7 @@ hash(*Path) returns a hash of the Path string. Note that two equivalent paths ma
             different hashes. Use fs::are_equivalent(Path1, Path2) to check if two paths
             are equivalent.
 
-query_filesystem(PathStr, *Out, FollowSymlinks = true, Flags = FS_QUERY_DEFAULT_FLAGS[, *err])
+query_filesystem(PathStr, *Out, FollowSymlinks = true, Flags = fs::query_flag_default[, *err])
     Queries filesystem information from PathStr. To get information about symlinks,
     set FollowSymlinks to false.
     The flags determine what information is queried and what information is written
@@ -205,7 +205,7 @@ are_equivalent(PathStr1, PathStr2, FollowSymlinks = true[, *err])
 
 are_equivalent_infos(*FSInfo1, *FSInfo2)
     Returns whether or not the filesystem_infos are equivalent.
-    Only works when both FSInfos were queried with FS_QUERY_ID.
+    Only works when both FSInfos were queried with fs::query_flag::Id.
 
 filename(ConstString)
 filename(*Path)
@@ -339,13 +339,13 @@ set_current_path(PathStr[, *err])
     Sets the current working directory to PathStr.
     Returns whether or not the function succeeded.
 
-append_path(*Path, StrSegment)
+path_append(*Path, StrSegment)
     Appends StrSegment to Path, inserting a fs::path_separator before StrSegment if
     Path does not end in a path separator.
     If StrSegment is absolute, sets Path to StrSegment.
     See tests/path_tests.cpp for a comprehensive list of examples.
 
-concat_path(*Path, StrSegment)
+path_concat(*Path, StrSegment)
     Concatenates StrSegment to the end of Path, regardless of either contents.
 
 relative_path(FromPathStr, ToPathStr, *OutPath)
@@ -554,7 +554,7 @@ sys_string _get_platform_string(::const_string_base<C> str)
     sys_string ret{};
 
     if constexpr (needs_conversion(C))
-        string_set(&s, str);
+        ::string_set(&ret, str);
     else
     {
         ret.data = const_cast<C*>(str.c_str);
@@ -638,25 +638,28 @@ void path_set(fs::path *pth, const c8  *new_path);
 void path_set(fs::path *pth, const c8  *new_path, s64 size);
 void path_set(fs::path *pth, const c16 *new_path);
 void path_set(fs::path *pth, const c16 *new_path, s64 size);
-void path_set(fs::path *pth, const_string   new_path);
-void path_set(fs::path *pth, const_wstring  new_path);
+void path_set(fs::path *pth, const c32 *new_path);
+void path_set(fs::path *pth, const c32 *new_path, s64 size);
+void path_set(fs::path *pth, const_string    new_path);
+void path_set(fs::path *pth, const_u16string new_path);
+void path_set(fs::path *pth, const_u32string new_path);
 void path_set(fs::path *pth, const fs::path *new_path);
 
 fs::path _path_new(fs::const_fs_string pth, bool resolve_variables, bool variable_aliases);
 
 template<typename T>
 auto path_new(T pth, bool resolve_variables = true, bool variable_aliases = true)
-    define_fs_conversion_body(fs::_new_path, pth, resolve_variables, variable_aliases)
+    define_fs_conversion_body(fs::_path_new, pth, resolve_variables, variable_aliases)
 
 bool operator==(const fs::path &lhs, const fs::path &rhs);
 bool operator!=(const fs::path &lhs, const fs::path &rhs);
 
-bool query_filesystem(io_handle h, fs::filesystem_info *out, int flags, error *err = nullptr);
-bool _query_filesystem(fs::const_fs_string pth, fs::filesystem_info *out, bool follow_symlinks, int flags, error *err);
+bool query_filesystem(io_handle h, fs::filesystem_info *out, fs::query_flag flags, error *err = nullptr);
+bool _query_filesystem(fs::const_fs_string pth, fs::filesystem_info *out, bool follow_symlinks, fs::query_flag flags, error *err);
 
 // type T is anything that can be converted to fs::const_fs_string
 template<typename T>
-auto query_filesystem(T pth, fs::filesystem_info *out, bool follow_symlinks = true, int flags = FS_QUERY_DEFAULT_FLAGS, error *err = nullptr)
+auto query_filesystem(T pth, fs::filesystem_info *out, bool follow_symlinks = true, fs::query_flag flags = fs::query_flag_default, error *err = nullptr)
     define_fs_conversion_body(fs::_query_filesystem, pth, out, follow_symlinks, flags, err)
 
 fs::filesystem_type get_filesystem_type(const fs::filesystem_info *info);
@@ -707,7 +710,7 @@ bool is_directory_info(const fs::filesystem_info *info);
 bool is_other_info(const fs::filesystem_info *info);
 
 #define define_path_is_type_body(InfoFunc, Pth)\
-    -> decltype(fs::query_filesystem(Pth, (fs::filesystem_info*)nullptr, follow_symlinks, FS_QUERY_TYPE, err))\
+    -> decltype(fs::query_filesystem(Pth, (fs::filesystem_info*)nullptr, follow_symlinks, fs::query_flag::Type, err))\
 {\
     fs::filesystem_info info{};\
 \
@@ -834,19 +837,23 @@ bool _set_current_path(fs::const_fs_string pth, error *err);
 template<typename T> auto set_current_path(T pth, error *err = nullptr) define_fs_conversion_body(fs::_set_current_path, pth, err)
 
 // out = pth / seg
-void append_path(fs::path *out, const char    *seg);
-void append_path(fs::path *out, const wchar_t *seg);
-void append_path(fs::path *out, const_string   seg);
-void append_path(fs::path *out, const_wstring  seg);
-void append_path(fs::path *out, const fs::path *to_append);
+void path_append(fs::path *out, const c8  *seg);
+void path_append(fs::path *out, const c16 *seg);
+void path_append(fs::path *out, const c32 *seg);
+void path_append(fs::path *out, const_string    seg);
+void path_append(fs::path *out, const_u16string seg);
+void path_append(fs::path *out, const_u32string seg);
+void path_append(fs::path *out, const fs::path *to_append);
 
 // out = pth + seg
 // does not add a directory separator
-void concat_path(fs::path *out, const char    *seg);
-void concat_path(fs::path *out, const wchar_t *seg);
-void concat_path(fs::path *out, const_string   seg);
-void concat_path(fs::path *out, const_wstring  seg);
-void concat_path(fs::path *out, const fs::path *to_concat);
+void path_concat(fs::path *out, const c8  *seg);
+void path_concat(fs::path *out, const c16 *seg);
+void path_concat(fs::path *out, const c32 *seg);
+void path_concat(fs::path *out, const_string    seg);
+void path_concat(fs::path *out, const_u16string seg);
+void path_concat(fs::path *out, const_u32string seg);
+void path_concat(fs::path *out, const fs::path *to_concat);
 
 void _relative_path(fs::const_fs_string from, fs::const_fs_string to, fs::path *out);
 
@@ -997,11 +1004,8 @@ auto get_preference_path(fs::path *out, T1 app, T2 org, error *err = nullptr)
 
     auto ret = fs::_get_preference_path(out, ::to_const_string(pth_str1), ::to_const_string(pth_str2), err);
 
-    if constexpr (needs_conversion(T1))
-        fs::free(&pth_str1);
-
-    if constexpr (needs_conversion(T2))
-        fs::free(&pth_str2);
+    if constexpr (needs_conversion(T1)) fs::free(&pth_str1);
+    if constexpr (needs_conversion(T2)) fs::free(&pth_str2);
 
     return ret;
 }

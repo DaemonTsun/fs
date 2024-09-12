@@ -166,7 +166,7 @@ struct watcher_event
     void *userdata;
 };
 
-ENUM_CLASS_FLAG_OPS(watcher_event_type);
+enum_flag(watcher_event_type);
 
 typedef void (*watcher_callback_f)(fs::watcher_event *event);
 

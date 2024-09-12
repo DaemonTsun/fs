@@ -2,9 +2,6 @@
 #pragma once
 
 #include "shl/string.hpp"
-#include "shl/number_types.hpp"
-#include "shl/type_functions.hpp"
-
 #include "fs/common.hpp"
 
 namespace fs
@@ -19,7 +16,11 @@ template<> struct _needs_conversion<c16>     { static constexpr bool value = !is
 template<> struct _needs_conversion<c32>     { static constexpr bool value = !is_same(c32, sys_char); };
 template<> struct _needs_conversion<wchar_t> { static constexpr bool value = !is_same(wchar_t, sys_native_char); };
 
-template<> template<C> struct _needs_conversion<const_string_base<C>> { static constexpr bool value = !is_same(C, sys_char); };
-template<> template<C> struct _needs_conversion<string_base<C>>       { static constexpr bool value = !is_same(C, sys_char); };
+template<> struct _needs_conversion<const_string>    { static constexpr bool value = !is_same(c8, sys_char);  };
+template<> struct _needs_conversion<const_u16string> { static constexpr bool value = !is_same(c16, sys_char); };
+template<> struct _needs_conversion<const_u32string> { static constexpr bool value = !is_same(c32, sys_char); };
+template<> struct _needs_conversion<string>    { static constexpr bool value = !is_same(c8, sys_char);  };
+template<> struct _needs_conversion<u16string> { static constexpr bool value = !is_same(c16, sys_char); };
+template<> struct _needs_conversion<u32string> { static constexpr bool value = !is_same(c32, sys_char); };
 #define needs_conversion(C) fs::_needs_conversion<typename remove_const(typename remove_pointer(C))>::value
 }

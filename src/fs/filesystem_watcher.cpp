@@ -127,8 +127,8 @@ void _process_event(fs::filesystem_watcher *watcher, _watched_directory *dir, FI
             return;
 
         type &= file->filter;
-        fs::set_path(it, dir->path);
-        fs::append_path(it, fname);
+        fs::path_set(it, dir->path);
+        fs::path_append(it, fname);
         ev.userdata = file->userdata;
     }
     else
@@ -137,8 +137,8 @@ void _process_event(fs::filesystem_watcher *watcher, _watched_directory *dir, FI
             return;
 
         type &= dir->filter;
-        fs::set_path(it, &dir->path);
-        fs::append_path(it, fname);
+        fs::path_set(it, &dir->path);
+        fs::path_append(it, fname);
         ev.userdata = dir->userdata;
     }
 
@@ -227,8 +227,8 @@ void _process_event(fs::filesystem_watcher *watcher, inotify_event *event)
 
             found = true;
             type &= file->filter;
-            fs::set_path(it, &dir->path);
-            fs::append_path(it, fname);
+            fs::path_set(it, &dir->path);
+            fs::path_append(it, fname);
             ev.userdata = file->userdata;
             break;
         }
@@ -239,8 +239,8 @@ void _process_event(fs::filesystem_watcher *watcher, inotify_event *event)
 
             found = true;
             type &= dir->filter;
-            fs::set_path(it, &dir->path);
-            fs::append_path(it, fname);
+            fs::path_set(it, &dir->path);
+            fs::path_append(it, fname);
             ev.userdata = dir->userdata;
             break;
         }
@@ -372,7 +372,7 @@ bool fs::_filesystem_watcher_watch_file(fs::filesystem_watcher *watcher, fs::con
         return false;
 
     fs::path parent_path{};
-    fs::set_path(&parent_path, fs::parent_path_segment(&fcanon));
+    fs::path_set(&parent_path, fs::parent_path_segment(&fcanon));
     
     _watched_directory *watched_parent = ::search(&watcher->watched_directories, &parent_path);
 
@@ -392,10 +392,10 @@ bool fs::_filesystem_watcher_watch_file(fs::filesystem_watcher *watcher, fs::con
     assert(watched_parent != nullptr);
 
 #if Windows
-    // We need a wstring for ReadDirectoryChangesW...
+    // We need a u16string for ReadDirectoryChangesW...
     fs::const_fs_string fname = fs::filename(path);
-    wstring wfname{};
-    set_string(&wfname, fname);
+    u16string wfname{};
+    ::string_set(&wfname, fname);
 
     _watched_file *watched = ::search(&watched_parent->watched_files, &wfname);
 
@@ -428,7 +428,7 @@ bool fs::_filesystem_watcher_watch_file(fs::filesystem_watcher *watcher, fs::con
     }
 
     fs::path fpname{};
-    fs::set_path(&fpname, fname);
+    fs::path_set(&fpname, fname);
     watched = ::add_element_by_key(&watched_parent->watched_files, &fpname);
     assert(watched != nullptr);
 
@@ -488,7 +488,7 @@ bool fs::_filesystem_watcher_unwatch_file(fs::filesystem_watcher *watcher, fs::c
         return false;
 
     fs::path parent_path{};
-    fs::set_path(&parent_path, fs::parent_path_segment(&fcanon));
+    fs::path_set(&parent_path, fs::parent_path_segment(&fcanon));
     defer { fs::free(&parent_path); };
 
     _watched_directory *watched_parent = ::search(&watcher->watched_directories, &parent_path);
@@ -500,7 +500,7 @@ bool fs::_filesystem_watcher_unwatch_file(fs::filesystem_watcher *watcher, fs::c
 
 #if Windows
     wstring wfname{};
-    set_string(&wfname, fname);
+    string_set(&wfname, fname);
     defer { ::free(&wfname); };
 
     _watched_file *watched = ::search(&watched_parent->watched_files, &wfname);
