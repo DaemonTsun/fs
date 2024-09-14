@@ -393,7 +393,7 @@ define_test(is_absolute_returns_true_if_path_is_absolute)
     fs::path p{};
 
 #if Windows
-    fs::path_set(&p, LR"=(C:\Windows\notepad.exe)=");
+    fs::path_set(&p, uR"=(C:\Windows\notepad.exe)=");
 #else
     fs::path_set(&p, "/etc/passwd");
 #endif
@@ -408,7 +408,7 @@ define_test(is_absolute_returns_false_if_path_is_not_absolute)
     fs::path p{};
 
 #if Windows
-    fs::path_set(&p, LR"=(..\notepad.exe)=");
+    fs::path_set(&p, uR"=(..\notepad.exe)=");
 #else
     fs::path_set(&p, "../passwd");
 #endif
@@ -423,7 +423,7 @@ define_test(is_relative_returns_true_if_path_is_relative)
     fs::path p{};
 
 #if Windows
-    fs::path_set(&p, LR"=(..\notepad.exe)=");
+    fs::path_set(&p, uR"=(..\notepad.exe)=");
 #else
     fs::path_set(&p, "../passwd");
 #endif
@@ -438,7 +438,7 @@ define_test(is_relative_returns_false_if_path_is_not_relative)
     fs::path p{};
 
 #if Windows
-    fs::path_set(&p, LR"=(C:\Windows\notepad.exe)=");
+    fs::path_set(&p, uR"=(C:\Windows\notepad.exe)=");
 #else
     fs::path_set(&p, "/etc/passwd");
 #endif
@@ -454,8 +454,8 @@ define_test(are_equivalent_returns_true_for_same_path)
     fs::path p2{};
 
 #if Windows
-    fs::path_set(&p1, LR"=(C:\Windows\notepad.exe)=");
-    fs::path_set(&p2, LR"=(C:\Windows\notepad.exe)=");
+    fs::path_set(&p1, uR"=(C:\Windows\notepad.exe)=");
+    fs::path_set(&p2, uR"=(C:\Windows\notepad.exe)=");
 #else
     fs::path_set(&p1, "/etc/passwd");
     fs::path_set(&p2, "/etc/passwd");
@@ -473,8 +473,8 @@ define_test(are_equivalent_returns_true_for_equivalent_paths)
     fs::path p2{};
 
 #if Windows
-    fs::path_set(&p1, LR"=(C:\Windows\..\Windows\notepad.exe)=");
-    fs::path_set(&p2, LR"=(C:\Windows\notepad.exe)=");
+    fs::path_set(&p1, uR"=(C:\Windows\..\Windows\notepad.exe)=");
+    fs::path_set(&p2, uR"=(C:\Windows\notepad.exe)=");
 #else
     fs::path_set(&p1, "/etc/passwd");
     fs::path_set(&p2, "/etc/../etc/passwd");
@@ -492,8 +492,8 @@ define_test(are_equivalent_returns_false_for_different_existing_paths)
     fs::path p2{};
 
 #if Windows
-    fs::path_set(&p1, LR"=(C:\Windows\notepad.exe)=");
-    fs::path_set(&p2, LR"=(C:\Windows\regedit.exe)=");
+    fs::path_set(&p1, uR"=(C:\Windows\notepad.exe)=");
+    fs::path_set(&p2, uR"=(C:\Windows\regedit.exe)=");
 #else
     fs::path_set(&p1, "/etc/passwd");
     fs::path_set(&p2, "/etc/profile");
@@ -514,8 +514,8 @@ define_test(are_equivalent_returns_false_if_only_one_path_doesnt_exist)
     fs::path p2{};
 
 #if Windows
-    fs::path_set(&p1, LR"=(C:\Windows\notepad.exe)=");
-    fs::path_set(&p2, LR"=(C:\Windows\notepad2.exe)=");
+    fs::path_set(&p1, uR"=(C:\Windows\notepad.exe)=");
+    fs::path_set(&p2, uR"=(C:\Windows\notepad2.exe)=");
 #else
     fs::path_set(&p1, "/etc/passwd");
     fs::path_set(&p2, "/etc/passwd2");
@@ -559,13 +559,13 @@ define_test(filename_returns_the_filename)
     assert_equal_str(fs::filename(u"//./UNC/server/share/"_cs), u"");
     assert_equal_str(fs::filename(u"//./UNC/server/share/file.txt"_cs), u"file.txt");
     assert_equal_str(fs::filename(u"//./UNC/server/share/dir/file.txt"_cs), u"file.txt");
-    assert_equal_str(fs::filename(LR"(C:\foo\bar.txt)"_cs), u"bar.txt");
-    assert_equal_str(fs::filename(LR"(C:\foo\.bar)"_cs), u".bar");
-    assert_equal_str(fs::filename(LR"(C:\foo\bar\)"_cs), u"");
-    assert_equal_str(fs::filename(LR"(C:\foo\.)"_cs), u".");
-    assert_equal_str(fs::filename(LR"(C:\foo\..)"_cs), u"..");
-    assert_equal_str(fs::filename(LR"(C:\)"_cs), u"");
-    assert_equal_str(fs::filename(LR"(C:foo.txt)"_cs), u"foo.txt");
+    assert_equal_str(fs::filename(uR"(C:\foo\bar.txt)"_cs), u"bar.txt");
+    assert_equal_str(fs::filename(uR"(C:\foo\.bar)"_cs), u".bar");
+    assert_equal_str(fs::filename(uR"(C:\foo\bar\)"_cs), u"");
+    assert_equal_str(fs::filename(uR"(C:\foo\.)"_cs), u".");
+    assert_equal_str(fs::filename(uR"(C:\foo\..)"_cs), u"..");
+    assert_equal_str(fs::filename(uR"(C:\)"_cs), u"");
+    assert_equal_str(fs::filename(uR"(C:foo.txt)"_cs), u"foo.txt");
 #else
     assert_equal_str(fs::filename("/foo/bar.txt"_cs), "bar.txt");
     assert_equal_str(fs::filename("/foo/.bar"_cs), ".bar");
@@ -665,11 +665,11 @@ define_test(replace_filename_replaces_filename_of_path)
     fs::replace_filename(&p, "abc"_cs);
     assert_equal_str(p, SYS_CHAR("C:abc"));
 
-    fs::path_set(&p, LR"(\\server\share)");
+    fs::path_set(&p, uR"(\\server\share)");
     fs::replace_filename(&p, "abc"_cs);
     assert_equal_str(p, SYS_CHAR(R"(\\server\share\abc)"));
 
-    fs::path_set(&p, LR"(\\server\share\)");
+    fs::path_set(&p, uR"(\\server\share\)");
     fs::replace_filename(&p, "abc"_cs);
     assert_equal_str(p, SYS_CHAR(R"(\\server\share\abc)"));
 #endif
@@ -695,8 +695,8 @@ define_test(parent_path_segment_returns_the_parent_path_segment)
     assert_equal_str(fs::parent_path_segment(u"//server/share"_cs), u"//server/share");
     assert_equal_str(fs::parent_path_segment(u"//server/share/"_cs), u"//server/share/");
     assert_equal_str(fs::parent_path_segment(u"//server/share/file"_cs), u"//server/share/");
-    assert_equal_str(fs::parent_path_segment(LR"(\\.\UNC\server\share)"_cs), LR"(\\.\UNC\server\share)");
-    assert_equal_str(fs::parent_path_segment(LR"(\\.\UNC\server\share\abc)"_cs), LR"(\\.\UNC\server\share\)");
+    assert_equal_str(fs::parent_path_segment(uR"(\\.\UNC\server\share)"_cs), uR"(\\.\UNC\server\share)");
+    assert_equal_str(fs::parent_path_segment(uR"(\\.\UNC\server\share\abc)"_cs), uR"(\\.\UNC\server\share\)");
 #endif
 }
 
@@ -822,65 +822,65 @@ define_test(root_returns_the_path_root)
     assert_path_root(u"..", u"");
     assert_path_root(u"file", u"");
     assert_path_root(u"file.txt", u"");
-    assert_path_root(u"C:", LR"(C:)");
-    assert_path_root(u"C:\\", LR"(C:\)");
-    assert_path_root(u"C:\\file", LR"(C:\)");
-    assert_path_root(u"C:\\dir\\file.txt", LR"(C:\)");
+    assert_path_root(u"C:", uR"(C:)");
+    assert_path_root(u"C:\\", uR"(C:\)");
+    assert_path_root(u"C:\\file", uR"(C:\)");
+    assert_path_root(u"C:\\dir\\file.txt", uR"(C:\)");
     // single slash / backslash at the start means current drive
-    assert_path_root(u"/", LR"(/)");
-    assert_path_root(u"/file", LR"(/)");
-    assert_path_root(u"/dir/file", LR"(/)");
-    assert_path_root(u"a", LR"()");
-    assert_path_root(u"a/b", LR"()");
-    assert_path_root(u"a/b/c", LR"()");
-    assert_path_root(u"\\", LR"(\)");
-    assert_path_root(u"\\file", LR"(\)");
-    assert_path_root(u"\\dir\file", LR"(\)");
-    assert_path_root(u"//server", LR"(//server)");
-    assert_path_root(u"//server/share", LR"(//server/share)");
-    assert_path_root(u"//server/share/file", LR"(//server/share/)");
-    assert_path_root(u"//127.0.0.1", LR"(//127.0.0.1)");
-    assert_path_root(u"//127.0.0.1/c$", LR"(//127.0.0.1/c$)");
-    assert_path_root(u"//127.0.0.1/c$/file", LR"(//127.0.0.1/c$/)");
-    assert_path_root(LR"(\dir\file)", LR"(\)");
-    assert_path_root(LR"(\\server)", LR"(\\server)");
-    assert_path_root(LR"(\\server\share)", LR"(\\server\share)");
-    assert_path_root(LR"(\\server\share\file)", LR"(\\server\share\)");
-    assert_path_root(LR"(\\127.0.0.1)", LR"(\\127.0.0.1)");
-    assert_path_root(LR"(\\127.0.0.1\c$)", LR"(\\127.0.0.1\c$)");
-    assert_path_root(LR"(\\127.0.0.1\c$\file)", LR"(\\127.0.0.1\c$\)");
-    assert_path_root(u"//?", LR"(//?)"); // is this even valid?
-    assert_path_root(u"//?/", LR"(//?/)"); // is this even valid?
-    assert_path_root(u"//?/c:", LR"(//?/c:)");
-    assert_path_root(u"//?/D:/file", LR"(//?/D:/)");
-    assert_path_root(u"//?/E:/dir/file", LR"(//?/E:/)");
-    assert_path_root(LR"(\\?)", LR"(\\?)"); // is this even valid?
-    assert_path_root(LR"(\\?\)", LR"(\\?\)"); // is this even valid?
-    assert_path_root(LR"(\\?\c:)", LR"(\\?\c:)");
-    assert_path_root(LR"(\\?\D:\file)", LR"(\\?\D:\)");
-    assert_path_root(LR"(\\?\E:\dir\file)", LR"(\\?\E:\)");
-    assert_path_root(LR"(\\.)", LR"(\\.)"); // valid?
-    assert_path_root(LR"(\\.\C:)", LR"(\\.\C:)");
-    assert_path_root(LR"(\\.\C:\file)", LR"(\\.\C:\)");
-    assert_path_root(LR"(\\.\C:\dir\file)", LR"(\\.\C:\)");
-    assert_path_root(LR"(\\.\Volume{b75e2c83-0000-0000-0000-602f00000000})", LR"(\\.\Volume{b75e2c83-0000-0000-0000-602f00000000})");
-    assert_path_root(LR"(\\.\Volume{b75e2c83-0000-0000-0000-602f00000000}\file)", LR"(\\.\Volume{b75e2c83-0000-0000-0000-602f00000000}\)");
-    assert_path_root(LR"(\\.\Volume{b75e2c83-0000-0000-0000-602f00000000}\dir\file)", LR"(\\.\Volume{b75e2c83-0000-0000-0000-602f00000000}\)");
-    assert_path_root(LR"(\\?\Volume{b75e2c83-0000-0000-0000-602f00000000})", LR"(\\?\Volume{b75e2c83-0000-0000-0000-602f00000000})");
-    assert_path_root(LR"(\\?\Volume{b75e2c83-0000-0000-0000-602f00000000}\file)", LR"(\\?\Volume{b75e2c83-0000-0000-0000-602f00000000}\)");
-    assert_path_root(LR"(\\?\Volume{b75e2c83-0000-0000-0000-602f00000000}\dir\file)", LR"(\\?\Volume{b75e2c83-0000-0000-0000-602f00000000}\)");
-    assert_path_root(LR"(\\.\UNC)", LR"(\\.\UNC)"); // again, is this even valid?
-    assert_path_root(LR"(\\.\UNC\server)", LR"(\\.\UNC\server)");
-    assert_path_root(LR"(\\.\UNC\server\share)", LR"(\\.\UNC\server\share)");
-    assert_path_root(LR"(\\.\UNC\server\share\file)", LR"(\\.\UNC\server\share\)");
-    assert_path_root(LR"(\\.\UNC\server\share\dir\file)", LR"(\\.\UNC\server\share\)");
-    assert_path_root(LR"(\\?\UNC)", LR"(\\?\UNC)"); // again, is this even valid?
-    assert_path_root(LR"(\\?\UNC\server)", LR"(\\?\UNC\server)");
-    assert_path_root(LR"(\\?\UNC\server\share)", LR"(\\?\UNC\server\share)");
-    assert_path_root(LR"(\\?\UNC\server\share\file)", LR"(\\?\UNC\server\share\)");
-    assert_path_root(LR"(\\?\UNC\server\share\dir\file)", LR"(\\?\UNC\server\share\)");
+    assert_path_root(u"/", uR"(/)");
+    assert_path_root(u"/file", uR"(/)");
+    assert_path_root(u"/dir/file", uR"(/)");
+    assert_path_root(u"a", uR"()");
+    assert_path_root(u"a/b", uR"()");
+    assert_path_root(u"a/b/c", uR"()");
+    assert_path_root(u"\\", uR"(\)");
+    assert_path_root(u"\\file", uR"(\)");
+    assert_path_root(u"\\dir\file", uR"(\)");
+    assert_path_root(u"//server", uR"(//server)");
+    assert_path_root(u"//server/share", uR"(//server/share)");
+    assert_path_root(u"//server/share/file", uR"(//server/share/)");
+    assert_path_root(u"//127.0.0.1", uR"(//127.0.0.1)");
+    assert_path_root(u"//127.0.0.1/c$", uR"(//127.0.0.1/c$)");
+    assert_path_root(u"//127.0.0.1/c$/file", uR"(//127.0.0.1/c$/)");
+    assert_path_root(uR"(\dir\file)", uR"(\)");
+    assert_path_root(uR"(\\server)", uR"(\\server)");
+    assert_path_root(uR"(\\server\share)", uR"(\\server\share)");
+    assert_path_root(uR"(\\server\share\file)", uR"(\\server\share\)");
+    assert_path_root(uR"(\\127.0.0.1)", uR"(\\127.0.0.1)");
+    assert_path_root(uR"(\\127.0.0.1\c$)", uR"(\\127.0.0.1\c$)");
+    assert_path_root(uR"(\\127.0.0.1\c$\file)", uR"(\\127.0.0.1\c$\)");
+    assert_path_root(u"//?", uR"(//?)"); // is this even valid?
+    assert_path_root(u"//?/", uR"(//?/)"); // is this even valid?
+    assert_path_root(u"//?/c:", uR"(//?/c:)");
+    assert_path_root(u"//?/D:/file", uR"(//?/D:/)");
+    assert_path_root(u"//?/E:/dir/file", uR"(//?/E:/)");
+    assert_path_root(uR"(\\?)", uR"(\\?)"); // is this even valid?
+    assert_path_root(uR"(\\?\)", uR"(\\?\)"); // is this even valid?
+    assert_path_root(uR"(\\?\c:)", uR"(\\?\c:)");
+    assert_path_root(uR"(\\?\D:\file)", uR"(\\?\D:\)");
+    assert_path_root(uR"(\\?\E:\dir\file)", uR"(\\?\E:\)");
+    assert_path_root(uR"(\\.)", uR"(\\.)"); // valid?
+    assert_path_root(uR"(\\.\C:)", uR"(\\.\C:)");
+    assert_path_root(uR"(\\.\C:\file)", uR"(\\.\C:\)");
+    assert_path_root(uR"(\\.\C:\dir\file)", uR"(\\.\C:\)");
+    assert_path_root(uR"(\\.\Volume{b75e2c83-0000-0000-0000-602f00000000})", uR"(\\.\Volume{b75e2c83-0000-0000-0000-602f00000000})");
+    assert_path_root(uR"(\\.\Volume{b75e2c83-0000-0000-0000-602f00000000}\file)", uR"(\\.\Volume{b75e2c83-0000-0000-0000-602f00000000}\)");
+    assert_path_root(uR"(\\.\Volume{b75e2c83-0000-0000-0000-602f00000000}\dir\file)", uR"(\\.\Volume{b75e2c83-0000-0000-0000-602f00000000}\)");
+    assert_path_root(uR"(\\?\Volume{b75e2c83-0000-0000-0000-602f00000000})", uR"(\\?\Volume{b75e2c83-0000-0000-0000-602f00000000})");
+    assert_path_root(uR"(\\?\Volume{b75e2c83-0000-0000-0000-602f00000000}\file)", uR"(\\?\Volume{b75e2c83-0000-0000-0000-602f00000000}\)");
+    assert_path_root(uR"(\\?\Volume{b75e2c83-0000-0000-0000-602f00000000}\dir\file)", uR"(\\?\Volume{b75e2c83-0000-0000-0000-602f00000000}\)");
+    assert_path_root(uR"(\\.\UNC)", uR"(\\.\UNC)"); // again, is this even valid?
+    assert_path_root(uR"(\\.\UNC\server)", uR"(\\.\UNC\server)");
+    assert_path_root(uR"(\\.\UNC\server\share)", uR"(\\.\UNC\server\share)");
+    assert_path_root(uR"(\\.\UNC\server\share\file)", uR"(\\.\UNC\server\share\)");
+    assert_path_root(uR"(\\.\UNC\server\share\dir\file)", uR"(\\.\UNC\server\share\)");
+    assert_path_root(uR"(\\?\UNC)", uR"(\\?\UNC)"); // again, is this even valid?
+    assert_path_root(uR"(\\?\UNC\server)", uR"(\\?\UNC\server)");
+    assert_path_root(uR"(\\?\UNC\server\share)", uR"(\\?\UNC\server\share)");
+    assert_path_root(uR"(\\?\UNC\server\share\file)", uR"(\\?\UNC\server\share\)");
+    assert_path_root(uR"(\\?\UNC\server\share\dir\file)", uR"(\\?\UNC\server\share\)");
 
-    assert_path_root(LR"(\\\)", LR"(\)");
+    assert_path_root(uR"(\\\)", uR"(\)");
 #else
     fs::path_set(&p, "/foo/bar");
     assert_equal_str(fs::root(&p), SYS_CHAR("/"));
@@ -2610,7 +2610,7 @@ define_test(get_children_names_returns_minus_one_on_error)
     array<fs::path> children{};
 
 #if Windows
-    s64 count = fs::get_children_names(LR"(C:\System Volume Information)", &children, &err);
+    s64 count = fs::get_children_names(uR"(C:\System Volume Information)", &children, &err);
 #else
     s64 count = fs::get_children_names(SANDBOX_TEST_DIR_NO_PERMISSION, &children, &err);
 #endif
@@ -2748,7 +2748,7 @@ define_test(get_children_count_gets_children_count)
 #endif
 
 #if Windows
-    assert_equal(fs::get_children_count(LR"(C:\System Volume Information)", &err), -1);
+    assert_equal(fs::get_children_count(uR"(C:\System Volume Information)", &err), -1);
     assert_equal(err.error_code, ERROR_ACCESS_DENIED);
 #else
     assert_equal(fs::get_children_count(SANDBOX_TEST_DIR_NO_PERMISSION, &err), -1);
@@ -2773,7 +2773,7 @@ define_test(get_descendant_count_gets_children_count)
 #endif
 
 #if Windows
-    assert_equal(fs::get_descendant_count(LR"(C:\System Volume Information)", &err), -1);
+    assert_equal(fs::get_descendant_count(uR"(C:\System Volume Information)", &err), -1);
     assert_equal(err.error_code, ERROR_ACCESS_DENIED);
 #else
     assert_equal(fs::get_descendant_count(SANDBOX_TEST_DIR_NO_PERMISSION, &err), -1);
@@ -2863,7 +2863,7 @@ HANDLE _pipe_handle = INVALID_HANDLE_VALUE;
 
 void create_test_pipe()
 {
-    _pipe_handle = CreateNamedPipe(SANDBOX_TEST_PIPE,
+    _pipe_handle = CreateNamedPipe((const sys_native_char*)SANDBOX_TEST_PIPE,
                                    PIPE_ACCESS_INBOUND,
                                    PIPE_TYPE_BYTE | PIPE_WAIT,
                                    1,
@@ -2940,7 +2940,7 @@ void _cleanup()
     error err{};
 
     if (!fs::remove_directory(SANDBOX_DIR, &err))
-        fprintf(stderr, "ERROR: could not remove directory %ws. Error code %d:\n%s\n", SANDBOX_DIR, err.error_code, err.what);
+        fprintf(stderr, "ERROR: could not remove directory %ws. Error code %d:\n%s\n", (wchar_t*)SANDBOX_DIR, err.error_code, (char*)err.what);
 
     fs::free(&old_current_dir);
 #else

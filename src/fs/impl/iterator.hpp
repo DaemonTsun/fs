@@ -75,7 +75,7 @@ auto init(fs::fs_iterator *it, T pth, error *err = nullptr)
     auto ret = fs::_init(it, ::to_const_string(pth_str), err);
 
     if constexpr (needs_conversion(T))
-        fs::free(&pth_str);
+        free(&pth_str);
 
     return ret;
 }
@@ -112,7 +112,7 @@ auto init(fs::fs_recursive_iterator *it, T pth, fs::iterate_option opts = fs::it
     auto ret = fs::_init(it, ::to_const_string(pth_str), opts, err);
 
     if constexpr (needs_conversion(T))
-        fs::free(&pth_str);
+        free(&pth_str);
 
     return ret;
 }

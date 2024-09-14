@@ -43,7 +43,7 @@ bool fs::init(fs::fs_iterator_detail *detail, fs::const_fs_string pth, error *er
     assert(detail != nullptr);
 
     detail->find_data = {};
-    detail->find_handle = ::FindFirstFileEx(pth.c_str, 
+    detail->find_handle = ::FindFirstFileEx((const sys_native_char*)pth.c_str, 
                                             FindExInfoBasic,
                                             &detail->find_data,
                                             FindExSearchNameMatch,
@@ -99,7 +99,7 @@ bool fs::_init(fs::fs_iterator *it, fs::const_fs_string pth, error *err)
     
     tprint("%", it->path_it.data);
     // * necessary for FindFirstFile(Ex) pattern
-    fs::append_path(&it->path_it, SYS_CHAR("*"));
+    fs::path_append(&it->path_it, SYS_CHAR("*"));
 
     if (!fs::init(&it->_detail, to_const_string(&it->path_it), err))
         return false;
@@ -124,14 +124,14 @@ fs::fs_iterator_item *_iterate(fs::fs_iterator *it, fs::iterate_option opts, err
         return nullptr;
 
     // ignore . and ..
-    while (!it->_detail.at_end && fs::is_dot_or_dot_dot(it->current_item.find_data->cFileName))
+    while (!it->_detail.at_end && fs::is_dot_or_dot_dot((const c16*)it->current_item.find_data->cFileName))
         if (!_get_next_item(&it->_detail, err))
             return nullptr;
 
     if (it->_detail.at_end)
         return nullptr;
 
-    const sys_char *name = it->current_item.find_data->cFileName;
+    const sys_char *name = (const sys_char*)it->current_item.find_data->cFileName;
 
     it->current_item.path = ::to_const_string(name);
 
@@ -192,9 +192,9 @@ bool fs::_init(fs::fs_recursive_iterator *it, fs::const_fs_string pth, fs::itera
             return false;
     }
     else
-        fs::set_path(&it->path_it, pth);
+        fs::path_set(&it->path_it, pth);
     
-    fs::append_path(&it->path_it, SYS_CHAR("*"));
+    fs::path_append(&it->path_it, SYS_CHAR("*"));
 
     if (!fs::init(it->_detail_stack.data, to_const_string(&it->path_it), err))
         return false;
@@ -272,7 +272,7 @@ fs::fs_recursive_iterator_item *_recursive_iterate(fs::fs_recursive_iterator *it
     if (it->current_item.recurse)
     {
         // * is needed to get everything inside a directory
-        fs::append_path(&it->path_it, SYS_CHAR("*"));
+        fs::path_append(&it->path_it, SYS_CHAR("*"));
         it->current_item.path = ::to_const_string(it->path_it);
         tprint(L"  recursing into %\n", it->current_item.path);
         it->current_item.recurse = false;
@@ -338,7 +338,7 @@ fs::fs_recursive_iterator_item *_recursive_iterate(fs::fs_recursive_iterator *it
 
     tprint(L"  settled on idx %\n", detail_idx);
 
-    const sys_char *name = detail->find_data.cFileName;
+    const sys_char *name = (const sys_char*)detail->find_data.cFileName;
 
     // skip to the first non-dot-or-dot-dot file
     while (fs::is_dot_or_dot_dot(name))
@@ -348,7 +348,7 @@ fs::fs_recursive_iterator_item *_recursive_iterate(fs::fs_recursive_iterator *it
         if (stack->size == 0)
             return nullptr;
 
-        name = detail->find_data.cFileName;
+        name = (const sys_char*)detail->find_data.cFileName;
 
         if (!fs::is_dot_or_dot_dot(name))
             break;
@@ -356,7 +356,7 @@ fs::fs_recursive_iterator_item *_recursive_iterate(fs::fs_recursive_iterator *it
         if (!_get_next_item(detail, err))
             continue;
 
-        name = detail->find_data.cFileName;
+        name = (const sys_char*)detail->find_data.cFileName;
         it->current_item.find_data = &detail->find_data;
 
         tprint(L"    detail idx %, %\n", detail_idx, name);

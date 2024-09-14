@@ -42,7 +42,7 @@ bool _get_windows_handle_from_path(fs::const_fs_string pth, bool follow_symlinks
 
     io_handle ret = INVALID_HANDLE_VALUE;
 
-    ret = CreateFile(pth.c_str,
+    ret = CreateFile((const sys_native_char*)pth.c_str,
                      0,
                      FILE_SHARE_DELETE | FILE_SHARE_READ | FILE_SHARE_WRITE,
                      nullptr,
@@ -293,7 +293,7 @@ bool fs::query_filesystem(io_handle h, fs::filesystem_info *out, fs::query_flag 
     assert(out != nullptr);
 
 #if Windows
-    if (flags >= 0x1000)
+    if ((s32)flags >= 0x1000)
     {
         switch (flags)
         {
@@ -335,11 +335,12 @@ bool fs::query_filesystem(io_handle h, fs::filesystem_info *out, fs::query_flag 
             copy_memory(&binfo, &out->detail.file_times, sizeof(windows_file_times));
             return true;
         }
-        case fs::query_flag::SIZE:
+        case fs::query_flag::Size:
         {
             out->detail.size = io_size(h, err);
             return out->detail.size >= 0;
         }
+        case fs::query_flag::Permissions: // TODO
         default:
             return false;
         }
@@ -1007,10 +1008,10 @@ fs::const_fs_string fs::parent_path_segment(fs::const_fs_string pth)
 #if Windows
     auto rt = fs::root(pth);
 
-    s64 last_sep = ::last_index_of(pth, fs::path_separator);
+    s64 last_sep = ::string_last_index_of(pth, fs::path_separator);
 
     if (last_sep == -1)
-        last_sep = ::last_index_of(pth, SYS_CHAR('/'));
+        last_sep = ::string_last_index_of(pth, SYS_CHAR('/'));
 
     if (last_sep == -1)
     {
@@ -1567,12 +1568,12 @@ bool fs::_canonical_path(fs::const_fs_string pth, fs::path *out, error *err)
     if (!fs::get_filesystem_type(h, &typ, err))
         return false;
 
-    u32 ret = (u32)GetFinalPathNameByHandle(h, out->data, (DWORD)out->reserved_size, 0);
+    u32 ret = (u32)GetFinalPathNameByHandle(h, (sys_native_char*)out->data, (DWORD)out->reserved_size, 0);
 
     if (ret > out->size)
     {
         ::string_reserve(as_string_ptr(out), ret);
-        ret = (u32)GetFinalPathNameByHandle(h, out->data, (DWORD)out->reserved_size, 0);
+        ret = (u32)GetFinalPathNameByHandle(h, (sys_native_char*)out->data, (DWORD)out->reserved_size, 0);
     }
 
     if (ret == 0)
@@ -1584,7 +1585,7 @@ bool fs::_canonical_path(fs::const_fs_string pth, fs::path *out, error *err)
 
     out->size = ret;
 
-    if (::begins_with(to_const_string(out), SYS_CHAR(R"(\\?\)")))
+    if (::string_begins_with(to_const_string(out), SYS_CHAR(R"(\\?\)")))
         ::remove_elements(as_array_ptr(out), 0, 4);
 
     out->data[out->size] = PC_NUL;
@@ -1685,7 +1686,7 @@ bool fs::_get_symlink_target(fs::const_fs_string pth, fs::path *out, error *err)
     assert(out != nullptr);
 
 #if Windows
-    HANDLE h = CreateFile(pth.c_str,
+    HANDLE h = CreateFile((const sys_native_char*)pth.c_str,
                           0,
                           0,
                           nullptr, 
@@ -1754,7 +1755,7 @@ bool fs::_get_symlink_target(fs::const_fs_string pth, fs::path *out, error *err)
     int targetpathlen = reparse_buf->SymbolicLinkReparseBuffer.SubstituteNameLength / sizeof(sys_char);
     sys_char* targetpath = (sys_char*)((char*)reparse_buf->SymbolicLinkReparseBuffer.PathBuffer + reparse_buf->SymbolicLinkReparseBuffer.SubstituteNameOffset);
 
-    if (::begins_with(to_const_string(targetpath, targetpathlen), SYS_CHAR(R"(\??\)")))
+    if (::string_begins_with(to_const_string(targetpath, targetpathlen), SYS_CHAR(R"(\??\)")))
     {
         targetpath += 4;
         targetpathlen -= 4;
@@ -1814,7 +1815,7 @@ bool fs::get_current_path(fs::path *out, error *err)
         ::string_reserve(outs, PATH_ALLOC_MIN_SIZE);
 
 #if Windows
-    int bufsize = GetCurrentDirectory((u32)out->reserved_size, out->data);
+    int bufsize = GetCurrentDirectory((u32)out->reserved_size, (sys_native_char*)out->data);
 
     while (true)
     {
@@ -1827,7 +1828,7 @@ bool fs::get_current_path(fs::path *out, error *err)
         if (bufsize > out->reserved_size)
         {
             ::string_reserve(outs, bufsize);
-            bufsize = GetCurrentDirectory((u32)out->reserved_size, out->data);
+            bufsize = GetCurrentDirectory((u32)out->reserved_size, (sys_native_char*)out->data);
             continue;
         }
 
@@ -1867,7 +1868,7 @@ bool fs::get_current_path(fs::path *out, error *err)
 bool fs::_set_current_path(fs::const_fs_string pth, error *err)
 {
 #if Windows
-    if (!::SetCurrentDirectory(pth.c_str))
+    if (!::SetCurrentDirectory((const sys_native_char*)pth.c_str))
     {
         set_GetLastError_error(err);
         return false;
@@ -2068,7 +2069,7 @@ bool fs::_touch(fs::const_fs_string pth, fs::permission perms, error *err)
 #if Windows
     io_handle h = INVALID_HANDLE_VALUE;
 
-    h = CreateFile(pth.c_str,
+    h = CreateFile((const sys_native_char*)pth.c_str,
                    GENERIC_READ | GENERIC_WRITE,
                    FILE_SHARE_DELETE | FILE_SHARE_READ | FILE_SHARE_WRITE,
                    nullptr,
@@ -2128,7 +2129,7 @@ bool fs::_copy_file(fs::const_fs_string from, fs::const_fs_string to, fs::copy_f
     io_handle to_handle;
     bool to_exists = false;
 
-    from_handle = CreateFile(from.c_str,
+    from_handle = CreateFile((const sys_native_char*)from.c_str,
                              0,
                              FILE_SHARE_DELETE | FILE_SHARE_READ | FILE_SHARE_WRITE,
                              nullptr,
@@ -2144,7 +2145,7 @@ bool fs::_copy_file(fs::const_fs_string from, fs::const_fs_string to, fs::copy_f
 
     defer { CloseHandle(from_handle); };
 
-    to_handle = CreateFile(to.c_str,
+    to_handle = CreateFile((const sys_native_char*)to.c_str,
                            0,
                            FILE_SHARE_DELETE | FILE_SHARE_READ | FILE_SHARE_WRITE,
                            nullptr,
@@ -2204,7 +2205,7 @@ bool fs::_copy_file(fs::const_fs_string from, fs::const_fs_string to, fs::copy_f
         }
     }
 
-    if (!::CopyFile(from.c_str, to.c_str, false))
+    if (!::CopyFile((const sys_native_char*)from.c_str, (const sys_native_char*)to.c_str, false))
     {
         set_GetLastError_error(err);
         return false;
@@ -2441,7 +2442,7 @@ bool fs::_create_directory(fs::const_fs_string pth, fs::permission perms, error 
     // TODO: set perms
     (void)perms;
 
-    if (::CreateDirectory(pth.c_str, nullptr))
+    if (::CreateDirectory((const sys_native_char*)pth.c_str, nullptr))
         return true;
 
     int _errcode = (int)GetLastError();
@@ -2518,7 +2519,7 @@ bool fs::_create_directories(fs::const_fs_string pth, fs::permission perms, erro
 bool fs::_create_hard_link(fs::const_fs_string target, fs::const_fs_string link, error *err)
 {
 #if Windows
-    if (!::CreateHardLink(link.c_str, target.c_str, nullptr))
+    if (!::CreateHardLink((const sys_native_char*)link.c_str, (const sys_native_char*)target.c_str, nullptr))
     {
         set_GetLastError_error(err);
         return false;
@@ -2544,7 +2545,7 @@ bool fs::_create_symlink(fs::const_fs_string target, fs::const_fs_string link, e
     if (fs::is_directory(target, true, err))
         flags |= SYMBOLIC_LINK_FLAG_DIRECTORY;
 
-    if (!::CreateSymbolicLink(link.c_str, target.c_str, flags))
+    if (!::CreateSymbolicLink((const sys_native_char*)link.c_str, (const sys_native_char*)target.c_str, flags))
     {
         set_GetLastError_error(err);
         return false;
@@ -2591,7 +2592,7 @@ bool fs::_move(fs::const_fs_string src, fs::const_fs_string dest, error *err)
         }
     }
 
-    if (!::MoveFileEx(src.c_str, dest.c_str, flags))
+    if (!::MoveFileEx((const sys_native_char*)src.c_str, (const sys_native_char*)dest.c_str, flags))
     {
         set_GetLastError_error(err);
         return false;
@@ -2612,7 +2613,7 @@ bool fs::_move(fs::const_fs_string src, fs::const_fs_string dest, error *err)
 bool fs::_remove_file(fs::const_fs_string pth, error *err)
 {
 #if Windows
-    if (!::DeleteFile(pth.c_str))
+    if (!::DeleteFile((const sys_native_char*)pth.c_str))
     {
         set_GetLastError_error(err);
         return false;
@@ -2638,7 +2639,7 @@ bool fs::_remove_symlink(fs::const_fs_string pth, error *err)
 
     io_handle h = INVALID_HANDLE_VALUE;
 
-    h = CreateFile(pth.c_str,
+    h = CreateFile((const sys_native_char*)pth.c_str,
                    DELETE,
                    FILE_SHARE_DELETE | FILE_SHARE_READ | FILE_SHARE_WRITE,
                    nullptr,
@@ -2682,7 +2683,7 @@ bool fs::_remove_symlink(fs::const_fs_string pth, error *err)
 bool fs::_remove_empty_directory(fs::const_fs_string pth, error *err)
 {
 #if Windows
-    if (!::RemoveDirectory(pth.c_str))
+    if (!::RemoveDirectory((const sys_native_char*)pth.c_str))
     {
         set_GetLastError_error(err);
         return false;
@@ -2883,15 +2884,15 @@ bool fs::get_home_path(fs::path *out, error *err)
 #if Windows
     // we could use SHGetFolderPath but I'd like to avoid linking Shell32.lib
     // for 1 function.
-    u32 sz = ::GetEnvironmentVariable(SYS_CHAR("userprofile"),
-                                      out->data,
+    u32 sz = ::GetEnvironmentVariable(SYS_NATIVE_CHAR("userprofile"),
+                                      (sys_native_char*)out->data,
                                       (DWORD)out->reserved_size);
 
     if (sz > out->reserved_size)
     {
         ::reserve(as_array_ptr(out), sz + 1);
-        sz = ::GetEnvironmentVariable(SYS_CHAR("userprofile"),
-                                      out->data,
+        sz = ::GetEnvironmentVariable(SYS_NATIVE_CHAR("userprofile"),
+                                      (sys_native_char*)out->data,
                                       (DWORD)out->reserved_size);
     }
 
@@ -2922,7 +2923,7 @@ bool fs::get_executable_path(fs::path *out, error *err)
 #if Windows
     sys_char pth[MAX_PATH] = {0};
 
-    if (GetModuleFileName(NULL, pth, MAX_PATH) == 0)
+    if (GetModuleFileName(NULL, (sys_native_char*)pth, MAX_PATH) == 0)
     {
         set_GetLastError_error(err);
         return false;
@@ -3014,15 +3015,15 @@ bool fs::_get_preference_path(fs::path *out, const_fs_string app, const_fs_strin
 
     return true;
 #elif Windows
-    u32 sz = ::GetEnvironmentVariable(SYS_CHAR("appdata"),
-                                      out->data,
+    u32 sz = ::GetEnvironmentVariable(SYS_NATIVE_CHAR("appdata"),
+                                      (sys_native_char*)out->data,
                                       (DWORD)out->reserved_size);
 
     if (sz > out->reserved_size)
     {
         ::reserve(as_array_ptr(out), sz + 1);
-        sz = ::GetEnvironmentVariable(SYS_CHAR("appdata"),
-                                      out->data,
+        sz = ::GetEnvironmentVariable(SYS_NATIVE_CHAR("appdata"),
+                                      (sys_native_char*)out->data,
                                       (DWORD)out->reserved_size);
     }
 
@@ -3057,12 +3058,12 @@ bool fs::get_temporary_path(fs::path *out, error *err)
     assert(out != nullptr);
 
 #if Windows
-    u32 sz = ::GetTempPath((DWORD)out->reserved_size, out->data);
+    u32 sz = ::GetTempPath((DWORD)out->reserved_size, (sys_native_char*)out->data);
 
     if (sz > out->reserved_size)
     {
         ::reserve(as_array_ptr(out), sz);
-        sz = ::GetTempPath((DWORD)out->reserved_size, out->data);
+        sz = ::GetTempPath((DWORD)out->reserved_size, (sys_native_char*)out->data);
     }
 
     if (sz == 0)

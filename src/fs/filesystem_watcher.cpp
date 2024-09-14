@@ -28,11 +28,11 @@ struct _watched_file
 {
 #if Windows
     /*
-    this is always wstring because ReadDirectoryChanges only has a W variant,
+    this is always u16string because ReadDirectoryChanges only has a W variant,
     so it always yields wchar_t, and conversion with each event would be
     more expensive than converting once and storing the converted name here.
     */
-    wstring name;
+    u16string name;
 #elif Linux
     fs::path path;
     // io_handle fd;
@@ -60,7 +60,7 @@ struct _watched_directory
     fs::watcher_event_type filter;
     
 #if Windows
-    hash_table<wstring, _watched_file> watched_files;
+    hash_table<u16string, _watched_file> watched_files;
     io_handle handle;
     OVERLAPPED overlapped;
     // On Windows, we pretty much need an event buffer per overlapped instance,
@@ -113,7 +113,7 @@ void _process_event(fs::filesystem_watcher *watcher, _watched_directory *dir, FI
     fs::watcher_event_type type = mask_to_event(event->Action);
     fs::path *it = &watcher->iterator_path;
     it->size = 0;
-    const_wstring fname{(wchar_t*)event->FileName, event->FileNameLength / sizeof(wchar_t)};
+    const_u16string fname{(c16*)event->FileName, event->FileNameLength / sizeof(c16)};
     fs::watcher_event ev{};
 
     if (dir->only_watch_files)
@@ -308,13 +308,13 @@ static _watched_directory *_watch_directory(fs::filesystem_watcher *watcher, fs:
     _watched_directory *watched_parent = nullptr;
 
 #if Windows
-    io_handle dirh = CreateFile(dirpath->c_str(),
-                                GENERIC_READ | FILE_LIST_DIRECTORY,
-                                FILE_SHARE_DELETE | FILE_SHARE_READ | FILE_SHARE_WRITE,
-                                nullptr,
-                                OPEN_EXISTING,
-                                FILE_FLAG_BACKUP_SEMANTICS | FILE_FLAG_OVERLAPPED,
-                                nullptr);
+    io_handle dirh = ::CreateFile((const sys_native_char*)dirpath->c_str(),
+                                  GENERIC_READ | FILE_LIST_DIRECTORY,
+                                  FILE_SHARE_DELETE | FILE_SHARE_READ | FILE_SHARE_WRITE,
+                                  nullptr,
+                                  OPEN_EXISTING,
+                                  FILE_FLAG_BACKUP_SEMANTICS | FILE_FLAG_OVERLAPPED,
+                                  nullptr);
 
     if (dirh == INVALID_IO_HANDLE)
     {
@@ -499,7 +499,7 @@ bool fs::_filesystem_watcher_unwatch_file(fs::filesystem_watcher *watcher, fs::c
     fs::const_fs_string fname = fs::filename(path);
 
 #if Windows
-    wstring wfname{};
+    u16string wfname{};
     string_set(&wfname, fname);
     defer { ::free(&wfname); };
 

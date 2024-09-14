@@ -125,14 +125,14 @@ filesystem_watcher_process_events(watcher[, error])
         Func(Watcher, ::to_const_string(pth_str) __VA_OPT__(,) __VA_ARGS__);                                     \
                                                                                                         \
         if constexpr (needs_conversion(T))                                                              \
-            fs::free(&pth_str);                                                                         \
+            free(&pth_str);                                                                         \
     }                                                                                                   \
     else                                                                                                \
     {                                                                                                   \
         auto ret = Func(Watcher, ::to_const_string(pth_str) __VA_OPT__(,) __VA_ARGS__);                          \
                                                                                                         \
         if constexpr (needs_conversion(T))                                                              \
-            fs::free(&pth_str);                                                                         \
+            free(&pth_str);                                                                         \
                                                                                                         \
         return ret;                                                                                     \
     }                                                                                                   \

@@ -795,7 +795,7 @@ void replace_filename(fs::path *out, T newname)
     _replace_filename(out, ::to_const_string(pth_str));
 
     if constexpr (needs_conversion(T))
-        fs::free(&pth_str);
+        free(&pth_str);
 }
 
 void path_segments(fs::const_fs_string pth, array<fs::const_fs_string> *out);
@@ -988,7 +988,7 @@ auto get_preference_path(fs::path *out, T app, error *err = nullptr)
     auto ret = fs::_get_preference_path(out, ::to_const_string(pth_str1), const_fs_string{SYS_CHAR(""), 0}, err);
 
     if constexpr (needs_conversion(T))
-        fs::free(&pth_str1);
+        free(&pth_str1);
 
     return ret;
 }
@@ -1004,8 +1004,8 @@ auto get_preference_path(fs::path *out, T1 app, T2 org, error *err = nullptr)
 
     auto ret = fs::_get_preference_path(out, ::to_const_string(pth_str1), ::to_const_string(pth_str2), err);
 
-    if constexpr (needs_conversion(T1)) fs::free(&pth_str1);
-    if constexpr (needs_conversion(T2)) fs::free(&pth_str2);
+    if constexpr (needs_conversion(T1)) free(&pth_str1);
+    if constexpr (needs_conversion(T2)) free(&pth_str2);
 
     return ret;
 }
