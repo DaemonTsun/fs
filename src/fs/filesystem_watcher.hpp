@@ -164,6 +164,7 @@ struct watcher_event
     fs::const_fs_string path;
     fs::watcher_event_type event;
     void *userdata;
+    void *userdata2; // surely 2 will be enough haha
 };
 
 enum_flag(watcher_event_type);
@@ -176,11 +177,11 @@ fs::filesystem_watcher *filesystem_watcher_create(fs::watcher_callback_f callbac
 bool filesystem_watcher_destroy(fs::filesystem_watcher *watcher, error *err = nullptr);
 
 // file
-bool _filesystem_watcher_watch_file(fs::filesystem_watcher *watcher, fs::const_fs_string path, fs::watcher_event_type filter, void *userdata, error *err);
+bool _filesystem_watcher_watch_file(fs::filesystem_watcher *watcher, fs::const_fs_string path, fs::watcher_event_type filter, void *userdata, void *userdata2, error *err);
 
 template<typename T>
-auto filesystem_watcher_watch_file(fs::filesystem_watcher *watcher, T pth, fs::watcher_event_type filter = fs::watcher_event_type::All, void *userdata = nullptr, error *err = nullptr)
-    define_fs_watcher_body(fs::_filesystem_watcher_watch_file, watcher, pth, filter, userdata, err)
+auto filesystem_watcher_watch_file(fs::filesystem_watcher *watcher, T pth, fs::watcher_event_type filter = fs::watcher_event_type::All, void *userdata = nullptr, void *userdata2 = nullptr, error *err = nullptr)
+    define_fs_watcher_body(fs::_filesystem_watcher_watch_file, watcher, pth, filter, userdata, userdata2, err)
 
 bool _filesystem_watcher_unwatch_file(fs::filesystem_watcher *watcher, fs::const_fs_string path, error *err);
 
@@ -189,11 +190,11 @@ auto filesystem_watcher_unwatch_file(fs::filesystem_watcher *watcher, T pth, err
     define_fs_watcher_body(fs::_filesystem_watcher_unwatch_file, watcher, pth, err)
 
 // directory
-bool _filesystem_watcher_watch_directory(fs::filesystem_watcher *watcher, fs::const_fs_string path, fs::watcher_event_type filter, void *userdata, error *err);
+bool _filesystem_watcher_watch_directory(fs::filesystem_watcher *watcher, fs::const_fs_string path, fs::watcher_event_type filter, void *userdata, void *userdata2, error *err);
 
 template<typename T>
-auto filesystem_watcher_watch_directory(fs::filesystem_watcher *watcher, T pth, fs::watcher_event_type filter = fs::watcher_event_type::All, void *userdata = nullptr, error *err = nullptr)
-    define_fs_watcher_body(fs::_filesystem_watcher_watch_directory, watcher, pth, filter, userdata, err)
+auto filesystem_watcher_watch_directory(fs::filesystem_watcher *watcher, T pth, fs::watcher_event_type filter = fs::watcher_event_type::All, void *userdata = nullptr, void *userdata2 = nullptr, error *err = nullptr)
+    define_fs_watcher_body(fs::_filesystem_watcher_watch_directory, watcher, pth, filter, userdata, userdata2, err)
 
 bool _filesystem_watcher_unwatch_directory(fs::filesystem_watcher *watcher, fs::const_fs_string path, error *err);
 
@@ -202,11 +203,11 @@ auto filesystem_watcher_unwatch_directory(fs::filesystem_watcher *watcher, T pth
     define_fs_watcher_body(fs::_filesystem_watcher_unwatch_directory, watcher, pth, err)
 
 // unspecific
-bool _filesystem_watcher_watch(fs::filesystem_watcher *watcher, fs::const_fs_string path, fs::watcher_event_type filter, void *userdata, error *err);
+bool _filesystem_watcher_watch(fs::filesystem_watcher *watcher, fs::const_fs_string path, fs::watcher_event_type filter, void *userdata, void *userdata2, error *err);
 
 template<typename T>
-auto filesystem_watcher_watch(fs::filesystem_watcher *watcher, T pth, fs::watcher_event_type filter = fs::watcher_event_type::All, void *userdata = nullptr, error *err = nullptr)
-    define_fs_watcher_body(fs::_filesystem_watcher_watch, watcher, pth, filter, userdata, err)
+auto filesystem_watcher_watch(fs::filesystem_watcher *watcher, T pth, fs::watcher_event_type filter = fs::watcher_event_type::All, void *userdata = nullptr, void *userdata2 = nullptr, error *err = nullptr)
+    define_fs_watcher_body(fs::_filesystem_watcher_watch, watcher, pth, filter, userdata, userdata2, err)
 
 bool _filesystem_watcher_unwatch(fs::filesystem_watcher *watcher, fs::const_fs_string path, error *err);
 
