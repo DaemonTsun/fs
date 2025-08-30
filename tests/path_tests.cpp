@@ -359,7 +359,7 @@ define_test(exists_checks_if_symlink_target_exists)
 define_test(exists_returns_false_when_not_exists)
 {
     fs::path p{};
-    error err;
+    error err{};
     fs::path_set(&p, SANDBOX_TEST_DIR "/abc");
 
     assert_equal(fs::exists(&p, true, &err), 0);
@@ -370,7 +370,7 @@ define_test(exists_returns_false_when_not_exists)
 define_test(exists_yields_error_when_unauthorized)
 {
     fs::path p{};
-    error err;
+    error err{};
 #if Windows
     fs::path_set(&p, u"C:\\System Volume Information");
 #else
@@ -1369,6 +1369,7 @@ define_test(get_symlink_target_reads_symlink)
     assert_equal(err.error_code, EINVAL);
 #endif
 
+    err = {};
     assert_equal(fs::get_symlink_target(SANDBOX_DIR "/doesnotexist", &target, &err), false);
 
 #if Windows
@@ -1862,10 +1863,12 @@ define_test(create_directory_creates_directory)
 
     // no permission
     fs::path_set(&p, "/root/_create_dir3");
+    err = {};
     assert_equal(fs::create_directory(&p, fs::permission::User, &err), false); 
 
     // does not create parent directories
     fs::path_set(&p, SANDBOX_TEST_DIR "/_create_dir4/abc/def");
+    err = {};
     assert_equal(fs::create_directory(&p, fs::permission::User, &err), false); 
 
 #if Windows
@@ -1957,6 +1960,7 @@ define_test(create_hard_link_creates_hard_link)
     fs::path_set(&link,   SANDBOX_DIR "/_hardlink2");
 
     // can't create hard links to things that don't exist
+    err = {};
     assert_equal(fs::create_hard_link(&target, &link, &err), false); 
 
 #if Windows
@@ -1970,6 +1974,7 @@ define_test(create_hard_link_creates_hard_link)
     fs::path_set(&link,   SANDBOX_DIR "/_hardlink3");
 
     assert_equal(fs::exists(&link), 0); 
+    err = {};
     assert_equal(fs::create_hard_link(&target, &link, &err), false); 
     assert_equal(fs::exists(&link), 0); 
 
@@ -2081,6 +2086,7 @@ define_test(move_moves_files_and_directories)
 #endif
 
     // cannot move file into directory (as in, replace the directorys name)
+    err = {};
     assert_equal(fs::move(dst, src_dir, &err), false); 
 
 #if Windows
@@ -2123,6 +2129,7 @@ define_test(remove_file_removes_file)
     assert_equal(err.error_code, ENOENT);
 #endif
 
+    err = {};
     assert_equal(fs::remove_file(SANDBOX_DIR, &err), false); 
 
 #if Windows
@@ -2164,6 +2171,7 @@ define_test(remove_empty_directory_removes_only_empty_directories)
 #endif
 
     assert_equal(fs::exists(file1), 1); 
+    err = {};
     assert_equal(fs::remove_empty_directory(file1, &err), false); 
     assert_equal(fs::exists(file1), 1); 
 
