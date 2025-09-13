@@ -24,7 +24,7 @@ bool _get_next_item(fs::fs_iterator_detail *detail, error *err)
         int errcode = GetLastError();
 
         if (errcode != ERROR_NO_MORE_FILES)
-            set_error(err, errcode, _windows_error_message(errcode));
+            set_error(err, errcode, windows_error_message(errcode));
         else
             detail->at_end = true;
 

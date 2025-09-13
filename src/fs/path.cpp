@@ -2162,7 +2162,7 @@ bool fs::_copy_file(fs::const_fs_string from, fs::const_fs_string to, fs::copy_f
         else
         {
             // some error other than file not found probably means its inaccessible
-            set_error(err, ec, _windows_error_message(ec));
+            set_error(err, ec, windows_error_message(ec));
             return false;
         }
     }
@@ -2177,7 +2177,7 @@ bool fs::_copy_file(fs::const_fs_string from, fs::const_fs_string to, fs::copy_f
         {
         case fs::copy_file_option::None:
         {
-            set_error(err, ERROR_ALREADY_EXISTS, _windows_error_message(ERROR_ALREADY_EXISTS));
+            set_error(err, ERROR_ALREADY_EXISTS, windows_error_message(ERROR_ALREADY_EXISTS));
             return false;
         }
         case fs::copy_file_option::OverwriteExisting:
@@ -2308,7 +2308,7 @@ bool _copy_single_directory(fs::const_fs_string from, fs::const_fs_string to, fs
 
     if (from_type != fs::filesystem_type::Directory)
     {
-        set_error(err, ERROR_ALREADY_EXISTS, ::_windows_error_message(ERROR_ALREADY_EXISTS));
+        set_error(err, ERROR_ALREADY_EXISTS, ::windows_error_message(ERROR_ALREADY_EXISTS));
         return false;
     }
 
@@ -2446,7 +2446,7 @@ bool fs::_create_directory(fs::const_fs_string pth, fs::permission perms, error 
         return true;
 
     int _errcode = (int)GetLastError();
-    set_error(err, _errcode, ::_windows_error_message(_errcode));
+    set_error(err, _errcode, ::windows_error_message(_errcode));
 
     if (_errcode != ERROR_ALREADY_EXISTS)
         return false;
